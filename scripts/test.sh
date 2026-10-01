@@ -7,3 +7,4 @@ export PYTHONDONTWRITEBYTECODE=1
 
 "$PYTHON" -B -m unittest discover -s "$ROOT/scripts" -p 'test_*.py' -v
 PYTHON="$PYTHON" bash "$ROOT/site/run_tests.sh"
+PYTHON="$PYTHON" bash "$ROOT/platform/run_tests.sh"
