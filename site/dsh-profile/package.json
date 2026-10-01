@@ -1,0 +1,22 @@
+{
+  "name": "swarm-site-profile",
+  "private": true,
+  "dependencies": {
+    "@summersec/dsh-web-auth": "^0.2.0",
+    "dsh-plugin-subscriptions": "^0.9.2",
+    "dsh-share-room": "0.1.1"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@summersec/dsh-web-auth",
+        "dsh-plugin-subscriptions",
+        "swarm-brand",
+        "dsh-share-room"
+      ],
+      "patchReload": "live"
+    }
+  }
+}

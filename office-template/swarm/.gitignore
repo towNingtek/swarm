@@ -1,0 +1,11 @@
+# 密鑰：只放在本機，不進版控
+.swarm/keys/
+hives/*/.keys/
+.env
+.env.*
+*.pem
+*.key
+# 工具快取
+.npm/
+.cache/
+node_modules/

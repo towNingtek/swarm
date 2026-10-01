@@ -1,0 +1,14 @@
+# 這個辦公室的公司清單（格式與經典 swarm 相同）。用 hive-new 新增、hive-remove 移除。
+#
+# 每一筆：
+#   - id: my-shop                # 對應 hives/my-shop/
+#     path: hives/my-shop
+#     enabled: true              # 這間公司的排程總開關；false 時全部不跑
+#     agents:
+#       pm:
+#         model: ""              # 空白＝用站台預設模型
+#         # 排程任務名稱: "cron"（台北時間），任務內容定義在 hives/{id}/project.yaml 的 reports:
+#         # morning_digest: "0 8 * * *"
+#
+# 排程由平台照台北時間自動執行；排程代號要同時寫在 project.yaml 的 reports: 才會跑。
+hives: []

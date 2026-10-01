@@ -1,0 +1,8 @@
+id: swarm
+name: Swarm 辦公室
+version: 4
+description: 多公司（hive）AI 辦公室：pm、rd、reviewer 等角色；本地任務與開辦清單、GitHub／Discord 接入（使用者自己放金鑰）、新手指南。
+# 放入時會在工作區根目錄 git init，讓子資料夾也載入 AGENTS.md 與 .dsh/skills。
+git_init: true
+dirs:
+  - hives

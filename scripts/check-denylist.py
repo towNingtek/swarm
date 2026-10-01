@@ -34,7 +34,8 @@ SALT = "towningtek-swarm-denylist-v1:"
 TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9]|[A-Za-z0-9]")
 
 GENERIC = [
-    ("absolute home path", re.compile(r"/home/[a-z_][a-z0-9_-]*/")),
+    # /home/dsh/ is the fixed user inside the site container, not a person.
+    ("absolute home path", re.compile(r"/home/(?!dsh/)[a-z_][a-z0-9_-]*/")),
     ("private key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
     ("Discord webhook", re.compile(r"discord(?:app)?\.com/api/webhooks/\d+/[\w-]{20,}")),
     ("17-20 digit ID", re.compile(r"(?<![\w.])\d{17,20}(?![\w.])")),

@@ -1,0 +1,4 @@
+# dsh 站台 web profile 的 cordis 入口。
+# cordis.yml 是 bundle 組合點；真正的 plugin 載入與 auth 設定由 cordis.patch.yml 注入。
+# 這裡保持空 entry list，bundle + patch 會補齊。
+[]

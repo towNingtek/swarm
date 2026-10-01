@@ -36,6 +36,7 @@ class DenylistTest(unittest.TestCase):
         self.assertTrue(self.scan("-----BEGIN OPENSSH PRIVATE KEY-----"))
         self.assertTrue(self.scan("channel 123456789012345678"))
         self.assertEqual(self.scan("version 1.2.3 port 8080 /home/ alone"), [])
+        self.assertEqual(self.scan("-v data:/home/dsh/workspace"), [])
 
     def test_public_allow_is_exact(self):
         allow = ["https://github.com/mallory/public-plugin"]

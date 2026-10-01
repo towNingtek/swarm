@@ -1,0 +1,33 @@
+# dsh 站台 web profile 的 profile 層 patch。
+# @summersec/dsh-web-auth 作為 bundle 載入時，自帶 cordis.patch.yml 會 disable stock
+# webserver 並 insert webserver-auth；這裡「同 id restate config」覆寫站台專屬設定
+# （密碼、session、trustProxy）。背後是 nginx，client IP 經 X-Forwarded-For 抵達，
+# 所以 trustProxy 必須開，否則每次登入都被當成 127.0.0.1。secureCookie=auto 因上游 https
+# 而封 Secure cookie。
+- id: webserver-auth
+  name: '@summersec/dsh-web-auth'
+  config:
+    host: !!js ctx.webStartup.host ?? '127.0.0.1'
+    port: !!js ctx.webStartup.port ?? 3081
+    authMode: !!js process.env.WEB_AUTH_MODE ?? 'always'
+    username: !!js process.env.WEB_AUTH_USERNAME ?? 'admin'
+    password: !!js process.env.WEB_AUTH_PASSWORD
+    passwordHash: !!js process.env.WEB_AUTH_PASSWORD_HASH
+    entrySecret: !!js process.env.WEB_AUTH_ENTRY_SECRET ?? ''
+    sessionTtlMinutes: 720
+    maxAttempts: 5
+    attemptWindowSeconds: 300
+    secureCookie: auto
+    trustProxy: true
+    # 只有對話分享的訪客頁（/share/…）不經登入；外掛自己驗證訪客。其他路徑照舊要登入。
+    publicPrefixes: ['/share']
+
+# 站台預設語系。不設定時 client 依 navigator.language 推斷。
+# 客戶站台預設繁體中文（zh-TW，由 swarm-brand 提供，退回 DSH 的 zh），
+# 仍可在 設定 → 通用設定 切換成 English／中文。
+# 注意：非 loopback 頁面的選擇只存在於該 process，不會寫回 profile，所以預設值
+# 必須由這裡提供，不能靠使用者設定一次就長期生效。
+- id: locale
+  name: '@deepseek-ai/dsh-client-locale'
+  config:
+    preference: !!js process.env.DSH_DEFAULT_LOCALE ?? 'zh-TW'

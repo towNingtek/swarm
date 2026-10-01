@@ -1,0 +1,40 @@
+# Swarm de-branding bundle (self-activating when listed in the profile bundles).
+#
+# 1. Brand: the official whale/wordmark occupants are replaced by ours.
+# 2. The DeepSeek account sign-in and the DeepSeek API-key / account model
+#    providers are removed, with the DeepSeek-hosted web search that depends on
+#    the same account. Sites use the platform starter model or the customer's
+#    own provider (Settings -> Models).
+# 3. The upstream "internal testing" notice is acknowledged for this version.
+#    WELCOME_NOTICE_VERSION is compiled into dsh-client-ui-settings-models; if
+#    an upgrade bumps it the notice reappears once, and this value must follow.
+- id: ui-brand-official
+  name: '@deepseek-ai/dsh-client-ui-brand-official'
+  disabled: true
+- insert:
+    - id: swarm-brand
+      name: 'swarm-brand'
+
+- id: deepseek-account
+  name: '@deepseek-ai/dsh-deepseek-account-platform'
+  disabled: true
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+  disabled: true
+- id: llm-deepseek-account
+  name: '@deepseek-ai/dsh-llm-deepseek-account'
+  disabled: true
+- id: account-controller
+  name: '@deepseek-ai/dsh-api-account-controller'
+  disabled: true
+- id: ui-settings-account
+  name: '@deepseek-ai/dsh-client-ui-settings-account'
+  disabled: true
+- id: web-search-deepseek
+  name: '@deepseek-ai/dsh-web-search-deepseek'
+  disabled: true
+
+- id: ui-settings-general
+  name: '@deepseek-ai/dsh-client-ui-settings-general'
+  config:
+    welcomeNoticeVersion: 2026-08-13.1

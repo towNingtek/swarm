@@ -6,3 +6,4 @@ PYTHON="${PYTHON:-python3}"
 export PYTHONDONTWRITEBYTECODE=1
 
 "$PYTHON" -B -m unittest discover -s "$ROOT/scripts" -p 'test_*.py' -v
+PYTHON="$PYTHON" bash "$ROOT/site/run_tests.sh"

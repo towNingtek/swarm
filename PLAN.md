@@ -1,6 +1,6 @@
 # Swarm 開源計畫
 
-> 狀態：**P1 骨架**（2026-10-01）。程式碼還沒搬進來。
+> 狀態：**P2 搬遷中**（2026-10-01）。第一批 `site/`、`plugins/`、`office-template/` 已搬入；下一批 `platform/`。
 
 ## 1. 目標
 
@@ -41,8 +41,8 @@ test/  e2e/       單元測試、拋棄式容器上的端對端測試
 | 階段 | 內容 | 狀態 |
 |---|---|---|
 | P0 | 盤點：每個檔案要搬、改還是不搬 | ✅ |
-| P1 | 骨架：README、LICENSE、SECURITY、CI、洩漏檢查 | 進行中 |
-| P2 | 分批搬遷：`site/common` → `site/` → `platform/` → `office-template/` → `deploy/` | |
+| P1 | 骨架：README、LICENSE、SECURITY、CI、洩漏檢查 | ✅ |
+| P2 | 分批搬遷：`site/` ✅、`office-template/` ✅ → `platform/` → `deploy/` | 進行中 |
 | P3 | 自架驗證：在拋棄式容器裡照 README 從零架起來 | |
 | P4 | 對抗式安全審查 | |
 | P5 | 三語 README、架構圖、demo | |
