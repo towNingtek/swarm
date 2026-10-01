@@ -2,6 +2,7 @@
 import io
 import json
 import socket
+import ssl
 import unittest
 from email.message import Message
 from unittest.mock import patch
@@ -343,9 +344,14 @@ class AuthProbeTests(unittest.TestCase):
         transport = dsh._DshHTTPTransport()
         handler = next(item for item in transport.opener.handlers
                        if isinstance(item, urllib.request.HTTPSHandler))
-        # None delegates to HTTPSConnection's default verified TLS context.
-        self.assertIsNone(handler._context)
-        self.assertIsNone(handler._check_hostname)
+        # Python < 3.12 keeps None (HTTPSConnection then builds the default
+        # verified context); 3.12+ builds that default context up front.
+        # Either way certificates and host names must be verified.
+        context = handler._context
+        if context is not None:
+            self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+            self.assertTrue(context.check_hostname)
+        self.assertIn(getattr(handler, "_check_hostname", None), (None, True))
 
     def test_create_probe_uses_public_origin(self):
         # Inspect only call wiring without running create, allocation or any

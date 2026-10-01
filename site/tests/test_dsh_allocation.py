@@ -109,7 +109,7 @@ class AllocationTests(unittest.TestCase):
             lock = self.root.parent / ".sites.dsh-create.lock"
             inode = lock.stat().st_ino
             self.assertEqual(stat.S_IMODE(lock.stat().st_mode), 0o600)
-            child = subprocess.Popen([sys.executable, "-B", "-c", code, str(self.root)], cwd=Path(__file__).parent, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            child = subprocess.Popen([sys.executable, "-B", "-c", code, str(self.root)], cwd=Path(__file__).resolve().parents[1], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             self.addCleanup(lambda: child.kill() if child.poll() is None else None)
             self.assertEqual(child.stdout.readline().strip(), "ready")
             with self.assertRaises(subprocess.TimeoutExpired):
