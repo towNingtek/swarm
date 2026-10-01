@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# Secrets and local deployment settings: never commit
+*.token
+*.pem
+*.key
+*.env
+!*.env.example
+.keys/
+keys/
+secrets/
+
+# Local state
+*.log
+*.sqlite
+*.db
+.DS_Store

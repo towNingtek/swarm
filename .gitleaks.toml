@@ -1,0 +1,17 @@
+title = "towNingtek/swarm"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "litellm-or-openai-style-key"
+description = "sk- style API key"
+regex = '''\bsk-[A-Za-z0-9_-]{20,}\b'''
+keywords = ["sk-"]
+
+[allowlist]
+description = "Obvious test placeholders"
+regexes = [
+  '''sk-(test|fake|example|abcd)[A-Za-z0-9_-]*''',
+  '''github_pat_(test|fake|example)[A-Za-z0-9_]*''',
+]

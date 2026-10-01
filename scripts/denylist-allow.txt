@@ -1,0 +1,2 @@
+# Exact public strings that may contain a denylisted word.
+https://github.com/yillkid/dsh-share-room
