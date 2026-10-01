@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `docs/`: architecture, security model, HTTP API, ADR-001 (one agent per company), contract format, shared-session proposal, issue acceptance guide.
+- Fix: scheduled office runs used a hard-coded container prefix and missed sites built with `SWARM_CONTAINER_PREFIX`; they now use the site engine's container name.
 - `deploy/`: install on one host with systemd. Settings in `/etc/swarm/platform.env`, one file per secret in `/etc/swarm/secrets/`, a dedicated `swarm` user, the site firewall and the nginx watcher. The watcher now keeps ownership records outside the staging directory, refuses links and oversized files; tests run both against real nginx and iptables in throwaway containers.
 - `platform/`: the platform site (customer invites and login, copilot, support rooms, single-use entry into sites), the `/admin` console and the site model relay, moved from the private deployment. Deployment names and domains are gone from code and tests; the old opencode hub is not included.
 - `site/`: the DSH site engine, moved from the private deployment. The deployment's own values (domain, paths, network, container names) became settings; Cloudflare DNS is now optional; the old opencode engine is gone.

@@ -27,6 +27,8 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import _site_path  # noqa: F401  (puts site/ on sys.path)
+import common as sitectl
 from support_site_office import OfficeError, _ID, read_office
 
 TZ = ZoneInfo('Asia/Taipei')
@@ -276,7 +278,7 @@ class SiteScheduler:
             return False, '站台名稱不正確'
         try:
             done = subprocess.run(
-                ['docker', 'exec', '-i', '-w', WORKSPACE, 'oc-' + site,
+                ['docker', 'exec', '-i', '-w', WORKSPACE, sitectl.container_name(site),
                  'timeout', str(RUN_TIMEOUT), 'dsh', '--profile', 'headless',
                  '--patch', PROFILE_PATCH, '-'],
                 input=prompt, capture_output=True, text=True, timeout=RUN_TIMEOUT + 60)

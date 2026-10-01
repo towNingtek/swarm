@@ -4,14 +4,27 @@
 
 一套可以自己架設的 AI 無人辦公室。平台採邀請制開站，每位客戶拿到一個隔離的 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 站台，裡面已經有 AI 員工、排程和金鑰管理等辦公室範本。
 
-> **狀態：施工中。** 程式碼正從私有部署搬過來，目前還不能安裝。進度見 [PLAN.md](PLAN.md)。
+> **狀態：尚未正式發布。** 程式碼都已搬進來，但還沒從零完整驗證過安裝流程。進度見 [PLAN.md](PLAN.md)。
 
-## 會包含什麼
+## 包含什麼
 
 - **平台**：邀請制開站、帳號、模型額度與計量、金鑰管理、通知、管理後台。
 - **站台**：每位客戶一個 DSH 容器，含外觀、登入、網路隔離和模型 relay。平台不會把自己的模型金鑰放進站台。
 - **辦公室範本**：公司（hive）、AI 員工角色、排程、任務庫、兩層金鑰，新站台一開就有。
 - **外掛**：DSH 外掛，例如把對話分享給訪客的 [dsh-share-room](https://github.com/yillkid/dsh-share-room)。
+
+## 目錄
+
+| 路徑 | 內容 |
+|---|---|
+| [`platform/`](platform/) | 平台站、管理後台、站台模型 relay |
+| [`site/`](site/) | 建站引擎與 DSH 站台 image |
+| [`office-template/`](office-template/) | 新站台一開就有的辦公室 |
+| [`plugins/`](plugins/) | 放在本 repo 的 DSH 外掛 |
+| [`deploy/`](deploy/) | 用 systemd、Docker、nginx 在一台主機上安裝 |
+| [`docs/`](docs/) | 架構、安全模型、HTTP API、設計紀錄（英文） |
+
+測試：`bash scripts/test.sh`（Python 3.10 以上、Node 22）。
 
 ## 名稱
 
