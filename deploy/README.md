@@ -51,7 +51,19 @@ sudo deploy/install.sh --start
 
 Then open `https://<platform>/admin` and sign in with the password from `/etc/swarm/secrets/admin-password`.
 
+Requirements: Ubuntu 22.04 or similar, Docker 24+, nginx, Python 3.10+, about 2 GB of disk for the site image plus room for sites. TLS must end in front of nginx (certbot, a load balancer or a tunnel); the session cookies are `Secure`, so plain HTTP logins do not work.
+
+## First customer
+
+In the admin console: create a tenant with its host (`acme.<domain>`), set a quota, queue the site build and copy the invite link. The customer opens the link, picks a username and password, and the onboarding page shows the build. When it reads *ready*, **Open my site** hands them into their site without a second password.
+
+Behind the scenes the build takes about a minute: container, nginx config through the watcher, DNS (if Cloudflare is set), the starter model key and the office template. Deleting the tenant in the console removes all of them.
+
 DNS: point `platform.<domain>` and `*.<domain>` at the host (or a tunnel in front of it). If you set `CLOUDFLARE_ZONE_ID` and `secrets/cloudflare-token`, the platform creates each site's record itself.
+
+## Logs
+
+`journalctl -u swarm-platform -u swarm-platform-admin -u swarm-site-relay`. HTTP access logs are off on purpose: invite links carry their token in the URL.
 
 ## Security notes
 
@@ -66,4 +78,5 @@ DNS: point `platform.<domain>` and `*.<domain>` at the host (or a tunnel in fron
 bash deploy/tests/test_swarm_run.sh      # no docker needed
 bash deploy/tests/test_nginx_apply.sh    # docker
 bash deploy/tests/test_firewall.sh       # docker, NET_ADMIN inside the container only
+bash deploy/tests/clean-install/run.sh   # docker --privileged, ~10 min: this whole page on a fresh host
 ```

@@ -37,6 +37,11 @@ fi
 chown root:swarm /etc/swarm/secrets/* && chmod 0640 /etc/swarm/secrets/*
 [ -s /etc/swarm/secrets/model-key ] || echo "missing: /etc/swarm/secrets/model-key (your model gateway key)"
 
+# Shared nginx map used by every site config (site/templates/nginx-site.conf.tmpl).
+# The watcher only accepts swarm-site-*.conf, so it is installed here.
+install -m 0644 "$REPO/site/templates/nginx-common.conf" /etc/nginx/conf.d/00-swarm-common.conf
+nginx -t >/dev/null 2>&1 && systemctl reload nginx || echo "warning: nginx -t failed; check /etc/nginx" >&2
+
 for unit in "$REPO"/deploy/systemd/*.service "$REPO"/deploy/systemd/*.path; do
   install -m 0644 "$unit" /etc/systemd/system/
 done

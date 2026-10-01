@@ -51,6 +51,13 @@ case "$SERVICE" in
   *) echo "unknown service: $SERVICE" >&2; exit 2 ;;
 esac
 
+# The platform creates the database; the admin console and the relay open it.
+# On a first boot they may start first, so wait for it instead of failing.
+if [ "$CHECK" = 0 ] && [ "$SERVICE" != platform ]; then
+  for _ in $(seq "${SWARM_DB_WAIT:-60}"); do [ -e "$PLATFORM_DB" ] && break; sleep 1; done
+  [ -e "$PLATFORM_DB" ] || { echo "no database at $PLATFORM_DB: is swarm-platform running?" >&2; exit 1; }
+fi
+
 if [ "$CHECK" = 1 ]; then
   env | grep -E '^(PLATFORM|ADMIN|SWARM|CLOUDFLARE|SITE_MODEL)_[A-Z_]*=' | cut -d= -f1 | sort | tr '\n' ' '; echo
   echo "exec: ${CMD[*]} (cwd $HOME_DIR/platform)"; exit 0

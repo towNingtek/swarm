@@ -1,8 +1,10 @@
 [Unit]
 Description=Swarm admin console (127.0.0.1:8211)
-After=network-online.target docker.service
+After=network-online.target docker.service swarm-platform.service
 Wants=network-online.target
 Requires=docker.service
+# The platform creates the database the console opens.
+Wants=swarm-platform.service
 
 [Service]
 User=swarm

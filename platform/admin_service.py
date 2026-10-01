@@ -211,8 +211,10 @@ def main():
     import uvicorn
 
     app = build()
+    # No access log: the console's responses and links carry invite tokens.
     uvicorn.run(app, host='127.0.0.1', port=int(os.environ.get('ADMIN_PORT', '8211')),
-                reload=False, proxy_headers=False, server_header=False, date_header=False)
+                reload=False, access_log=False, proxy_headers=False, server_header=False,
+                date_header=False)
 
 
 if __name__ == '__main__':

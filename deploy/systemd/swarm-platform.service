@@ -1,6 +1,6 @@
 [Unit]
 Description=Swarm platform (127.0.0.1:8210)
-After=network-online.target docker.service swarm-site-relay.service
+After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
 

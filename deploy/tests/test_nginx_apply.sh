@@ -9,7 +9,7 @@ IMAGE="${NGINX_TEST_IMAGE:-nginx:1.27}"
 
 docker run --rm -i -v "$REPO:/repo:ro" "$IMAGE" bash -s <<'IN_CONTAINER'
 set -euo pipefail
-apt-get update -qq >/dev/null && apt-get install -y -qq python3 >/dev/null
+apt-get update -qq >/dev/null && apt-get install -y -qq python3 python3-yaml >/dev/null
 # The watcher calls "systemctl reload nginx"; here nginx runs directly.
 printf '#!/bin/sh\nexec nginx -s reload\n' > /usr/local/bin/systemctl && chmod +x /usr/local/bin/systemctl
 nginx -g "error_log /dev/null crit;"
@@ -63,8 +63,17 @@ ok "a symlink in staging is rejected"
 for bad in "hub-x.conf" "swarm-site-UP.conf" "swarm-site-a.b.conf" "swarm-site--x-.conf"; do
   echo "$SITE" > "$STAGE/$bad"
 done; sleep 1.5
-ls "$CONF" | grep -q -v -E '^(default|swarm-site-(a|foreign))\.conf$' && fail "bad name applied"
+ls "$CONF" | grep -q -v -E '^(default|00-swarm-common|swarm-site-(a|foreign|real))\.conf$' && fail "bad name applied"
 ok "malformed names are rejected"
+
+# The real site template needs the shared map that install.sh installs.
+REAL="import common, nginx_staging as n; n.apply_config('real', common.render_site_conf('real', 18001), timeout=10)"
+if SWARM_DOMAIN=example.com py "$REAL" 2>/dev/null; then fail "real template applied without the shared map"; fi
+install -m 0644 /repo/site/templates/nginx-common.conf "$CONF/00-swarm-common.conf"
+SWARM_DOMAIN=example.com py "$REAL"
+[ -f "$CONF/swarm-site-real.conf" ] || fail "real template"
+grep -q -F '00-swarm-common.conf' /repo/deploy/install.sh || fail "install.sh does not install the shared map"
+ok "the real site template applies once install.sh's shared map is in place"
 
 py "import nginx_staging as n; n.remove_config('a', timeout=10)"
 [ ! -e "$CONF/swarm-site-a.conf" ] && [ ! -e /tmp/owned/swarm-site-a.conf ] || fail "remove"

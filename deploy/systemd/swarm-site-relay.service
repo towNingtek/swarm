@@ -1,8 +1,10 @@
 [Unit]
 Description=Swarm site model relay (Docker bridge :8212)
-After=network-online.target docker.service
+After=network-online.target docker.service swarm-platform.service
 Wants=network-online.target
 Requires=docker.service
+# The platform creates the database the relay opens.
+Wants=swarm-platform.service
 
 [Service]
 User=swarm

@@ -241,7 +241,8 @@ def main():
         threading.Thread(target=loop, args=(app.state.site_scheduler, stop), daemon=True).start()
     try:
         # Loopback only: TLS and the public authority are terminated by nginx.
-        uvicorn.run(app, host='127.0.0.1', port=port, reload=False,
+        # No access log: invite links carry a bearer token in the query string.
+        uvicorn.run(app, host='127.0.0.1', port=port, reload=False, access_log=False,
                     proxy_headers=False, server_header=False, date_header=False)
     finally:
         stop.set()

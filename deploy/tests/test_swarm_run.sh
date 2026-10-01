@@ -34,4 +34,15 @@ ok "the relay only gets the model key"
 
 grep -q 'ADMIN_PASSWORD' <<<"$(bash "$RUN" --check admin)" || fail "admin password"
 ok "admin gets the admin password"
+# Admin and relay wait for the platform's database instead of failing.
+cat >> "$T/env" <<ENV
+SWARM_PYTHON=/bin/true
+ENV
+start=$(date +%s)
+if SWARM_DB_WAIT=2 bash "$RUN" admin 2>"$T/err"; then fail "admin started without a database"; fi
+grep -q "is swarm-platform running" "$T/err" || fail "unclear missing-database message"
+[ $(( $(date +%s) - start )) -ge 2 ] || fail "did not wait for the database"
+mkdir -p "$T/state" && : > "$T/state/platform.sqlite"
+SWARM_DB_WAIT=2 bash "$RUN" relay || fail "relay did not start once the database exists"
+ok "admin and relay wait for the database, then start"
 echo "swarm-run: $pass checks passed"
