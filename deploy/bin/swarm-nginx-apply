@@ -1,0 +1,82 @@
+#!/bin/bash
+# Apply or remove swarm-site-*.conf staged by the platform (site/nginx_staging.py).
+# Runs as root from swarm-nginx-apply.path. Never trust names, and never touch
+# a config this mechanism did not create.
+set -u
+shopt -s nullglob
+# shellcheck source=swarm-env-get
+. "$(dirname -- "$(readlink -f -- "$0")")/swarm-env-get"
+STAGE="$(env_get SWARM_NGINX_STAGING /var/lib/swarm/nginx-staging)"
+CONF_DIR="${SWARM_NGINX_CONF_DIR:-/etc/nginx/conf.d}"
+[[ "$STAGE" == /* && -d "$STAGE" && ! -L "$STAGE" ]] || { echo "bad staging dir: $STAGE" >&2; exit 1; }
+# Which configs this mechanism created. Root-only, outside the staging
+# directory: the platform user can write there and must not be able to claim
+# ownership of a config.
+OWNED="${SWARM_NGINX_OWNED_DIR:-/var/lib/swarm-nginx-owned}"
+install -d -m 0700 "$OWNED"
+[[ -d "$OWNED" && ! -L "$OWNED" ]] || { echo "bad owned dir: $OWNED" >&2; exit 1; }
+# Must match CONF_PREFIX and _NAME in site/nginx_staging.py.
+valid() { [[ "$1" =~ ^swarm-site-[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.conf$ ]]; }
+copy_nofollow() {  # copy_nofollow SRC DST: regular file, no symlink, <= 64 KiB
+  python3 - "$1" "$2" <<'PY'
+import os, stat, sys
+fd = os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+st = os.fstat(fd)
+if not stat.S_ISREG(st.st_mode) or st.st_size > 65536:
+    sys.exit(1)
+data = os.read(fd, 65537)
+if len(data) > 65536:
+    sys.exit(1)
+with open(sys.argv[2], "wb") as out:
+    out.write(data)
+PY
+}
+
+# 1. Removals: a staged "<name>.conf.remove" marker deletes an OWNED config.
+for marker in "$STAGE"/*.conf.remove; do
+  base="$(basename "$marker" .remove)"
+  if ! valid "$base" || [[ ! -e "$OWNED/$base" ]]; then
+    mv -f "$marker" "$marker.rejected"; continue
+  fi
+  rm -f "$CONF_DIR/$base"
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx
+    rm -f "$OWNED/$base"; rm -f "$marker"
+  else
+    mv -f "$marker" "$marker.failed"
+  fi
+done
+
+# 2. Applies.
+for staged in "$STAGE"/*.conf; do
+  base="$(basename "$staged")"
+  # Only a plain file: a symlink could make root copy any file into nginx.
+  if ! valid "$base" || [[ -L "$staged" || ! -f "$staged" ]]; then
+    mv -f "$staged" "$staged.rejected"; continue
+  fi
+  target="$CONF_DIR/$base"
+  if [[ -e "$target" && ! -e "$OWNED/$base" ]]; then
+    mv -f "$staged" "$staged.rejected"; continue
+  fi
+  backup=""
+  if [[ -e "$target" ]]; then backup="$(mktemp)"; cp -p "$target" "$backup"; fi
+  # Copy without following links (also refuses a symlink swapped in after the
+  # check above) and with a size cap; a site config is a few hundred bytes.
+  tmp="$(mktemp)"
+  if ! copy_nofollow "$staged" "$tmp"; then
+    rm -f "$tmp"; [[ -n "$backup" ]] && rm -f "$backup"
+    mv -f "$staged" "$staged.rejected"; continue
+  fi
+  install -m 644 -o root -g root "$tmp" "$target"; rm -f "$tmp"
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx && touch "$OWNED/$base"
+    mv -f "$staged" "$staged.applied"
+  else
+    # Restore the previous good config instead of leaving the site down.
+    if [[ -n "$backup" ]]; then install -m 644 -o root -g root "$backup" "$target"
+    else rm -f "$target"; fi
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx
+    mv -f "$staged" "$staged.failed"
+  fi
+  [[ -n "$backup" ]] && rm -f "$backup"
+done

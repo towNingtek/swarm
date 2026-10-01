@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch for site nginx configs staged by the Swarm platform
+
+[Path]
+# Keep in sync with SWARM_NGINX_STAGING in /etc/swarm/platform.env.
+PathExistsGlob=/var/lib/swarm/nginx-staging/*.conf
+PathExistsGlob=/var/lib/swarm/nginx-staging/*.conf.remove
+Unit=swarm-nginx-apply.service
+
+[Install]
+WantedBy=multi-user.target

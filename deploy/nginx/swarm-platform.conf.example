@@ -1,0 +1,39 @@
+# nginx for the platform origin. Copy to /etc/nginx/conf.d/swarm-platform.conf,
+# replace platform.example.com, then add TLS (certbot, or a TLS-terminating
+# proxy/tunnel in front). Site configs are written by the platform itself.
+map $http_upgrade $swarm_platform_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name platform.example.com;
+
+    client_max_body_size 64m;
+
+    location /admin {
+        proxy_pass http://127.0.0.1:8211;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_read_timeout 300s;
+        proxy_buffering off;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8210;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $swarm_platform_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+}

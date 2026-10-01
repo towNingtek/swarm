@@ -42,3 +42,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build the site image
         run: docker build -f site/Dockerfile -t swarm-site:ci .
+
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -x -S warning deploy/install.sh deploy/bin/* deploy/tests/*.sh scripts/test.sh site/run_tests.sh platform/run_tests.sh
+      - name: nginx staging protocol
+        run: bash deploy/tests/test_nginx_apply.sh
+      - name: site firewall
+        run: bash deploy/tests/test_firewall.sh

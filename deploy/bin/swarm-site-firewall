@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Host firewall for customer sites on the isolated Docker network.
+#   sudo swarm-site-firewall          apply (idempotent; safe to re-run)
+#   sudo swarm-site-firewall --remove remove every rule this script added
+#
+# A site's AI may run any command in its container. The container can:
+#   - reach the internet (GitHub, Discord, package registries, ...), and
+#   - reach the model relay on the host (SWARM_MODEL_RELAY, default 172.17.0.1:8212).
+# It can NOT reach:
+#   - any other host port (ssh, the model gateway, databases, the platform, ...),
+#   - other containers or bridges, the VPC, Tailscale, link-local,
+#   - the cloud metadata service 169.254.169.254 (service-account credentials).
+# Nothing outside the site network may open new connections into it.
+#
+# Only this subnet is affected; other containers and host traffic are untouched.
+# Rules live in two own chains (SWARM-SITES-IN, SWARM-SITES-FWD) so re-running
+# replaces them atomically-enough and --remove leaves no trace.
+set -euo pipefail
+[ "$(id -u)" = 0 ] || { echo "run with sudo" >&2; exit 1; }
+
+# Settings come from /etc/swarm/platform.env (read, never executed).
+# shellcheck source=swarm-env-get
+. "$(dirname -- "$(readlink -f -- "$0")")/swarm-env-get"
+BRIDGE="$(env_get SWARM_SITE_BRIDGE br-swarm-sites)"
+SUBNET="$(env_get SWARM_SITE_SUBNET 172.29.10.0/24)"
+RELAY="$(env_get SWARM_MODEL_RELAY 172.17.0.1:8212)"
+RELAY_IP="${RELAY%:*}"
+RELAY_PORT="${RELAY##*:}"
+IPT="${SWARM_IPTABLES:-iptables}"   # must be the same binary Docker uses
+[[ "$BRIDGE" =~ ^[a-zA-Z0-9_.-]{1,15}$ ]] || { echo "bad SWARM_SITE_BRIDGE" >&2; exit 1; }
+[[ "$RELAY_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ && "$RELAY_PORT" =~ ^[0-9]{1,5}$ ]] \
+  || { echo "bad SWARM_MODEL_RELAY (want ip:port)" >&2; exit 1; }
+
+jump() {  # jump <builtin/parent chain> <own chain> <match...>
+  local parent=$1 chain=$2; shift 2
+  $IPT -C "$parent" "$@" -j "$chain" 2>/dev/null || $IPT -I "$parent" 1 "$@" -j "$chain"
+}
+unjump() {
+  local parent=$1 chain=$2; shift 2
+  while $IPT -C "$parent" "$@" -j "$chain" 2>/dev/null; do $IPT -D "$parent" "$@" -j "$chain"; done
+}
+
+if [ "${1:-}" = "--remove" ]; then
+  unjump INPUT SWARM-SITES-IN -i "$BRIDGE"
+  unjump DOCKER-USER SWARM-SITES-FWD -i "$BRIDGE"
+  unjump DOCKER-USER SWARM-SITES-FWD -o "$BRIDGE"
+  for c in SWARM-SITES-IN SWARM-SITES-FWD; do $IPT -F "$c" 2>/dev/null || true; $IPT -X "$c" 2>/dev/null || true; done
+  echo "removed"; exit 0
+fi
+
+$IPT -N SWARM-SITES-IN 2>/dev/null || $IPT -F SWARM-SITES-IN
+$IPT -N SWARM-SITES-FWD 2>/dev/null || $IPT -F SWARM-SITES-FWD
+$IPT -N DOCKER-USER 2>/dev/null || true
+
+# Traffic from a site to the host itself (any host IP: bridge gateways, VPC IP).
+$IPT -A SWARM-SITES-IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+$IPT -A SWARM-SITES-IN -p tcp -d "$RELAY_IP" --dport "$RELAY_PORT" -j ACCEPT
+$IPT -A SWARM-SITES-IN -j DROP
+
+# Forwarded traffic (to other networks and the internet).
+$IPT -A SWARM-SITES-FWD -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+# Nothing from outside may open a connection into a site.
+$IPT -A SWARM-SITES-FWD ! -i "$BRIDGE" -o "$BRIDGE" -j DROP
+for net in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10 \
+           127.0.0.0/8 0.0.0.0/8 224.0.0.0/4 240.0.0.0/4; do
+  $IPT -A SWARM-SITES-FWD -i "$BRIDGE" -d "$net" -j DROP
+done
+$IPT -A SWARM-SITES-FWD -j RETURN
+
+jump INPUT SWARM-SITES-IN -i "$BRIDGE"
+jump DOCKER-USER SWARM-SITES-FWD -o "$BRIDGE"
+jump DOCKER-USER SWARM-SITES-FWD -i "$BRIDGE"
+
+echo "applied ($IPT) for $SUBNET on $BRIDGE:"
+$IPT -S SWARM-SITES-IN; $IPT -S SWARM-SITES-FWD

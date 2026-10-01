@@ -1,0 +1,16 @@
+# shellcheck shell=bash
+# Sourced by the root-owned helpers. Reads ONE key from the settings file
+# without executing it:  env_get KEY default
+# The file is plain KEY=value; quotes and trailing "# comments" are stripped.
+env_get() {
+  local key=$1 def=$2 file="${SWARM_ENV:-/etc/swarm/platform.env}" line val
+  if [ -r "$file" ]; then
+    line="$(grep -E "^[[:space:]]*${key}=" "$file" | tail -n 1 || true)"
+    if [ -n "$line" ]; then
+      val="${line#*=}"; val="${val%%#*}"
+      val="$(printf '%s' "$val" | sed -e 's/[[:space:]]*$//' -e 's/^[[:space:]]*//' -e "s/^['\"]//" -e "s/['\"]\$//")"
+      [ -n "$val" ] && { printf '%s' "$val"; return; }
+    fi
+  fi
+  printf '%s' "$def"
+}

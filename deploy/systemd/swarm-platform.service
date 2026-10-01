@@ -1,0 +1,19 @@
+[Unit]
+Description=Swarm platform (127.0.0.1:8210)
+After=network-online.target docker.service swarm-site-relay.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+User=swarm
+Group=swarm
+ExecStart=/opt/swarm/deploy/bin/swarm-run platform
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

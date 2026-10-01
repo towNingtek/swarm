@@ -1,0 +1,19 @@
+[Unit]
+Description=Swarm site model relay (Docker bridge :8212)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+User=swarm
+Group=swarm
+ExecStart=/opt/swarm/deploy/bin/swarm-run relay
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

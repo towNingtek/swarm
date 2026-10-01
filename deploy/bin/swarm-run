@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Start one Swarm service with its settings and only the secrets it needs.
+#   swarm-run platform|admin|relay           exec the service
+#   swarm-run --check platform|admin|relay   print the variable NAMES it would set
+#
+# Settings: $SWARM_ENV (default /etc/swarm/platform.env), plain KEY=value.
+# Secrets: one file each in $SWARM_SECRETS_DIR, read at start. They never go
+# into unit files, the journal or the command line.
+set -euo pipefail
+CHECK=0; [ "${1:-}" = "--check" ] && { CHECK=1; shift; }
+SERVICE="${1:?usage: swarm-run [--check] platform|admin|relay}"
+ENV_FILE="${SWARM_ENV:-/etc/swarm/platform.env}"
+[ -r "$ENV_FILE" ] || { echo "cannot read $ENV_FILE (copy deploy/platform.env.example)" >&2; exit 1; }
+
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+set +a
+
+HOME_DIR="${SWARM_HOME:-/opt/swarm}"
+PY="${SWARM_PYTHON:-$HOME_DIR/.venv/bin/python}"
+SECRETS="${SWARM_SECRETS_DIR:-/etc/swarm/secrets}"
+export PLATFORM_DB="${PLATFORM_DB:-${SWARM_STATE:-/var/lib/swarm/platform}/platform.sqlite}"
+
+secret() {      # secret VAR file       required
+  local f="$SECRETS/$2"
+  [ -s "$f" ] || { echo "missing secret file: $f" >&2; exit 1; }
+  export "$1=$(cat "$f")"
+}
+maybe_secret() { # maybe_secret VAR file  optional
+  local f="$SECRETS/$2"
+  if [ -s "$f" ]; then export "$1=$(cat "$f")"; fi
+}
+
+case "$SERVICE" in
+  platform)
+    secret SWARM_ENTRY_SECRET entry-secret
+    secret PLATFORM_MODEL_KEY model-key
+    maybe_secret CLOUDFLARE_API_TOKEN cloudflare-token
+    maybe_secret PLATFORM_NOTIFY_DISCORD_TOKEN discord-token
+    CMD=("$PY" -B -m platform_service) ;;
+  admin)
+    secret SWARM_ENTRY_SECRET entry-secret
+    secret PLATFORM_MODEL_KEY model-key
+    secret ADMIN_PASSWORD admin-password
+    maybe_secret CLOUDFLARE_API_TOKEN cloudflare-token
+    CMD=("$PY" -B -m admin_service) ;;
+  relay)
+    secret PLATFORM_MODEL_KEY model-key
+    CMD=("$PY" -B site_model_relay.py) ;;
+  *) echo "unknown service: $SERVICE" >&2; exit 2 ;;
+esac
+
+if [ "$CHECK" = 1 ]; then
+  env | grep -E '^(PLATFORM|ADMIN|SWARM|CLOUDFLARE|SITE_MODEL)_[A-Z_]*=' | cut -d= -f1 | sort | tr '\n' ' '; echo
+  echo "exec: ${CMD[*]} (cwd $HOME_DIR/platform)"; exit 0
+fi
+cd "$HOME_DIR/platform"
+exec "${CMD[@]}"

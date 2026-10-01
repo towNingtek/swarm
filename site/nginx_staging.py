@@ -2,7 +2,7 @@
 
 This provisioner runs in an environment where setuid is disabled, so `sudo`
 cannot obtain root at all. Instead a root systemd path unit
-(`swarm-nginx-apply.path` → `/usr/local/sbin/swarm-nginx-apply`) watches
+(`swarm-nginx-apply.path` → `deploy/bin/swarm-nginx-apply`) watches
 `$SWARM_NGINX_STAGING` and applies only well-formed `swarm-site-<name>.conf`
 files, refusing to overwrite or delete configs it does not own.
 
@@ -20,9 +20,9 @@ import time
 from pathlib import Path
 
 STAGING_DIR = Path(os.environ.get("SWARM_NGINX_STAGING", "/var/lib/swarm/nginx-staging"))
-# File name prefix; must match deploy/nginx-apply/swarm-nginx-apply.
+# File name prefix; must match deploy/bin/swarm-nginx-apply.
 CONF_PREFIX = "swarm-site-"
-# Must stay in sync with the allowlist in /usr/local/sbin/swarm-nginx-apply.
+# Must stay in sync with valid() in deploy/bin/swarm-nginx-apply.
 _NAME = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 DEFAULT_TIMEOUT = 60.0
 

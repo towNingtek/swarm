@@ -1,0 +1,6 @@
+[Unit]
+Description=Apply site nginx configs staged by the Swarm platform
+
+[Service]
+Type=oneshot
+ExecStart=/opt/swarm/deploy/bin/swarm-nginx-apply

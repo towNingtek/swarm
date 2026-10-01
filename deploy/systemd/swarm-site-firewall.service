@@ -1,0 +1,17 @@
+[Unit]
+Description=Firewall for isolated Swarm sites
+# Loaded BEFORE Docker, so sites restarted at boot never run without it.
+# Docker keeps an existing DOCKER-USER chain and jumps to it first.
+DefaultDependencies=no
+After=network-pre.target
+Before=docker.service network-online.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/swarm/deploy/bin/swarm-site-firewall
+ExecStop=/opt/swarm/deploy/bin/swarm-site-firewall --remove
+
+[Install]
+WantedBy=multi-user.target docker.service
