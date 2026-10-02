@@ -1,6 +1,6 @@
 # Swarm 開源計畫
 
-> 狀態：**P4 完成**（2026-10-02）。對抗式安全審查的發現都已修正並補測試；clean-install 重跑通過。下一步 P5 三語 README 與 demo。
+> 狀態：**P5 完成**（2026-10-02）。三語 README、架構圖、demo 影片與截圖都已完成；錄影時發現的預設工作區問題已修正。下一步 P6 公開 v0.1.0。
 
 ## 1. 目標
 
@@ -45,7 +45,7 @@ test/  e2e/       單元測試、拋棄式容器上的端對端測試
 | P2 | 分批搬遷：`site/` ✅、`office-template/` ✅、`platform/` ✅、`deploy/` ✅、`docs/` ✅ | 完成 |
 | P3 | 自架驗證：在拋棄式容器裡照 README 從零架起來 | 完成：找到並修好 4 個問題 |
 | P4 | 對抗式安全審查 | 完成：1 high、多個 medium/low，全部有失敗→通過的測試 |
-| P5 | 三語 README、架構圖、demo | |
+| P5 | 三語 README、架構圖、demo | 完成：en / zh-TW / zh-CN、Mermaid 架構圖、demo 影片＋GIF＋截圖；`demo/` 可重錄 |
 | P6 | 公開，發布 v0.1.0 | |
 
 ## 5. 已決定

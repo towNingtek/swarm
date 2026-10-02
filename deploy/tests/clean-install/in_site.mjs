@@ -2,6 +2,7 @@
 // AI in a site can reach. Prints facts, never the key.
 import fs from 'node:fs'
 import net from 'node:net'
+import { execFileSync } from 'node:child_process'
 
 const fail = (m) => { console.log('BAD ' + m); process.exitCode = 1 }
 const ok = (m) => console.log('ok  ' + m)
@@ -36,3 +37,13 @@ for (const [name, path, opt, want] of cases) {
   const got = await status(path, opt)
   got === want ? ok(`relay refuses ${name} (${got})`) : fail(`relay ${name}: ${got}, want ${want}`)
 }
+
+// First visit: DSH creates its default workspace under the configured
+// Documents directory. It must be the office the template filled in.
+const dflt = '/opt/swarm-documents/deepseek-harness/default-workspace'
+fs.existsSync(dflt) && fs.realpathSync(dflt) === '/home/dsh/workspace'
+  ? ok('the default workspace is the office workspace') : fail('default workspace does not resolve to /home/dsh/workspace')
+const tree = execFileSync('dsh', ['--profile', 'web', '--dump-config'], { encoding: 'utf8', cwd: '/home/dsh' })
+const docsSet = /id: workspace-controller[\s\S]{0,200}documentsDirectory: \/opt\/swarm-documents/.test(tree)
+docsSet
+  ? ok('the site profile sets the Documents directory') : fail('the site profile does not set documentsDirectory')

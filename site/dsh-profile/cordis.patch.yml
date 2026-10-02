@@ -31,3 +31,13 @@
   name: '@deepseek-ai/dsh-client-locale'
   config:
     preference: !!js process.env.DSH_DEFAULT_LOCALE ?? 'zh-TW'
+
+# 第一次進站時 DSH 會建立「預設工作區」：在系統的 Documents 底下建
+# deepseek-harness/default-workspace。容器裡沒有 xdg-user-dir，查不到 Documents，
+# 客戶一進站就看到「無法建立預設工作區」。這裡指定 Documents，映像裡的
+# default-workspace 是指向 /home/dsh/workspace 的 symlink（見 site/Dockerfile），
+# 所以預設工作區就是放著辦公室範本的那個目錄。
+- id: workspace-controller
+  name: '@deepseek-ai/dsh-api-workspace-controller'
+  config:
+    documentsDirectory: /opt/swarm-documents

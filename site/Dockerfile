@@ -61,7 +61,9 @@ RUN git config --system user.name "${GIT_NAME}" \
     && chmod -R a+rX /opt/dsh-web-profile \
     && chown -R dsh:dsh /opt/dsh-web-profile \
     && chmod 755 /usr/local/bin/dsh-relay.mjs \
-    && chmod 644 /usr/local/bin/relay-policy.mjs /usr/local/bin/profile-init.mjs
+    && chmod 644 /usr/local/bin/relay-policy.mjs /usr/local/bin/profile-init.mjs \
+    && mkdir -p /opt/swarm-documents/deepseek-harness \
+    && ln -s /home/dsh/workspace /opt/swarm-documents/deepseek-harness/default-workspace
 
 USER dsh
 # Seal last, after all dependency/vendor overlays and profile permission changes.

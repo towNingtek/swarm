@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- P5: README in English, Traditional Chinese and Simplified Chinese with an architecture diagram, a captioned demo video, a GIF and screenshots (`docs/media/`). `demo/` holds the scripted model, the recording script and the compose script behind them.
+- Fix, found while recording: a customer's first visit to their site showed "could not create the default workspace", because DSH looks up the Documents directory with `xdg-user-dir`, which the site image does not have. The site profile now sets the Documents directory, and the default workspace in it points at the office workspace (`/home/dsh/workspace`). The clean install checks both.
 - P4, an adversarial security review (six areas, each finding reproduced before it was fixed), found and fixed:
   - **high**: moving a site onto the isolated network (`isolate-site`) took the site's host from its own `dsh.env`, which code in the site can rewrite; a site could be handed another site's entry key. The host now comes from the platform's `site.yaml`, and the identity lines are rewritten from it;
   - the platform's login limiter saw every visitor as nginx (one bucket for everybody), and the site's own login limiter saw everybody as the in-site relay. Both now key on the visitor address set by nginx (`X-Swarm-Client` on the platform, `X-Real-IP` passed on by the relay in sites); the admin login is now rate-limited too;

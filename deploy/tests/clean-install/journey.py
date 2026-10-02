@@ -66,7 +66,7 @@ probe = subprocess.run(["docker", "exec", "-i", "site-acme", "node", "-"], input
                        capture_output=True, text=True, timeout=300)
 print(probe.stdout.rstrip())
 if probe.returncode != 0:
-    print(probe.stderr[-500:]); sys.exit(1)
+    print(probe.stderr[:1500]); sys.exit(1)
 step("platform logout", cust.post("/customer/logout", json={}), (200, 204))
 step("session gone after logout", cust.get("/customer/me"), (401,))
 step("delete refuses a wrong host", admin.post(f"/admin/tenants/{tid}/delete", json={"expected_host": "wrong.example.com"}), (409,))
