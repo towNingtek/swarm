@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 — 2026-10-02
+
+First public release.
 
 - P5: README in English, Traditional Chinese and Simplified Chinese with an architecture diagram, a captioned demo video, a GIF and screenshots (`docs/media/`). `demo/` holds the scripted model, the recording script and the compose script behind them.
 - Fix, found while recording: a customer's first visit to their site showed "could not create the default workspace", because DSH looks up the Documents directory with `xdg-user-dir`, which the site image does not have. The site profile now sets the Documents directory, and the default workspace in it points at the office workspace (`/home/dsh/workspace`). The clean install checks both.
