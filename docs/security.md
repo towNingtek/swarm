@@ -24,7 +24,10 @@ A site's AI may run any command in its container (`DSH_PERMISSION_MODE=danger-fu
 - `--cap-drop ALL`, `--security-opt no-new-privileges`, `--cpus` and `--memory` limits;
 - runs as a non-root uid (`SWARM_CONTAINER_USER`);
 - only two host directories are mounted: the site's `dsh-home/` and `workspace/`;
-- its port is published on `127.0.0.1` only.
+- its port is published on `127.0.0.1` only;
+- its host name can never be the platform's or the admin console's host (`site_name_for` in `platform/support_site_executor.py`), so a site's nginx vhost cannot compete with the platform's.
+
+**Files a site can write.** `dsh-home/` and `workspace/` belong to the site. The platform reads them with `O_NOFOLLOW` path walks (`site/safe_fs.py`), treats any parse failure (bad YAML, deep nesting, invalid dates) as "unreadable", isolates each site in the scheduler so one broken site cannot stop the others, and never takes a site's identity from them.
 
 **Network** (`ensure_site_network`, `verify_site_isolation`):
 
@@ -47,11 +50,14 @@ A site's AI may run any command in its container (`DSH_PERMISSION_MODE=danger-fu
 - rejects peers outside `172.16.0.0/12` and `127.0.0.0/8`;
 - answers only `GET /v1/models` and `POST /v1/chat/completions`;
 - authenticates each request with the site's own `sms_` key, stored in the database only as a SHA-256 digest (`platform/support_site_model.py`); disabled tenants get 403;
-- drops request fields not on an allowlist, so a site cannot redirect the upstream call (for example with `api_base`);
-- caps body size (8 MiB), output tokens (16384) and concurrent requests per tenant (4), and enforces the tenant's monthly budget before forwarding;
+- drops request fields not on an allowlist, so a site cannot redirect the upstream call (for example with `api_base`) or label it as another user (`user`, `store` are dropped);
+- accepts only plain `function` tools: gateway-side tools such as `mcp`, `web_search` or `code_interpreter` would act with the platform key, so a request containing one is refused;
+- caps body size (8 MiB), output tokens (16384) and concurrent requests per tenant (4), and enforces the tenant's monthly budget before forwarding. The hold is the request size / 3, plus 2000 tokens per image part, plus the output cap; it is settled when the response ends, also when the site hangs up mid-stream. A hold older than 15 minutes is billed at its estimate and stops counting toward the concurrency limit;
 - does not follow redirects or read proxy settings from the environment, and does not pass upstream error bodies back to the site.
 
 The platform key (`PLATFORM_MODEL_KEY`) is attached by the relay and never written into a site.
+
+The support room assistant (`platform/support_copilot.py`) uses the same key when `PLATFORM_COPILOT=gateway`. Each customer-triggered answer reserves its upper bound (one token per prompt character plus the reply cap) from the same monthly pool before the model is called, and is refused when the tenant's policy is `disabled` or the pool is exhausted. Operator "assist" replies are not charged to the tenant.
 
 ## Single-use entry tickets
 
@@ -59,7 +65,7 @@ The platform key (`PLATFORM_MODEL_KEY`) is attached by the relay and never writt
 
 - a ticket is minted only for the signed-in customer's own tenant, only if the tenant is enabled and this platform recorded the site as provisioned under the tenant's current host;
 - it expires in 60 s; the site also rejects any ticket valid for more than 300 s;
-- the signature is HMAC-SHA256 with a per-site key `HMAC(SWARM_ENTRY_SECRET, "dsh-site-entry\0" + host)`; the master secret is never written into a site (`write_dsh_env`, `isolate_site` in `site/dsh_sitectl.py`);
+- the signature is HMAC-SHA256 with a per-site key `HMAC(SWARM_ENTRY_SECRET, "dsh-site-entry\0" + host)`; the master secret is never written into a site (`write_dsh_env`, `isolate_site` in `site/dsh_sitectl.py`). The host used for the key always comes from the platform's own `site.yaml`, never from the site-writable `dsh.env`, so a site cannot obtain another site's key;
 - the site compares signatures in constant time and remembers spent nonces until they expire, so a ticket works once;
 - the ticket is unrelated to the site password, so the platform cannot be used to check a password.
 
@@ -71,7 +77,7 @@ Every site runs `dsh-web-auth` (vendored fork, see `site/dsh-profile/vendor/dsh-
 
 - `authMode: always`: every path needs a login except `/auth/*` and the configured public prefix `/share` (guest pages of the sharing plugin, which checks its own guest credential). Public prefixes must be a single path segment and reserved names are refused;
 - the site password is stored only as an scrypt hash in `dsh.env` (mode 0600);
-- 5 login attempts per 300 s window, sessions of 720 minutes;
+- 5 login attempts per 300 s window per visitor address, sessions of 720 minutes. The in-site relay passes web-auth the single address from nginx's `X-Real-IP` as `X-Forwarded-For` (and nothing a client sent);
 - return paths after login are limited to local paths: no `//`, backslash, tab, CR, LF or NUL (`sanitizeReturnPath` in `src/auth.js`);
 - after login, the DSH launch token is exchanged for DSH's session cookie by a same-origin request. The in-site relay (`site/templates/relay.mjs`) redacts the token from logs and strips any redirect that contains it.
 
@@ -90,9 +96,13 @@ Request bodies (`platform/support_app.py`, `platform/support_chat_app.py`):
 
 - only `application/json`, at most 16 KiB, duplicate keys rejected, exact field sets;
 - query strings are rejected on almost every route;
-- login and activation are limited to 10 requests per 60 s per client address and host, using the socket address, not forwarded headers.
+- login and activation are limited to 10 requests per 60 s per visitor address and host. The address is the `X-Swarm-Client` header, trusted only when the connection comes from loopback (nginx sets it to `$remote_addr`, replacing any client value) and only if it is one valid IP; `X-Forwarded-For` and `X-Real-IP` are never read. Without the header every visitor shares one bucket;
+- the admin login is limited to 10 attempts per 60 s per visitor address and 60 per 60 s overall, before the password is checked;
+- an invite is revoked after 5 activation attempts with a username that is already taken, so it cannot be used to probe which usernames exist.
 
-Customer cookie: `__Host-customer_session`, `Secure; HttpOnly; SameSite=Strict; Path=/`. Requests carrying `swarm_admin_session`, malformed cookies or two customer cookies are rejected. Sessions are stored as digests and bound to the platform host.
+Customer cookie: `__Host-customer_session`, `Secure; HttpOnly; SameSite=Strict; Path=/`. Two customer cookies, or a malformed customer cookie, are rejected. Other cookies, including malformed ones, are ignored: a sibling site on the same parent domain can plant cookies, and rejecting them would let it lock users out of the platform. Sessions are stored as digests and bound to the platform host.
+
+Access logs: uvicorn's access log is off, and the shipped nginx configs log with `swarm_noquery` (`site/templates/nginx-common.conf`), which records the path without the query string, because invite links (`?token=`) and entry tickets (`?ticket=`) are bearer credentials.
 
 ## Admin console separation
 
@@ -141,12 +151,14 @@ Inside the database, invite tokens, session tokens and site model keys are store
 
 ## Known limits
 
-- **The `docker` group is root.** The `swarm` user needs Docker to run sites, so anyone who controls the platform process controls the host. Use a host dedicated to Swarm.
+- **The `docker` group is root.** The `swarm` user needs Docker to run sites, so anyone who controls the platform process controls the host. Use a host dedicated to Swarm. For the same reason the nginx watcher checks names, file types and ownership but not the directives inside a staged config: it keeps a site name from replacing configs it did not create, it is not a boundary against a compromised `swarm` user.
 - **Single host.** All customers share one kernel, one Docker daemon and one SQLite database. Container isolation is not a VM boundary.
 - **No in-site sandbox.** DSH's own sandbox does not work in a container (Docker's default seccomp profile blocks Landlock). The container, the network and the firewall are the only containment.
 - **Outbound internet is open** from sites, so a site can send its own data anywhere.
 - **IPv4 only.** The firewall script manages `iptables`; IPv6 is not covered. Do not enable IPv6 on the site network.
 - **Per-process rate limits.** The login limiter lives in memory of one process. Several workers would need a shared limiter.
+- **Sites share the platform's parent domain.** With the default layout (`platform.example.com`, `<site>.example.com`) a site can set cookies for `example.com`. The platform ignores foreign cookies and its own cookie is `__Host-`, so this cannot fixate a session; serving the platform from a different registrable domain removes the issue entirely.
+- **Token estimates are estimates.** A request whose real usage exceeds its hold (for example an image larger than the per-image allowance) can overrun the monthly cap by that difference once; the next request is then refused.
 - **Sites keep their own secrets readable.** A site's AI can read its own entry key and model key. They are scoped to that site.
 - **Spent entry tickets** are remembered in memory; a site restart within 60 s of issuing a ticket would accept it again.
 - **One operator account.** The admin console has a single shared password; there are no per-operator identities.

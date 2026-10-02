@@ -125,6 +125,9 @@ def build():
     from support_core import SupportError
 
     edge = EdgePolicy(origin)
+    from support_app import _Limiter, client_address
+    login_limiter = _Limiter(time.monotonic, 10, 60.0, 4096)
+    login_global = _Limiter(time.monotonic, 60, 60.0, 1)
 
     # Temporary diagnostic: record why a request was rejected. Logs header NAMES
     # and the Sec-Fetch-*/Origin/Host values only - never cookies, credentials or
@@ -150,6 +153,14 @@ def build():
             return JSONResponse({'error': 'rejected'}, status_code=403,
                                 headers=SENSITIVE_RESPONSE_HEADERS)
         path = request.scope['path']
+        if path == login_path and request.method == 'POST':
+            # Counted before the password is read: 10 tries per minute per
+            # visitor, and a global ceiling so spreading over many addresses
+            # does not help either.
+            if not (login_limiter.allow(client_address(request.scope))
+                    and login_global.allow('*')):
+                return JSONResponse({'error': 'rate_limited'}, status_code=429,
+                                    headers=SENSITIVE_RESPONSE_HEADERS)
         if path == login_path or auth.verify_session(request.cookies.get(auth.COOKIE_NAME)):
             response = await call_next(request)
         else:

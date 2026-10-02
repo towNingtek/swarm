@@ -38,6 +38,20 @@ class ProvisioningDisabled(RuntimeError):
     """Real provisioning was not explicitly enabled by trusted composition."""
 
 
+def _platform_hosts():
+    """Hosts of PLATFORM_ORIGIN and ADMIN_ORIGIN (the deploy env), lowercased."""
+    from urllib.parse import urlsplit
+
+    hosts = set()
+    for key in ('PLATFORM_ORIGIN', 'ADMIN_ORIGIN'):
+        value = os.environ.get(key, '').strip()
+        if value:
+            host = (urlsplit(value).hostname or '').lower()
+            if host:
+                hosts.add(host)
+    return hosts
+
+
 class SiteProvisioner:
     """Claims queued jobs and provisions real DSH sites.
 
@@ -89,6 +103,10 @@ class SiteProvisioner:
         label = site_host[:-len(suffix)]
         from names import validate_name
 
+        # A site must never take the platform's own host names: its nginx
+        # vhost would then compete with (and could shadow) the platform's.
+        if site_host in _platform_hosts():
+            raise InvalidInput('site host is the platform\'s own host')
         return validate_name(label)  # Raises ValueError on reserved/invalid names.
 
     def _provision(self, lease):

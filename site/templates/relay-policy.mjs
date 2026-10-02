@@ -26,6 +26,7 @@ export function createRelayPolicy(env = {}, { relayPort = 3080, targetPort = 308
   );
   return function applyRelayPolicy(req) {
     const headers = {};
+    const realIp = req.headers["x-real-ip"];
     for (const [key, value] of Object.entries(req.headers)) {
       const name = key.toLowerCase();
       if (name === "forwarded" || name === "cf-visitor" || name.startsWith("x-forwarded-") || name === "x-real-ip" || name === "cf-connecting-ip") continue;
@@ -42,6 +43,12 @@ export function createRelayPolicy(env = {}, { relayPort = 3080, targetPort = 308
       headers.host = publicUrl.host;
       headers["x-forwarded-host"] = publicUrl.host;
       headers["x-forwarded-proto"] = "https";
+      // The trusted peer is the platform's nginx, which overwrites X-Real-IP
+      // with the visitor's address. Hand web-auth exactly that one address as
+      // X-Forwarded-For, so its login limiter is per visitor instead of one
+      // bucket for everybody (every request reaches web-auth from loopback).
+      // Anything else (a list, a hostname, a missing header) is not passed on.
+      if (typeof realIp === "string" && isIP(realIp.trim())) headers["x-forwarded-for"] = normalizePeer(realIp.trim());
     }
     // Origin is deliberately untouched: upstream owns HTTP and WS origin checks.
     return headers;

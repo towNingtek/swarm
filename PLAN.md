@@ -1,6 +1,6 @@
 # Swarm 開源計畫
 
-> 狀態：**P3 完成**（2026-10-02）。照 `deploy/README.md` 在全新主機從零架起並走完客戶流程（`deploy/tests/clean-install/run.sh`）；下一步 P4 對抗式安全審查。
+> 狀態：**P4 完成**（2026-10-02）。對抗式安全審查的發現都已修正並補測試；clean-install 重跑通過。下一步 P5 三語 README 與 demo。
 
 ## 1. 目標
 
@@ -44,7 +44,7 @@ test/  e2e/       單元測試、拋棄式容器上的端對端測試
 | P1 | 骨架：README、LICENSE、SECURITY、CI、洩漏檢查 | ✅ |
 | P2 | 分批搬遷：`site/` ✅、`office-template/` ✅、`platform/` ✅、`deploy/` ✅、`docs/` ✅ | 完成 |
 | P3 | 自架驗證：在拋棄式容器裡照 README 從零架起來 | 完成：找到並修好 4 個問題 |
-| P4 | 對抗式安全審查 | |
+| P4 | 對抗式安全審查 | 完成：1 high、多個 medium/low，全部有失敗→通過的測試 |
 | P5 | 三語 README、架構圖、demo | |
 | P6 | 公開，發布 v0.1.0 | |
 

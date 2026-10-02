@@ -138,10 +138,24 @@ class TeardownTests(unittest.TestCase):
         self.provision(tenant)
         with self.core._connect() as conn:
             credentials.store(writer, conn, tenant.id, 'acme.example', 'admin', 'pw' * 6)
+        # A conversation: messages, an assistant run and an operator note all
+        # reference the room, and none of them carries a tenant_id.
+        from support_rooms import SupportRooms
+        rooms = SupportRooms(self.core)
+        room = rooms.create_room(self.admin, tenant.id)['id']
+        rooms.post_message(actor, room, 'm1', 'hello')
+        token, _ = rooms.start_operator_run(self.admin, room, 'be brief')
+        rooms.finish_run(token, 'hi there')
+        # A rejected username leaves a conflict record on a second invite.
+        from support_core import Conflict
+        spare = self.core.issue_invite(self.admin, tenant.id)
+        with self.assertRaises(Conflict):
+            self.core.redeem_invite(spare, PLATFORM, 'alice', 'customer-password-1')
         before = self._row_counts()
         self.assertTrue(all(before[t] for t in
-                            ('principals', 'invites', 'support_site_jobs',
-                             'support_model_settings', 'support_site_credentials')),
+                            ('principals', 'invites', 'support_site_jobs', 'invite_conflicts',
+                             'support_model_settings', 'support_site_credentials',
+                             'rooms', 'messages', 'runs', 'internal_notes')),
                         before)
         with patch('dsh_sitectl.cmd_delete'):
             self.teardown.delete_tenant(self.admin, tenant.id, expected_host='acme.example')

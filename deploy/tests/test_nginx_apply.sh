@@ -60,6 +60,15 @@ ln -s /root/secret.txt "$STAGE/swarm-site-evil.conf"; sleep 1.5
 [ ! -e "$CONF/swarm-site-evil.conf" ] || fail "symlink followed"
 ok "a symlink in staging is rejected"
 
+# A hard link to a root-only file (possible where fs.protected_hardlinks=0).
+printf 'secret-root-only\n' > /root/hl-secret && chmod 600 /root/hl-secret
+ln /root/hl-secret "$STAGE/swarm-site-hl.conf" 2>/dev/null || cp /root/hl-secret "$STAGE/swarm-site-hl.conf"
+[ "$(stat -c %h "$STAGE/swarm-site-hl.conf")" -gt 1 ] || fail "test setup: no hard link"
+sleep 1.5
+[ ! -e "$CONF/swarm-site-hl.conf" ] || fail "hard link copied into conf.d"
+[ -e "$STAGE/swarm-site-hl.conf.rejected" ] || fail "hard link not rejected"
+ok "a hard link in staging is rejected"
+
 for bad in "hub-x.conf" "swarm-site-UP.conf" "swarm-site-a.b.conf" "swarm-site--x-.conf"; do
   echo "$SITE" > "$STAGE/$bad"
 done; sleep 1.5
@@ -74,6 +83,19 @@ SWARM_DOMAIN=example.com py "$REAL"
 [ -f "$CONF/swarm-site-real.conf" ] || fail "real template"
 grep -q -F '00-swarm-common.conf' /repo/deploy/install.sh || fail "install.sh does not install the shared map"
 ok "the real site template applies once install.sh's shared map is in place"
+
+# Entry tickets and invite tokens ride in the query string: never logged.
+# (The official nginx image links access.log to stdout; use a real file.)
+rm -f /var/log/nginx/access.log && : > /var/log/nginx/access.log && nginx -s reopen && sleep 0.5
+py "import urllib.request
+r = urllib.request.Request('http://127.0.0.1/auth/enter?ticket=SECRET-TICKET-1', headers={'Host': 'real.example.com'})
+try: urllib.request.urlopen(r, timeout=5)
+except Exception: pass"
+sleep 0.5
+grep -q '/auth/enter' /var/log/nginx/access.log || fail "request not logged at all"
+! grep -q 'SECRET-TICKET-1' /var/log/nginx/access.log || fail "ticket written to the access log"
+grep -q 'swarm_noquery' /repo/deploy/nginx/swarm-platform.conf.example || fail "platform example logs queries"
+ok "query strings (tickets, invite tokens) are not written to the access log"
 
 py "import nginx_staging as n; n.remove_config('a', timeout=10)"
 [ ! -e "$CONF/swarm-site-a.conf" ] && [ ! -e /tmp/owned/swarm-site-a.conf ] || fail "remove"

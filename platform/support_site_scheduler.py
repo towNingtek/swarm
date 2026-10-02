@@ -177,26 +177,34 @@ class SiteScheduler:
             return []
         started = []
         for tenant_id, host in self.sites().items():
-            name = self._site_name(host)
-            if name is None:
+            try:
+                started.extend(self._tick_site(tenant_id, host, slots))
+            except Exception as exc:  # one site never stops the others
+                print(f'[scheduler] {host}: {type(exc).__name__}', flush=True)
+        return started
+
+    def _tick_site(self, tenant_id, host, slots):
+        started = []
+        name = self._site_name(host)
+        if name is None:
+            return started
+        office = self.office.for_host(host)
+        for hive in (office or {}).get('hives', []):
+            if not hive['enabled'] or not hive['exists']:
                 continue
-            office = self.office.for_host(host)
-            for hive in (office or {}).get('hives', []):
-                if not hive['enabled'] or not hive['exists']:
+            for job in hive['schedules']:
+                if job['state'] != 'ready':
                     continue
-                for job in hive['schedules']:
-                    if job['state'] != 'ready':
-                        continue
-                    for slot in slots:
-                        try:
-                            due = cron_matches(job['cron'], slot)
-                        except (ValueError, IndexError):
-                            due = False
-                        if due:
-                            run = self._start(tenant_id, name, hive, job,
-                                              slot.strftime('%Y-%m-%dT%H:%M'), 'schedule')
-                            if run:
-                                started.append(run)
+                for slot in slots:
+                    try:
+                        due = cron_matches(job['cron'], slot)
+                    except (ValueError, IndexError):
+                        due = False
+                    if due:
+                        run = self._start(tenant_id, name, hive, job,
+                                          slot.strftime('%Y-%m-%dT%H:%M'), 'schedule')
+                        if run:
+                            started.append(run)
         return started
 
     def run_now(self, tenant_id, host, hive_id, schedule_name):

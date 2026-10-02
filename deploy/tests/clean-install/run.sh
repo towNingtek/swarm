@@ -53,6 +53,7 @@ cat > /etc/nginx/conf.d/00-test-tls.conf <<'NGINX'
 server {
     listen 443 ssl default_server;
     ssl_certificate /root/tls.crt; ssl_certificate_key /root/tls.key;
+    access_log /var/log/nginx/access.log swarm_noquery;  # a real TLS proxy needs the same care
     location / { proxy_pass http://127.0.0.1:80; proxy_set_header Host $host; proxy_http_version 1.1;
                  proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_buffering off; }
 }
@@ -84,5 +85,8 @@ for f in /etc/swarm/secrets/*; do
 done
 journalctl --no-pager | grep -qE 'token=[A-Za-z0-9_-]{43}' && { echo "BAD an invite token appears in the journal"; exit 1; }
 echo "ok  no secret file content and no invite token in the journal"
+grep -q 'GET /auth/enter' /var/log/nginx/access.log || { echo "BAD the site entry was not logged at all"; exit 1; }
+grep -qE '(token|ticket)=' /var/log/nginx/access.log && { echo "BAD a query credential appears in the nginx access log"; exit 1; }
+echo "ok  no invite token or entry ticket in the nginx access log"
 echo CLEAN INSTALL OK
 IN_HOST

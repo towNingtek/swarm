@@ -94,3 +94,73 @@ class CopilotTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class CopilotQuotaTests(unittest.TestCase):
+    """A real provider spends money: the assistant draws on the tenant's pool."""
+
+    def setUp(self):
+        from support_model import Reply
+        from support_quota import SupportQuota
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.core = SupportCore(Path(self.tmp.name)/'db', admin_verifier=lambda x: 'operator' if x == 'test' else None)
+        self.admin = self.core.admin_actor('test')
+        self.tenant = self.core.create_tenant(self.admin, 'customer.example')
+        token = self.core.issue_invite(self.admin, self.tenant.id)
+        self.customer = self.core.redeem_invite(token, 'customer.example', 'customer', 'test-password-long').actor
+        self.rooms = SupportRooms(self.core)
+        self.room = self.rooms.create_room(self.admin, self.tenant.id)['id']
+        self.rooms.post_message(self.customer, self.room, 'hello', 'How do I configure my model?')
+        self.quota = SupportQuota(self.core)
+        self.calls = 0
+        test = self
+
+        class Paid:
+            def reply(self, turns, *, max_output_tokens):
+                test.calls += 1
+                return Reply('answer', 'paid', input_tokens=300, output_tokens=20)
+        self.copilot = SupportCopilot(self.rooms, Paid(), quota=self.quota)
+
+    def ledger(self):
+        with self.core._connect() as conn:
+            return [tuple(r) for r in conn.execute('SELECT state, actual FROM support_quota_ledger')]
+
+    def test_disabled_or_exhausted_policy_refuses_before_the_model_is_called(self):
+        from support_quota import QuotaDenied
+        for mode, limit in (('disabled', None), ('capped', 0), ('capped', 500)):
+            with self.subTest(mode=mode, limit=limit):
+                self.quota.set_policy(self.admin, self.tenant.id, mode, limit)
+                with self.assertRaises(QuotaDenied):
+                    self.copilot.respond(self.customer, self.room)
+                self.assertEqual(self.calls, 0)
+        # The refused run was released: a later allowed answer is not blocked.
+        self.quota.set_policy(self.admin, self.tenant.id, 'capped', 100000)
+        self.assertFalse(self.copilot.respond(self.customer, self.room)['discarded'])
+
+    def test_answers_are_recorded_at_reported_usage(self):
+        self.quota.set_policy(self.admin, self.tenant.id, 'unlimited')
+        self.copilot.respond(self.customer, self.room)
+        self.assertEqual(self.ledger(), [('settled', 320)])
+
+    def test_a_failed_call_keeps_the_whole_hold(self):
+        class Broken:
+            def reply(self, turns, *, max_output_tokens):
+                raise ModelUnavailable('down')
+        self.quota.set_policy(self.admin, self.tenant.id, 'unlimited')
+        with self.assertRaises(ModelUnavailable):
+            SupportCopilot(self.rooms, Broken(), quota=self.quota).respond(self.customer, self.room)
+        (state, actual), = self.ledger()
+        self.assertEqual(state, 'settled')
+        self.assertGreater(actual, 1024)
+
+    def test_site_relay_usage_counts_against_the_same_pool(self):
+        from support_site_model import SiteModelAccess
+        from support_quota import QuotaDenied
+        access = SiteModelAccess(self.core)
+        site_token = access.issue(self.tenant.id)
+        self.quota.set_policy(self.admin, self.tenant.id, 'capped', 5000)
+        tenant, request = access.admit(site_token, 'cloud-fast', 4000)
+        access.settle(tenant, request, 4000)
+        with self.assertRaises(QuotaDenied):
+            self.copilot.respond(self.customer, self.room)

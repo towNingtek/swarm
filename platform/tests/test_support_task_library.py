@@ -97,6 +97,39 @@ class LibraryTests(Base):
         jobs = sorted((j['name'], j['role']) for j in self.schedules())
         self.assertEqual(jobs, [('daily_todo', 'pm'), ('daily_todo_2', 'pm')])
 
+    def test_long_names_that_clash_get_a_suffix_and_terminate(self):
+        make_site(self.sites, 'ab')
+        for length in (61, 62, 63):
+            long_name = 'x' * length
+            self.lib.save_template(self.admin, {**TEMPLATE, 'name': long_name, 'is_default': False})
+            for _ in range(3):
+                self.lib.push(self.admin, self.tenant.id, [long_name], 'direct')
+        # 9 deliveries but MAX_SCHEDULES caps the hive; it must finish, not hang.
+        done = threading.Event()
+        threading.Thread(target=lambda: (self.lib.apply_pending({self.tenant.id: 'ab.example.cc'}),
+                                         done.set()), daemon=True).start()
+        self.assertTrue(done.wait(10), 'apply_pending hung on long clashing names')
+        names = [j['name'] for j in self.schedules()]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertTrue(all(len(n) <= 63 for n in names))
+        self.assertIn('x' * 61 + '_2', names)
+
+    def test_one_unreadable_site_never_blocks_another(self):
+        make_site(self.sites, 'ab')
+        bad = make_site(self.sites, 'cd')
+        other = self.core.create_tenant(self.admin, 'platform2.example')
+        self.lib.save_template(self.admin, TEMPLATE)
+        self.lib.push(self.admin, other.id, ['daily_todo'], 'direct')
+        self.lib.push(self.admin, self.tenant.id, ['daily_todo'], 'direct')
+        hosts = {other.id: 'cd.example.cc', self.tenant.id: 'ab.example.cc'}
+        for registry in ('hives:\n- id: shop\n  enabled: true\n  x: 2024-13-45\n',
+                         'hives: ' + '[' * 5000 + ']' * 5000 + '\n'):
+            with self.subTest(registry=registry[:30]):
+                (bad / '.swarm' / 'registry.yaml').write_text(registry)
+                self.assertEqual(self.office.for_host('cd.example.cc')['registry'], 'unreadable')
+        self.assertEqual(self.lib.apply_pending(hosts), 1)
+        self.assertEqual([j['name'] for j in self.schedules()], ['daily_todo'])
+
     def test_seed_defaults_only_default_templates(self):
         self.lib.save_template(self.admin, TEMPLATE)
         self.lib.save_template(self.admin, {**TEMPLATE, 'name': 'extra', 'is_default': False})
@@ -183,6 +216,24 @@ class SchedulerTests(Base):
             self.sched.run_now(self.tenant.id, 'ab.example.cc', 'shop', 'daily_todo')
         with self.assertRaises(OfficeError):
             self.sched.run_now(self.tenant.id, 'ab.example.cc', 'shop', 'nope')
+        self.wait_done()
+
+    def test_a_broken_site_does_not_stop_other_sites(self):
+        bad = make_site(self.sites, 'cd')
+        (bad / '.swarm' / 'registry.yaml').write_text('hives:\n- id: shop\n  enabled: true\n  x: 2024-13-45\n')
+        boom = self.office.for_host
+
+        def for_host(host):  # even an unexpected crash in one site is contained
+            if host.startswith('zz.'):
+                raise RuntimeError('boom')
+            return boom(host)
+        self.office.for_host = for_host
+        self.sched.sites = lambda: {'t-bad': 'cd.example.cc', 't-zz': 'zz.example.cc',
+                                    self.tenant.id: 'ab.example.cc'}
+        self.sched._site_name = lambda host: host.split('.')[0]
+        self.sched.tick()
+        self.now[0] += 60
+        self.assertEqual([s['name'] for s in self.sched.tick()], ['daily_todo'])
         self.wait_done()
 
     def test_no_catch_up_after_long_pause(self):

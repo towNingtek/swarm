@@ -44,10 +44,11 @@ _TENANT_TABLES = (
     'support_site_model_usage',
     'support_site_model_tokens',
     'support_site_templates',
-    'messages',
     'rooms',
-    'support_bootstrap_requests',
 )
+# Room children have no tenant_id; they are deleted by room, before rooms.
+# runs references messages, so it goes first.
+_ROOM_TABLES = ('runs', 'internal_notes', 'messages')
 
 
 class TeardownError(RuntimeError):
@@ -119,18 +120,29 @@ class SiteTeardown:
 
         with self.core._connect() as conn:
             conn.execute('BEGIN IMMEDIATE')
-            # Principal-keyed rows first: they must go before principals itself.
+            present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            # Only a table that is absent in this deployment is skipped. Any
+            # other error (a foreign key, a missing column) aborts the whole
+            # transaction, so the records stay consistent and a retry works.
+            # Room and principal children first, then tenant rows, then tenant.
+            for table in _ROOM_TABLES:
+                if table in present:
+                    conn.execute(f'''DELETE FROM {table} WHERE room_id IN
+                        (SELECT id FROM rooms WHERE tenant_id=?)''', (tenant_id,))
+            if 'invite_conflicts' in present:
+                conn.execute('''DELETE FROM invite_conflicts WHERE digest IN
+                    (SELECT digest FROM invites WHERE tenant_id=?)''', (tenant_id,))
             for table in _PRINCIPAL_TABLES:
-                try:
+                if table in present:
                     conn.execute(f'''DELETE FROM {table} WHERE principal_id IN
                         (SELECT id FROM principals WHERE tenant_id=?)''', (tenant_id,))
-                except Exception:
-                    continue  # Table absent in this deployment.
             for table in _TENANT_TABLES:
-                try:
+                if table in present:
                     conn.execute(f'DELETE FROM {table} WHERE tenant_id=?', (tenant_id,))
-                except Exception:
-                    continue
+            if 'support_bootstrap_requests' in present:
+                # Idempotency receipts: the tenant is only inside the JSON result.
+                conn.execute("DELETE FROM support_bootstrap_requests "
+                             "WHERE json_extract(result, '$.tenant.id')=?", (tenant_id,))
             conn.execute('DELETE FROM tenants WHERE id=?', (tenant_id,))
         return {'tenant_id': tenant_id, 'site_host': expected_host,
                 'site_removed': removed_site, 'records_removed': True}

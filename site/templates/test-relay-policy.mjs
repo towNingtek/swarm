@@ -34,6 +34,21 @@ test("public scheme is configured, never inferred, with exact normalized immedia
   const missing = request(); missing.rawHeaders = []; assert.throws(() => apply(missing));
 });
 
+test("the visitor address from the trusted proxy reaches web-auth, nothing else does", () => {
+  const apply = createRelayPolicy(config);
+  for (const [realIp, expected] of [["203.0.113.7", "203.0.113.7"], [" 2001:db8::1 ", "2001:db8::1"],
+    ["::ffff:203.0.113.7", "203.0.113.7"], ["203.0.113.7, 10.0.0.1", undefined], ["evil.example", undefined],
+    [["203.0.113.7", "1.2.3.4"], undefined], [undefined, undefined]]) {
+    const input = request();
+    if (realIp === undefined) delete input.headers["x-real-ip"]; else input.headers["x-real-ip"] = realIp;
+    assert.equal(apply(input)["x-forwarded-for"], expected, String(realIp));
+    assert.equal(apply(input)["x-real-ip"], undefined);
+  }
+  // Standalone (no trusted proxy configured): never trusted.
+  const local = request("localhost:3080"); local.headers["x-real-ip"] = "203.0.113.7";
+  assert.equal(createRelayPolicy()(local)["x-forwarded-for"], undefined);
+});
+
 test("invalid or partial public settings fail closed", () => {
   for (const env of [{ RELAY_PUBLIC_ORIGIN: config.RELAY_PUBLIC_ORIGIN }, { RELAY_TRUSTED_PEERS: "192.0.2.1" },
     ...["http://app.example.com", "https://127.0.0.1", "https://[::1]", "https://localhost", "https://user@app.example.com", "https://app.example.com/path", "https://app.example.com?x", "https://app.example.com#x"].map(RELAY_PUBLIC_ORIGIN => ({ ...config, RELAY_PUBLIC_ORIGIN })),

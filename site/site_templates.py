@@ -20,7 +20,6 @@ import json
 import os
 import re
 import stat
-import subprocess
 from pathlib import Path
 
 import yaml
@@ -229,8 +228,12 @@ def apply_template(workspace: Path, template_id: str, values: dict,
     if meta["git_init"] and safe_fs.kind(workspace, ".git") is None:
         # A project-root marker lets DSH load AGENTS.md and .dsh/skills from any
         # subfolder the customer opens. No commit is made and no identity is set.
-        subprocess.run(["git", "init", "-q", str(workspace)], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+        # Written with safe_fs, not `git init`: code in the site could swap
+        # .git for a symlink after the check, and git would follow it.
+        try:
+            _init_git_marker(workspace)
+        except (safe_fs.UnsafePath, NotADirectoryError, FileExistsError) as exc:
+            raise TemplateError(f"workspace .git is not safe to create: {exc}") from None
     new_record = {"template": template_id, "version": meta["version"],
                   "first_version": (record or {}).get("first_version", meta["version"]),
                   "files": placed}
@@ -238,6 +241,17 @@ def apply_template(workspace: Path, template_id: str, values: dict,
                          json.dumps(new_record, ensure_ascii=False, indent=2, sort_keys=True))
     return {"template": template_id, "version": meta["version"], "created": created,
             "kept": kept, "upgraded": upgraded}
+
+
+_GIT_CONFIG = "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n"
+
+
+def _init_git_marker(workspace: Path) -> None:
+    """The empty repository `git init` makes, minus hooks and samples."""
+    for rel in (".git/objects/info", ".git/objects/pack", ".git/refs/heads", ".git/refs/tags"):
+        safe_fs.make_dirs(workspace, rel)
+    safe_fs.create_new(workspace, ".git/config", _GIT_CONFIG)
+    safe_fs.create_new(workspace, ".git/HEAD", "ref: refs/heads/main\n")
 
 
 def write_platform_guide(dsh_home: Path, values: dict, source: Path = PLATFORM_GUIDE) -> None:

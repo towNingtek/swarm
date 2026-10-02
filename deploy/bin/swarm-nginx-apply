@@ -17,12 +17,14 @@ install -d -m 0700 "$OWNED"
 [[ -d "$OWNED" && ! -L "$OWNED" ]] || { echo "bad owned dir: $OWNED" >&2; exit 1; }
 # Must match CONF_PREFIX and _NAME in site/nginx_staging.py.
 valid() { [[ "$1" =~ ^swarm-site-[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.conf$ ]]; }
-copy_nofollow() {  # copy_nofollow SRC DST: regular file, no symlink, <= 64 KiB
+copy_nofollow() {  # copy_nofollow SRC DST: regular file, no symlink, one link, <= 64 KiB
   python3 - "$1" "$2" <<'PY'
 import os, stat, sys
 fd = os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 st = os.fstat(fd)
-if not stat.S_ISREG(st.st_mode) or st.st_size > 65536:
+# st_nlink: a hard link to a root-only file (where protected_hardlinks is off)
+# would otherwise be copied into conf.d, world-readable.
+if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > 65536:
     sys.exit(1)
 data = os.read(fd, 65537)
 if len(data) > 65536:

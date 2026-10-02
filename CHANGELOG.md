@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- P4, an adversarial security review (six areas, each finding reproduced before it was fixed), found and fixed:
+  - **high**: moving a site onto the isolated network (`isolate-site`) took the site's host from its own `dsh.env`, which code in the site can rewrite; a site could be handed another site's entry key. The host now comes from the platform's `site.yaml`, and the identity lines are rewritten from it;
+  - the platform's login limiter saw every visitor as nginx (one bucket for everybody), and the site's own login limiter saw everybody as the in-site relay. Both now key on the visitor address set by nginx (`X-Swarm-Client` on the platform, `X-Real-IP` passed on by the relay in sites); the admin login is now rate-limited too;
+  - the support assistant spent the platform model key without checking the tenant's quota; it now reserves from and settles into the same monthly pool as the site relay;
+  - a site that hung up mid-stream left its quota hold behind, and four of them locked the tenant out; holds are now always settled, and stale holds expire;
+  - the relay passed gateway-side tools (`mcp`, `web_search`, ...) and the `user`/`store` fields through; only function tools are accepted now. Image parts are counted in the admission estimate;
+  - one site's broken files (an invalid date, deep nesting) stopped scheduled runs for every tenant, a whitespace-filled file made a regex take seconds, and long task names could hang task delivery; each site is now isolated and parsing is linear;
+  - deleting a tenant failed once its support room had messages, after the site was already gone;
+  - cookies planted by a sibling site on the parent domain locked users out of the platform; foreign cookies are now ignored;
+  - invite activation could probe which usernames exist; an invite is revoked after 5 taken-name attempts;
+  - invite tokens and entry tickets reached the nginx access log; the shipped configs log without query strings;
+  - the template's `git init` could follow a `.git` symlink a site swapped in; the marker is written with the same no-follow file code as everything else;
+  - a tenant host could equal the platform's own host;
+  - the root nginx watcher would copy a hard-linked staged file (where `fs.protected_hardlinks` is off); files with more than one link are refused.
 - P3, a clean install on a fresh host by following `deploy/README.md`, found and fixed:
   - the platform crashed on hosts without system time zone data (`tzdata` is now a dependency);
   - the first site build failed: the shared nginx map that site configs use was never installed (`install.sh` installs it now);

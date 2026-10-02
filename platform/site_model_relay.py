@@ -36,6 +36,8 @@ import os
 import sys
 from pathlib import Path
 
+import anyio
+
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
@@ -46,9 +48,26 @@ DEFAULT_OUTPUT_TOKENS = 4096
 ALLOWED_FIELDS = frozenset({
     'model', 'messages', 'stream', 'stream_options', 'max_tokens', 'max_completion_tokens',
     'temperature', 'top_p', 'stop', 'seed', 'presence_penalty', 'frequency_penalty',
-    'tools', 'tool_choice', 'parallel_tool_calls', 'response_format', 'reasoning_effort',
-    'store', 'n', 'user',
+    'tools', 'tool_choice', 'parallel_tool_calls', 'response_format', 'reasoning_effort', 'n',
 })
+# `user` would let a site choose the end-user id in the gateway's spend logs;
+# `store` would keep completions on the platform's provider account. Dropped.
+_FUNCTION_TOOL_KEYS = frozenset({'type', 'function'})
+_FUNCTION_KEYS = frozenset({'name', 'description', 'parameters', 'strict'})
+
+
+def _check_tools(tools):
+    """Only plain function tools. Anything else (`mcp`, `web_search`,
+    `file_search`, `code_interpreter`...) would make the gateway act with the
+    platform's key on the site's behalf."""
+    if not isinstance(tools, list) or len(tools) > 128:
+        raise ValueError('tools must be a list of function tools')
+    for tool in tools:
+        if (not isinstance(tool, dict) or set(tool) - _FUNCTION_TOOL_KEYS
+                or tool.get('type') != 'function' or not isinstance(tool.get('function'), dict)
+                or set(tool['function']) - _FUNCTION_KEYS
+                or not isinstance(tool['function'].get('name'), str)):
+            raise ValueError('only function tools are available on the starter plan')
 # Sites live on Docker bridge networks; nothing else should reach the relay.
 TRUSTED_PEERS = (ipaddress.ip_network('172.16.0.0/12'), ipaddress.ip_network('127.0.0.0/8'))
 
@@ -69,6 +88,8 @@ def sanitize(body, models):
     if not isinstance(body.get('messages'), list) or not body['messages']:
         raise ValueError('messages are required')
     clean = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
+    if 'tools' in clean:
+        _check_tools(clean['tools'])
     clean['n'] = 1
     requested = [v for v in (clean.get('max_completion_tokens'), clean.get('max_tokens'))
                  if type(v) is int and v > 0]
@@ -130,7 +151,7 @@ def create_app(access, *, base_url, api_key, models, transport=None, peer_check=
     from starlette.responses import JSONResponse, Response, StreamingResponse
     from starlette.routing import Route
 
-    from support_site_model import SiteModelDenied, estimate_tokens
+    from support_site_model import SiteModelDenied, count_images, estimate_tokens
 
     if not base_url.startswith(('http://', 'https://')) or not api_key:
         raise ValueError('upstream base url and key are required')
@@ -184,7 +205,7 @@ def create_app(access, *, base_url, api_key, models, transport=None, peer_check=
             return _error(400, 'invalid_request', 'invalid JSON')
         try:
             tenant, request_id = await run_in_threadpool(
-                access.admit, bearer(request), clean['model'], estimate_tokens(raw, max_output))
+                access.admit, bearer(request), clean['model'], estimate_tokens(raw, max_output, count_images(clean['messages'])))
         except SiteModelDenied as denied:
             return _error(denied.status, denied.code, str(denied))
 
@@ -226,10 +247,16 @@ def create_app(access, *, base_url, api_key, models, transport=None, peer_check=
         state = {'settled': False}
 
         async def finish():
-            if not state['settled']:
-                state['settled'] = True
-                await response.aclose()
-                await settle(tracker.total)
+            if state['settled']:
+                return
+            state['settled'] = True
+            # A client that hangs up cancels this task; the hold must still be
+            # settled or it blocks the tenant until the relay restarts.
+            with anyio.CancelScope(shield=True):
+                try:
+                    await response.aclose()
+                finally:
+                    await settle(tracker.total)
 
         async def relay():
             try:

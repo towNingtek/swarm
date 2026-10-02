@@ -9,6 +9,7 @@ explicitly refused. Malformed cookies and duplicate customer credentials fail sh
 from __future__ import annotations
 
 import json
+import ipaddress
 import re
 import time
 from dataclasses import asdict
@@ -63,6 +64,32 @@ class _Limiter:
         return True
 
 
+_LOOPBACK = frozenset({'127.0.0.1', '::1'})
+CLIENT_HEADER = b'x-swarm-client'
+
+
+def client_address(scope):
+    """The address to rate-limit by.
+
+    Behind the documented nginx every socket peer is 127.0.0.1, so the peer
+    alone would put every visitor in one bucket. nginx overwrites
+    X-Swarm-Client with $remote_addr, and only a loopback peer is trusted to
+    send it. X-Forwarded-For, Forwarded and X-Real-IP are never read: clients
+    can append to those.
+    """
+    client = scope.get('client')
+    peer = client[0] if client else '<unknown>'
+    if peer not in _LOOPBACK:
+        return peer
+    values = [v for k, v in scope.get('headers', ()) if k.lower() == CLIENT_HEADER]
+    if len(values) != 1:
+        return peer
+    try:
+        return str(ipaddress.ip_address(values[0].decode('ascii').strip()))
+    except (UnicodeDecodeError, ValueError):
+        return peer
+
+
 def _cookie(headers, cookie_name=COOKIE):
     values = [v.decode('latin1') for k, v in headers if k.lower() == b'cookie']
     if not values:
@@ -72,11 +99,14 @@ def _cookie(headers, cookie_name=COOKIE):
         for pair in header.split(';'):
             # RFC 6265 token name and cookie-octet value, with optional quotes.
             match = re.fullmatch(r"[ \t]*([!#$%&'*+.^_`|~0-9A-Za-z-]+)=([\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*|\"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*\")[ \t]*", pair)
+            # Other cookies are ignored, malformed or not: customer sites are
+            # sibling subdomains and can set cookies on the parent domain, so
+            # rejecting on them would let any site lock visitors out of the
+            # platform. Only our own __Host- cookie (which a sibling cannot
+            # set) is checked strictly.
             if not match:
-                raise ValueError
+                continue
             name, value = match.groups()
-            if name == 'swarm_admin_session':
-                raise ValueError
             if name == cookie_name:
                 if token is not None or not re.fullmatch(r'[A-Za-z0-9_-]{43}', value):
                     raise ValueError
@@ -122,9 +152,7 @@ class _Boundary:
             return
         scope.setdefault('state', {}).update(customer_host=host, customer_token=token)
         if scope['method'] == 'POST' and scope['path'] in ('/customer/login', '/customer/activate'):
-            client = scope.get('client')
-            # Never use X-Forwarded-For, Forwarded, X-Real-IP, or proxy host headers.
-            if not self.limiter.allow((client[0] if client else '<unknown>', host)):
+            if not self.limiter.allow((client_address(scope), host)):
                 await _error(429)(scope, receive, safe_send)
                 return
         try:

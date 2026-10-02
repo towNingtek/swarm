@@ -11,12 +11,17 @@ server {
     server_name platform.example.com;
 
     client_max_body_size 64m;
+    # Invite links carry ?token=: log without the query string. The format is
+    # defined in /etc/nginx/conf.d/00-swarm-common.conf (install.sh puts it there).
+    access_log /var/log/nginx/access.log swarm_noquery;
 
     location /admin {
         proxy_pass http://127.0.0.1:8211;
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Required: the services rate-limit logins by this address. nginx
+        # replaces any value a client sends. Behind a TLS proxy or tunnel, set
+        # real_ip_header/set_real_ip_from so $remote_addr is the visitor.
+        proxy_set_header X-Swarm-Client $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_http_version 1.1;
         proxy_read_timeout 300s;
@@ -26,8 +31,10 @@ server {
     location / {
         proxy_pass http://127.0.0.1:8210;
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Required: the services rate-limit logins by this address. nginx
+        # replaces any value a client sends. Behind a TLS proxy or tunnel, set
+        # real_ip_header/set_real_ip_from so $remote_addr is the visitor.
+        proxy_set_header X-Swarm-Client $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;

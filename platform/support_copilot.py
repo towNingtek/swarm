@@ -1,8 +1,13 @@
-"""Minimal synchronous orchestration for the isolated support vertical slice.
+"""The support room assistant: one synchronous model call per answer.
 
-No background server, ambient keys or production billing claims. A real bounded
-worker and reservation ledger must precede production model enablement.
+With a ``quota`` (``SupportQuota``), every customer-triggered answer reserves
+its upper bound from the tenant's monthly pool before the model is called and
+is settled afterwards, so the policy on /admin/customers (disabled, capped,
+unlimited) applies to the assistant as it does to the site relay. Operator
+"assist" calls are the operator's own spend and are not charged to the tenant.
 """
+import uuid
+
 from support_model import DisabledModel, Turn, checked_reply
 
 SYSTEM_PROMPT = (
@@ -37,9 +42,12 @@ REPLY_TOKENS = 1024
 
 
 class SupportCopilot:
-    def __init__(self, rooms, model=None, *, onboarding_copilot=None):
+    def __init__(self, rooms, model=None, *, onboarding_copilot=None, quota=None):
         self.rooms = rooms
         self.model = model if model is not None else DisabledModel()
+        if quota is not None and getattr(quota, 'core', None) is not rooms.core:
+            raise ValueError('quota must share the rooms core')
+        self.quota = quota
         # Optional: lets the Copilot answer from the customer's ACTUAL onboarding
         # state and offer the setup actions it is allowed to perform. Without it
         # the Copilot is a plain support assistant with no site knowledge.
@@ -133,7 +141,15 @@ class SupportCopilot:
         if state is not None:
             system.append(Turn('system', state))
         budget = 30000 - sum(len(t.content) for t in system)
-        reply, message = self._run(token, [*system, *self._history_turns(history, budget)])
+        turns = [*system, *self._history_turns(history, budget)]
+        reservation = self._reserve(customer, token, turns)
+        try:
+            reply, message = self._run(token, turns)
+        except BaseException:
+            # The provider may have billed a failed call: keep the full hold.
+            self._settle(customer, reservation, None)
+            raise
+        self._settle(customer, reservation, reply)
         result = {'message': message, 'discarded': message is None,
                   'model': reply.model, 'simulated': reply.simulated,
                   'input_tokens': reply.input_tokens, 'output_tokens': reply.output_tokens}
@@ -146,6 +162,30 @@ class SupportCopilot:
             except Exception:
                 pass
         return result
+
+    def _reserve(self, customer, token, turns):
+        if self.quota is None:
+            return None
+        # Upper bound: one token per character (Chinese is about that; other
+        # text is less) plus the reply cap.
+        estimate = sum(len(t.content) for t in turns) + REPLY_TOKENS
+        try:
+            return self.quota.reserve(customer, 'copilot:' + uuid.uuid4().hex, estimate)
+        except BaseException:
+            self.rooms.fail_run(token)
+            raise
+
+    def _settle(self, customer, reservation, reply):
+        if reservation is None:
+            return
+        used = reservation.estimated_tokens
+        if reply is not None and reply.input_tokens is not None and reply.output_tokens is not None:
+            used = min(used, reply.input_tokens + reply.output_tokens)
+        try:
+            self.quota.settle(customer, reservation, used)
+        except Exception:
+            # Settlement is bookkeeping; the hold stays and still counts.
+            pass
 
     def operator_respond(self, admin, room_id, instruction):
         """The operator privately tells the assistant what to say to the customer.

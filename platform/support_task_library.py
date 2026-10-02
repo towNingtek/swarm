@@ -248,9 +248,16 @@ class TaskLibrary:
             # then the first role, rather than inventing a role.
             role = row['role'] if row['role'] in roles else ('pm' if 'pm' in roles else roles[0])
             taken = {j['name'] for j in hive['schedules']}
-            name, n = row['name'], 2
-            while name in taken:
-                name, n = f"{row['name']}_{n}"[:63], n + 1
+            # Truncate the base, never the suffix: cutting `_n` off a long
+            # name repeated the same taken name forever. Bounded either way.
+            name = row['name']
+            for n in range(2, len(taken) + 3):
+                if name not in taken:
+                    break
+                suffix = f'_{n}'
+                name = row['name'][:63 - len(suffix)] + suffix
+            else:
+                raise OfficeError('這間公司的排程名稱都被占用了')
             try:
                 editor.save_schedule(office['revision'], hive_id, original='', name=name,
                                      role=role, cron=row['cron'], skill=row['skill'],
@@ -272,8 +279,11 @@ class TaskLibrary:
             host = site_hosts.get(row['tenant_id'])
             if host is None:
                 continue
-            office = self.office.for_host(host) if self.office is not None else None
-            hive = next((h for h in (office or {}).get('hives', []) if h['exists']), None)
+            try:
+                office = self.office.for_host(host) if self.office is not None else None
+                hive = next((h for h in (office or {}).get('hives', []) if h['exists']), None)
+            except Exception:
+                continue  # an unreadable site waits; it never blocks the others
             if hive is None:
                 continue  # waits for the customer's first hive
             try:
@@ -283,4 +293,7 @@ class TaskLibrary:
                 self._finish(row['id'], 'failed', hive['id'], None, str(exc)[:200])
             except OSError:
                 self._finish(row['id'], 'failed', hive['id'], None, '平台沒有權限寫入站台設定')
+            except Exception as exc:
+                self._finish(row['id'], 'failed', hive['id'], None, '站台設定無法處理')
+                print(f'[tasks] {host}: {type(exc).__name__}', flush=True)
         return applied

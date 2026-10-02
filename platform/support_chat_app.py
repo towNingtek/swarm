@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 from support_app import MAX_BODY, _error, _object, create_app
 from support_core import Conflict, InvalidInput, SupportError, Unauthorized
 from support_copilot import SupportCopilot
+from support_quota import QuotaDenied, SupportQuota
 from support_http_policy import EdgePolicy, SENSITIVE_RESPONSE_HEADERS
 from support_model import FakeModel, ModelUnavailable
 
@@ -140,7 +141,7 @@ def _routes(app, core, rooms, prefix, actor_for, *, copilot=None, admin=False, n
                 try:
                     value = await run_in_threadpool(copilot.respond, actor, room_id,
                                                    requested=body['requested'])
-                except (Conflict, InvalidInput, Unauthorized):
+                except (Conflict, InvalidInput, Unauthorized, QuotaDenied):
                     raise
                 except Exception:
                     # The model failed: the customer is left without an answer.
@@ -257,6 +258,8 @@ def create_customer_chat_app(core, rooms, public_origin, *, model=None, model_ca
             copilot=SupportCopilot(
                 rooms, model,
                 onboarding_copilot=getattr(app.state, 'support_onboarding_copilot', None),
+                # A real provider spends money: charge the tenant's pool.
+                quota=SupportQuota(core) if type(model) is GatewayModel else None,
             ) if model is not None else None)
     return app
 

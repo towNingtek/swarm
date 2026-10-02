@@ -96,6 +96,21 @@ class OfficeTests(unittest.TestCase):
         for secret in ('sk-should-never-leak', 'ghp_secret', 'token_file', 'someone', '123'):
             self.assertNotIn(secret, text)
 
+    def test_default_model_parse_is_linear_on_hostile_files(self):
+        import time
+        patch = self.site / 'dsh-home' / 'profiles' / 'web' / 'cordis.patch.yml'
+        for text in ('- id: agent-default-model' + ' ' * 60000 + 'x\n',
+                     '- id: agent-default-model\n' + (' ' * 200 + '\n') * 300,
+                     '- id: agent-default-model\n  config:\n    model:' + ' \t' * 30000 + '!\n',
+                     ('- id: agent-default-model\n  name: x\n' + ' \n' * 30000)[:MAX_BYTES]):
+            patch.write_text(text)
+            started = time.monotonic()
+            read_office(self.site)
+            self.assertLess(time.monotonic() - started, 1.0)
+        patch.write_text(PATCH.replace("provider: platform-starter", "provider: 'my-own'  "))
+        self.assertEqual(read_office(self.site)['default_model'],
+                         {'provider': 'my-own', 'model': 'cloud-fast', 'starter': False})
+
     def test_symlinks_are_never_followed(self):
         secret = self.sites / 'secret.yaml'
         secret.write_text('hives:\n  - id: stolen\n')

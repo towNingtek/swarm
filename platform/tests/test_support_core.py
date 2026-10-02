@@ -83,6 +83,15 @@ class SupportCoreTests(unittest.TestCase):
         self.core.preview_invite(token, 'a.example')
         self.core.redeem_invite(token, 'a.example', 'bob', PASSWORD)
 
+    def test_probing_taken_usernames_spends_the_invite(self):
+        self.activate()
+        token = self.invite()
+        for _ in range(self.core.MAX_INVITE_CONFLICTS):
+            with self.assertRaises(Conflict):
+                self.core.redeem_invite(token, 'a.example', 'alice', PASSWORD)
+        with self.assertRaises(InvalidInvite):
+            self.core.redeem_invite(token, 'a.example', 'bob', PASSWORD)
+
     def test_concurrent_redemption_exactly_once_across_instances(self):
         token = self.invite()
         other = self.reopen()

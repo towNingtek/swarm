@@ -352,7 +352,26 @@ class SupportCore:
                 conn.execute('UPDATE invites SET redeemed_at=? WHERE digest=?', (self.clock(), _digest(token)))
                 return grant
         except sqlite3.IntegrityError:
+            # Usernames are unique per platform, so "taken" reveals that a name
+            # exists somewhere. Each conflict counts against the invite, which
+            # is revoked after a few: the holder cannot probe a list of names.
+            self._count_conflict(token)
             raise Conflict('account unavailable') from None
+
+    MAX_INVITE_CONFLICTS = 5
+
+    def _count_conflict(self, token):
+        digest = _digest(token)
+        with self._connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            conn.execute('CREATE TABLE IF NOT EXISTS invite_conflicts '
+                         '(digest TEXT PRIMARY KEY REFERENCES invites(digest), count INTEGER NOT NULL)')
+            conn.execute('INSERT INTO invite_conflicts VALUES (?,1) ON CONFLICT(digest) '
+                         'DO UPDATE SET count=count+1', (digest,))
+            count = conn.execute('SELECT count FROM invite_conflicts WHERE digest=?', (digest,)).fetchone()[0]
+            if count >= self.MAX_INVITE_CONFLICTS:
+                conn.execute('UPDATE invites SET revoked_at=? WHERE digest=? AND revoked_at IS NULL '
+                             'AND redeemed_at IS NULL', (self.clock(), digest))
 
     def login(self, host: str, username: str, password: str) -> SessionGrant:
         host, username = normalize_host(host), self._username(username)

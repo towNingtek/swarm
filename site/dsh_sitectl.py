@@ -1063,7 +1063,7 @@ def set_site_password(name: str, password: str, *, self_test=None) -> None:
     password = _validate_site_password(password)
     _recreate_site(
         name,
-        lambda text: _replace_hash_line(text, web_auth_password_hash(password)),
+        lambda text, host: _replace_hash_line(text, web_auth_password_hash(password)),
         drop_sessions=True,
         probe=lambda port, host, env: (self_test or _dsh_self_test)(
             port, password, base_url=f"https://{host}"),
@@ -1086,10 +1086,10 @@ def isolate_site(name: str, *, self_test=None) -> None:
     if not master:
         raise SiteError("SWARM_ENTRY_SECRET is required to verify the moved site")
 
-    def transform(text):
-        host = _env_line(text, "DSH_TRUSTED_HOST")
-        if not host:
-            raise SiteError("dsh.env has no DSH_TRUSTED_HOST")
+    def transform(text, host):
+        # `host` comes from site.yaml (outside the site's mounts), never from
+        # dsh.env: code in the site can rewrite dsh.env, and a host taken from
+        # it would hand this site another site's entry key.
         text = _set_env_line(text, "RELAY_TRUSTED_PEERS", SITE_GATEWAY)
         return _set_env_line(text, "WEB_AUTH_ENTRY_SECRET", site_entry_secret(master, host))
 
@@ -1102,7 +1102,9 @@ def isolate_site(name: str, *, self_test=None) -> None:
 
 
 def _env_line(text: str, key: str) -> str:
-    hits = [line.split("=", 1)[1] for line in text.split("\n") if line.startswith(key + "=")]
+    # docker --env-file strips leading whitespace, so an indented line is the
+    # same key: count it, or a planted duplicate would go unnoticed.
+    hits = [line.split("=", 1)[1] for line in text.split("\n") if line.lstrip().startswith(key + "=")]
     if len(hits) > 1:
         raise SiteError(f"dsh.env has more than one {key} line")
     return hits[0].strip() if hits else ""
@@ -1112,7 +1114,7 @@ def _set_env_line(text: str, key: str, value: str) -> str:
     if any(c in value for c in "\r\n\0"):
         raise SiteError("env value must be a single line")
     lines = text.split("\n")
-    hits = [i for i, line in enumerate(lines) if line.startswith(key + "=")]
+    hits = [i for i, line in enumerate(lines) if line.lstrip().startswith(key + "=")]
     if len(hits) > 1:
         raise SiteError(f"dsh.env has more than one {key} line")
     if hits:
@@ -1140,6 +1142,8 @@ def _recreate_site(name, transform_env, *, drop_sessions, probe, what, restored)
         host = state.get("host")
         if not isinstance(port, int) or not cpus or not memory or not host:
             raise SiteError("site state incomplete; refusing to recreate")
+        if host != site_host(name):
+            raise SiteError("site state host does not match the site name; refusing to recreate")
         current = container_name(name)
         image = run(["docker", "inspect", "--format", "{{.Image}}", current])
         if not image.startswith("sha256:"):
@@ -1158,7 +1162,12 @@ def _recreate_site(name, transform_env, *, drop_sessions, probe, what, restored)
         old_env = _read_private(env_file)
         if old_env is None:
             raise SiteError("dsh.env missing; refusing to recreate")
-        new_text = transform_env(old_env.decode("utf-8"))
+        new_text = transform_env(old_env.decode("utf-8"), host)
+        # dsh.env is writable by the site: whatever it now says, the identity
+        # lines are put back from trusted state.
+        if _env_line(new_text, "DSH_TRUSTED_HOST"):
+            new_text = _set_env_line(new_text, "DSH_TRUSTED_HOST", host)
+            new_text = _set_env_line(new_text, "RELAY_PUBLIC_ORIGIN", f"https://{host}")
         new_env = new_text.encode("utf-8")
         sessions = home / "plugins" / "web-auth" / "sessions.json"
         old_sessions = _read_private(sessions)

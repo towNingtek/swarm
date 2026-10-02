@@ -105,6 +105,10 @@ class SupportQuota:
             month = datetime.fromtimestamp(self.core.clock(), timezone.utc).strftime('%Y-%m')
             rows = conn.execute("SELECT estimate,state,actual FROM support_quota_ledger WHERE tenant_id=? AND month=? AND state!='cancelled'", (tenant, month))
             used = sum(row['estimate'] if row['state'] == 'held' else row['actual'] for row in rows)
+            # One pool per tenant: the site relay's usage counts here too.
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='support_site_model_usage'").fetchone():
+                used += sum(row['estimate'] if row['state'] == 'held' else (row['actual'] or 0)
+                            for row in conn.execute('SELECT estimate,state,actual FROM support_site_model_usage WHERE tenant_id=? AND month=?', (tenant, month)))
             if policy['mode'] == 'capped' and used + estimated_tokens > policy['monthly_limit']:
                 raise QuotaDenied('monthly budget exhausted')
             token = secrets.token_urlsafe(32)

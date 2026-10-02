@@ -137,8 +137,14 @@ class ChatAppTests(unittest.TestCase):
         for response in responses:
             self.assertEqual(response.status_code, 401)
             self.safe(response)
-        self.assertEqual(self.customer.get(self.cp, headers={'cookie':
-            COOKIE + '=' + self.customer.cookies.get(COOKIE) + '; swarm_admin_session=test-only'}).status_code, 403)
+        # A foreign admin-looking cookie (a sibling site can plant one on the
+        # parent domain) grants nothing and is ignored rather than locking the
+        # customer out; the customer still sees only their own room.
+        planted = self.customer.get(self.cp, headers={'cookie':
+            COOKIE + '=' + self.customer.cookies.get(COOKIE) + '; swarm_admin_session=test-only'})
+        self.assertEqual(planted.status_code, 200)
+        self.assertEqual(self.customer.get(foreign, headers={'cookie':
+            COOKIE + '=' + self.customer.cookies.get(COOKIE) + '; swarm_admin_session=test-only'}).status_code, 401)
         self.assertEqual(self.customer.get('/admin/rooms', headers=self.ah).status_code, 403)
         self.assertEqual(self.customer.get('/admin/rooms').status_code, 404)
         self.assertEqual(self.customer.post(self.cp + '/control', headers=self.ch,

@@ -139,6 +139,14 @@ class AccessTests(Base):
     def test_estimate_covers_prompt_and_output(self):
         self.assertEqual(estimate_tokens(b'x' * 300, 1000), 1100)
 
+    def test_remote_images_are_held_at_their_token_cost(self):
+        from support_site_model import IMAGE_TOKENS, count_images
+        image = {'type': 'image_url', 'image_url': {'url': 'https://example.com/a.png'}}
+        messages = [{'role': 'user', 'content': [{'type': 'text', 'text': 'what?'}, image, image]},
+                    {'role': 'user', 'content': 'plain'}, 'junk', {'content': [None, 'x']}]
+        self.assertEqual(count_images(messages), 2)
+        self.assertEqual(estimate_tokens(b'x' * 300, 1000, 2), 1100 + 2 * IMAGE_TOKENS)
+
 
 class SanitizeTests(unittest.TestCase):
     def test_drops_routing_fields_and_forces_usage(self):
@@ -154,6 +162,22 @@ class SanitizeTests(unittest.TestCase):
         self.assertEqual(cap, 16384)
         self.assertEqual(clean['max_completion_tokens'], 16384)
         self.assertEqual(clean['stream_options'], {'include_usage': True})
+
+    def test_only_function_tools_and_no_account_fields(self):
+        msg = {'model': 'cloud-fast', 'messages': [{'role': 'user', 'content': 'hi'}]}
+        fn = {'type': 'function', 'function': {'name': 'read_file', 'description': 'd',
+                                               'parameters': {'type': 'object'}}}
+        clean, _ = sanitize({**msg, 'tools': [fn], 'user': 'someone-else', 'store': True}, ('cloud-fast',))
+        self.assertEqual(clean['tools'], [fn])
+        self.assertNotIn('user', clean)
+        self.assertNotIn('store', clean)
+        for tools in ([{'type': 'mcp', 'server_url': 'litellm_proxy/mcp/x', 'require_approval': 'never'}],
+                      [{'type': 'web_search'}], [{'type': 'code_interpreter'}],
+                      [{**fn, 'server_url': 'http://evil'}],
+                      [{'type': 'function', 'function': {'name': 'x', 'server_url': 'http://evil'}}],
+                      [{'type': 'function'}], 'not-a-list', [fn] * 129):
+            with self.subTest(tools=str(tools)[:60]), self.assertRaises(ValueError):
+                sanitize({**msg, 'tools': tools}, ('cloud-fast',))
 
     def test_rejects_other_models(self):
         with self.assertRaises(ValueError):

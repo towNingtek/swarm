@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import site_templates as st
@@ -200,6 +201,24 @@ class ApplyTests(unittest.TestCase):
             "id: demo\nname: Demo\nversion: 1\ndescription: d\ngit_init: true\n")
         self.apply()
         self.assertTrue((self.ws / ".git").is_dir())
+        self.assertEqual((self.ws / ".git" / "HEAD").read_text(), "ref: refs/heads/main\n")
+
+    def test_git_marker_never_follows_a_swapped_in_symlink(self):
+        # The site swaps .git for a symlink between the check and the write.
+        (self.root / "demo" / "template.yaml").write_text(
+            "id: demo\nname: Demo\nversion: 1\ndescription: d\ngit_init: true\n")
+        victim = self.root / "other-tenant-workspace"
+        victim.mkdir()
+        real_kind = st.safe_fs.kind
+
+        def swap(root, rel):
+            result = real_kind(root, rel)
+            if rel == ".git":
+                (self.ws / ".git").symlink_to(victim)
+            return result
+        with mock.patch.object(st.safe_fs, "kind", swap), self.assertRaises(st.TemplateError):
+            self.apply()
+        self.assertEqual(list(victim.iterdir()), [])
 
 
 if __name__ == "__main__":

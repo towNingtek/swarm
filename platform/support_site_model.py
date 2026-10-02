@@ -46,6 +46,11 @@ def _digest(token):
 class SiteModelAccess:
     MAX_TOKENS = 1_000_000_000
 
+    # A hold older than this cannot belong to a live request (the relay's read
+    # timeout is shorter): it is billed at its estimate and stops counting
+    # toward the concurrency limit.
+    HOLD_TTL = 900
+
     def __init__(self, core, *, max_outstanding=4):
         if type(max_outstanding) is not int or not 1 <= max_outstanding <= 64:
             raise InvalidInput('invalid outstanding limit')
@@ -143,6 +148,9 @@ class SiteModelAccess:
             if policy is None or policy['mode'] == 'disabled':
                 raise SiteModelDenied(403, 'starter_model_disabled',
                                       '起步模型未開放給這個站台。請到 Settings → Models 接上你自己的模型。')
+            conn.execute("UPDATE support_site_model_usage SET state='unknown', actual=estimate "
+                         "WHERE tenant_id=? AND state='held' AND created_at<?",
+                         (tenant, self.core.clock() - self.HOLD_TTL))
             outstanding = conn.execute("SELECT count(*) FROM support_site_model_usage "
                                        "WHERE tenant_id=? AND state='held'", (tenant,)).fetchone()[0]
             if outstanding >= self.max_outstanding:
@@ -187,11 +195,28 @@ class SiteModelAccess:
             return self._used(conn, tenant_id, self._month())
 
 
-def estimate_tokens(body_bytes, max_output):
-    """Hold size for admission: request bytes / 3 plus the output cap.
+# A remote image is a few bytes of URL but costs the provider's per-image
+# tokens; a high-detail image is about 1-2k on current models.
+IMAGE_TOKENS = 2000
+
+
+def estimate_tokens(body_bytes, max_output, images=0):
+    """Hold size for admission: request bytes / 3, plus a fixed amount per
+    image part, plus the output cap.
 
     Text tokenizes at roughly 3-4 bytes per token, so bytes/3 covers the prompt
     in practice; settlement then uses the provider's real count, which may be
     higher or lower. This only decides whether to START a request.
     """
-    return max(1, math.ceil(len(body_bytes) / 3) + int(max_output))
+    return max(1, math.ceil(len(body_bytes) / 3) + IMAGE_TOKENS * int(images) + int(max_output))
+
+
+def count_images(messages):
+    """Image parts in OpenAI-style chat messages."""
+    count = 0
+    for message in messages if isinstance(messages, list) else ():
+        content = message.get('content') if isinstance(message, dict) else None
+        if isinstance(content, list):
+            count += sum(1 for part in content
+                         if isinstance(part, dict) and part.get('type') in ('image_url', 'input_image'))
+    return count

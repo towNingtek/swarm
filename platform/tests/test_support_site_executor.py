@@ -52,6 +52,16 @@ class SiteExecutorTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 p.site_name_for(reserved)
 
+    def test_refuses_the_platform_and_admin_hosts(self):
+        from unittest import mock
+        p = self.provisioner()
+        with mock.patch.dict('os.environ', {'PLATFORM_ORIGIN': 'https://portal.example.test',
+                                            'ADMIN_ORIGIN': 'https://Console.example.test'}):
+            for own in ('portal.example.test', 'console.example.test'):
+                with self.assertRaises(InvalidInput, msg=own):
+                    p.site_name_for(own)
+            self.assertEqual(p.site_name_for('acme.example.test'), 'acme')
+
     def test_onboarding_steps_follow_real_provisioning_state(self):
         """Regression: steps were hardcoded 'blocked' even after a real build."""
         from support_onboarding import SupportOnboarding

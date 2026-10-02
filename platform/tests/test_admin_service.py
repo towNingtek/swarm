@@ -39,6 +39,20 @@ class AdminServiceTests(unittest.TestCase):
     def login(self):
         return self.client.post('/admin/login', data={'password': PASSWORD}, headers=self.headers)
 
+    def test_login_attempts_are_rate_limited_per_visitor(self):
+        # TestClient's peer is not loopback, so it is its own visitor.
+        wrong = {'password': 'wrong-password-123456'}
+        codes = [self.client.post('/admin/login', data=wrong, headers=self.headers).status_code
+                 for _ in range(10)]
+        self.assertEqual(codes, [401] * 10)
+        self.assertEqual(self.client.post('/admin/login', data=wrong, headers=self.headers).status_code, 429)
+        # Even the right password waits: the limit is counted before it is read.
+        self.assertEqual(self.login().status_code, 429)
+        # Another visitor behind the same nginx is not affected.
+        from support_app import client_address
+        scope = {'client': ('127.0.0.1', 1), 'headers': [(b'x-swarm-client', b'198.51.100.7')]}
+        self.assertEqual(client_address(scope), '198.51.100.7')
+
     def test_configuration_is_strict(self):
         for env in ({'ADMIN_ORIGIN': ADMIN}, {'ADMIN_PASSWORD': PASSWORD}):
             with patch.dict(os.environ, env, clear=True):
@@ -158,6 +172,12 @@ class AdminServiceTests(unittest.TestCase):
         self.assertEqual(ok.status_code, 200, ok.text)
         self.assertIsNone(ok.json()['site_removed'])
         self.assertEqual(client.get('/admin/tenants').json(), [])
+        # The creation receipt goes too: the same request id may create anew.
+        again = client.post('/admin/tenants', headers=self.headers, json={
+            'client_request_id': 'admin-2', 'host': 'acme.example',
+            'room_mode': 'ai', 'policy': {'mode': 'disabled'}})
+        self.assertEqual(again.status_code, 200, again.text)
+        self.assertEqual(len(client.get('/admin/tenants').json()), 1)
 
     def test_customer_endpoints_are_not_served_by_the_console(self):
         self.assertEqual(self.login().status_code, 303)

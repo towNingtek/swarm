@@ -4,6 +4,7 @@ server {
     server_name $host;
 
     client_max_body_size 64m;
+    access_log /var/log/nginx/access.log swarm_noquery;
 
     location / {
         proxy_pass http://127.0.0.1:$port;

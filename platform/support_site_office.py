@@ -65,9 +65,12 @@ def _yaml(text):
         return None
     import yaml
 
+    # Site files are written by code in the site: a bad date (2024-13-45),
+    # deep nesting (RecursionError) or anything else must read as "unparsable",
+    # never escape into the shared scheduler.
     try:
         return yaml.safe_load(text)
-    except yaml.YAMLError:
+    except (yaml.YAMLError, ValueError, TypeError, RecursionError, MemoryError, OverflowError):
         return None
 
 
@@ -174,24 +177,32 @@ def _skills(workspace: Path):
     return names
 
 
+_DEFAULT_ID = re.compile(r"- id: ['\"]?agent-default-model['\"]?")
+_FIELD = re.compile(r"(provider|model):[ \t]*['\"]?([A-Za-z0-9._:/@-]{1,80})['\"]?")
+
+
 def default_model(dsh_home: Path):
     """provider/model of the customer's default model entry, nothing else."""
     text = _read(dsh_home, 'profiles', 'web', 'cordis.patch.yml')
     if text is None:
         return None
-    match = re.search(r"^- id: ['\"]?agent-default-model['\"]?\s*$", text, re.M)
-    if not match:
+    # Line by line: a multiline regex with `\s*$` backtracks quadratically on
+    # a whitespace-filled file, and this file is written by the site.
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines)
+                  if _DEFAULT_ID.fullmatch(line.rstrip())), None)
+    if start is None:
         return None
     block = []
-    for line in text[match.end():].splitlines()[1:]:
+    for line in lines[start + 1:]:
         if line.startswith('- ') or (line and not line.startswith(' ')):
             break
-        block.append(line)
+        block.append(line.strip())
     found = {}
     for key in ('provider', 'model'):
-        hit = re.search(rf"^\s+{key}:\s*['\"]?([A-Za-z0-9._:/@-]{{1,80}})['\"]?\s*$",
-                        '\n'.join(block), re.M)
-        found[key] = hit.group(1) if hit else None
+        hit = next((m for m in (_FIELD.fullmatch(line) for line in block)
+                    if m and m.group(1) == key), None)
+        found[key] = hit.group(2) if hit else None
     if not found['provider'] and not found['model']:
         return None
     return {**found, 'starter': found['provider'] == STARTER_PROVIDER}
@@ -207,7 +218,7 @@ def read_office(site_root: Path) -> dict:
         try:
             value = json.loads(record).get('template')
             template = value if isinstance(value, str) and _ID.match(value) else None
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, RecursionError):
             template = None
     registry_text = _read(workspace, '.swarm', 'registry.yaml')
     registry = _yaml(registry_text)
@@ -276,7 +287,13 @@ class SiteOffice:
             return None
         if not _is_dir(self.sites_root, name):
             return None
-        return read_office(self.sites_root / name)
+        try:
+            return read_office(self.sites_root / name)
+        except Exception as exc:
+            # One site's broken files must not take down callers that loop
+            # over every site (the scheduler, task deliveries).
+            print(f'[office] {name}: unreadable ({type(exc).__name__})', flush=True)
+            return None
 
     def editor_for_host(self, site_host):
         suffix = '.' + self.domain

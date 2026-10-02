@@ -76,10 +76,8 @@ class CustomerAppTests(unittest.TestCase):
                   [('origin', 'https://evil.example')],
                   [('origin', 'https://customer.example'), ('origin', 'https://customer.example')],
                   [('sec-fetch-site', 'cross-site')],
-                  [('cookie', 'swarm_admin_session=admin-secret')],
-                  [('cookie', 'malformed-cookie')],
-                  [('cookie', COOKIE + '=' + 'a' * 43 + '; swarm_admin_session=secret')],
                   [('cookie', COOKIE + '=' + 'a' * 43 + '; ' + COOKIE + '=' + 'a' * 43)],
+                  [('cookie', COOKIE + '=short')],
                   [('cookie', COOKIE + '=' + 'a' * 43), ('cookie', COOKIE + '=' + 'b' * 43)] ]
         for headers in cases:
             with self.subTest(headers=headers):
@@ -88,6 +86,15 @@ class CustomerAppTests(unittest.TestCase):
                 self.assert_safe(response)
         response = self.client.post('/customer/login', json=self.credentials)
         self.assertEqual(response.status_code, 403)
+        # Cookies a sibling site can plant on the parent domain (malformed,
+        # or named like an admin cookie) never authenticate and never lock the
+        # visitor out either.
+        for planted in ('swarm_admin_session=admin-secret', 'malformed-cookie', 'x="a b',
+                        'platform_admin_session=x'):
+            with self.subTest(planted=planted):
+                self.assertEqual(self.client.get('/customer/me', headers={'cookie': planted}).status_code, 401)
+                self.assertEqual(self.client.post('/customer/login', json={}, headers=dict(
+                    self.headers, cookie=planted)).status_code, 400)
         self.assertEqual(self.client.get('/admin').status_code, 404)
         self.assertEqual(self.client.get('/docs').status_code, 404)
 
@@ -105,8 +112,8 @@ class CustomerAppTests(unittest.TestCase):
         response = self.client.get('/customer/me', headers={'cookie': unrelated})
         self.assertEqual(response.status_code, 401)
         response = self.client.get('/customer/me', headers={
-            'cookie': 'swarm_admin_session=secret; ' + COOKIE + '=' + token})
-        self.assertEqual(response.status_code, 403)
+            'cookie': 'swarm_admin_session=secret; junk="a b; ' + COOKIE + '=' + token})
+        self.assertEqual(response.status_code, 200)
 
     def test_customer_session_cannot_cross_host(self):
         self.assertEqual(self.activate().status_code, 201)
@@ -149,7 +156,21 @@ class CustomerAppTests(unittest.TestCase):
             self.assert_safe(response)
             self.now += 61
             self.assertEqual(client.post('/customer/login', json={}, headers=self.headers).status_code, 400)
-        from support_app import _Limiter
+        from support_app import _Limiter, client_address
+        # Behind nginx every peer is loopback; the nginx-set header separates
+        # visitors. A non-loopback peer cannot choose its own bucket, and
+        # X-Forwarded-For / X-Real-IP are never read.
+        loop = ('127.0.0.1', 5)
+        self.assertEqual(client_address({'client': loop, 'headers': [(b'x-swarm-client', b'203.0.113.9')]}),
+                         '203.0.113.9')
+        self.assertEqual(client_address({'client': ('::1', 5), 'headers': [(b'x-swarm-client', b'2001:db8::1')]}),
+                         '2001:db8::1')
+        self.assertEqual(client_address({'client': ('198.51.100.1', 5),
+                                         'headers': [(b'x-swarm-client', b'203.0.113.9')]}), '198.51.100.1')
+        for headers in ([(b'x-forwarded-for', b'203.0.113.9')], [(b'x-real-ip', b'203.0.113.9')],
+                        [(b'x-swarm-client', b'not-an-ip')],
+                        [(b'x-swarm-client', b'203.0.113.9'), (b'x-swarm-client', b'203.0.113.10')]):
+            self.assertEqual(client_address({'client': loop, 'headers': headers}), '127.0.0.1', headers)
         limiter = _Limiter(lambda: self.now, 2, 60, 1)
         self.assertTrue(limiter.allow(('ip1', 'host')))
         self.assertFalse(limiter.allow(('ip2', 'host')))

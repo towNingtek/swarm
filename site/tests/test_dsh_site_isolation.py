@@ -140,6 +140,25 @@ class IsolateSiteTests(unittest.TestCase):
         self.assertEqual(seen, [(18003, None, {"base_url": "https://ab.example.com", "entry_key": key})])
         self.assertEqual(self.started[0][1], {"image": "sha256:" + "a" * 64})
 
+    def test_host_comes_from_site_state_not_the_site_writable_env(self):
+        # Code in site ab rewrote its own dsh.env to name another site.
+        self.env.write_text(ENV + "DSH_TRUSTED_HOST=cd.example.com\n"
+                            "RELAY_PUBLIC_ORIGIN=https://cd.example.com\nRELAY_TRUSTED_PEERS=172.17.0.1\n")
+        dsh.isolate_site("ab", self_test=lambda *a, **k: None)
+        text = self.env.read_text()
+        self.assertIn("WEB_AUTH_ENTRY_SECRET=" + dsh.site_entry_secret(MASTER, "ab.example.com") + "\n", text)
+        self.assertNotIn(dsh.site_entry_secret(MASTER, "cd.example.com"), text)
+        self.assertNotIn(dsh.site_entry_secret(MASTER, "cd.example.com"), repr(self.commands))
+        self.assertIn("DSH_TRUSTED_HOST=ab.example.com\n", text)
+        self.assertIn("RELAY_PUBLIC_ORIGIN=https://ab.example.com\n", text)
+
+    def test_an_indented_duplicate_identity_line_is_refused(self):
+        self.env.write_text(ENV + "DSH_TRUSTED_HOST=cd.example.com\n  DSH_TRUSTED_HOST=ab.example.com\n"
+                            "RELAY_TRUSTED_PEERS=172.17.0.1\n")
+        with self.assertRaisesRegex(dsh.SiteError, "more than one"):
+            dsh.isolate_site("ab", self_test=lambda *a, **k: None)
+        self.assertNotIn(["docker", "stop", "site-ab"], self.commands)
+
     def test_failed_self_test_restores_old_env_and_container(self):
         before = self.env.read_bytes()
 
