@@ -1,0 +1,22 @@
+flowchart LR
+  subgraph P1["① Define"]
+    direction TB
+    A(["Person: goal"]) --> B["epic skill<br/>done-criteria · split"]
+    B --> C["criteria tested first<br/>+ lint"]
+  end
+  subgraph P2["② Release"]
+    direction TB
+    G(["Person: swarm:go"])
+  end
+  subgraph P3["③ Build and judge"]
+    direction TB
+    I["🐝🐝🐝 Agents<br/>own worktrees"] --> J{"⚖️ Criteria<br/>all pass?"}
+    J -- no · retry --> I
+    J -- 3 tries --> M["swarm:stuck<br/>back to a person"]
+  end
+  subgraph P4["④ Accept"]
+    direction TB
+    Q["EPIC pull request"] --> U(["Person: accept"])
+  end
+  C --> G --> I
+  J -- yes --> Q

@@ -1,0 +1,22 @@
+flowchart LR
+  subgraph P1["① 定義"]
+    direction TB
+    A(["人：目標"]) --> B["epic skill<br/>完成條件・拆卡"]
+    B --> C["判準先實測<br/>＋ lint"]
+  end
+  subgraph P2["② 放行"]
+    direction TB
+    G(["人：swarm:go"])
+  end
+  subgraph P3["③ 平行實作與裁定"]
+    direction TB
+    I["🐝🐝🐝 Agents<br/>各自 worktree"] --> J{"⚖️ 判準<br/>全過？"}
+    J -- 否・重試 --> I
+    J -- 3 次未過 --> M["swarm:stuck<br/>交給人"]
+  end
+  subgraph P4["④ 驗收"]
+    direction TB
+    Q["EPIC 總 PR"] --> U(["人：驗收結案"])
+  end
+  C --> G --> I
+  J -- 是 --> Q

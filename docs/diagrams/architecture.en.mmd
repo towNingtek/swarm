@@ -1,0 +1,11 @@
+flowchart LR
+  browser([Browser]) -->|"HTTPS"| nginx["nginx"]
+  nginx -->|"platform.example.com"| platform["Platform :8210<br/>invites, login, onboarding, site builds"]
+  nginx -->|"platform.example.com/admin"| admin["Admin console :8211"]
+  nginx -->|"acme.example.com"| site["Site container<br/>DSH + login + office"]
+  platform --- db[(SQLite)]
+  admin --- db
+  platform -->|"docker"| site
+  site -->|"site key"| relay["Site model relay :8212<br/>key + budget check"]
+  relay --- db
+  relay -->|"platform key"| gateway["Your OpenAI-compatible<br/>model gateway"]
