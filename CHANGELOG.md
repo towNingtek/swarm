@@ -1,6 +1,27 @@
 # Changelog
 
-## Unreleased (0.2)
+## 0.2.0 — 2026-10-21
+
+The swarm: issues are run by AI agents in parallel and accepted only when their criteria pass; a board to see and steer it; new operator and customer consoles.
+
+### Swarm orchestrator (`swarm/`)
+
+- `epic_run.py --swarm`: runs an EPIC's `by:swarm` sub-issues with AI agents (official `claude`, `codex` or `opencode` CLIs, signed in by their owners), each in its own git worktree and limited to the files the sub-issue lists. Sub-issues that touch the same files are chained by their dependencies.
+- The judge: a separate runner executes each sub-issue's acceptance commands verbatim and counts only exit codes; up to three tries, then `swarm:stuck` for a person. Secrets in command output are redacted before results are posted.
+- `epic_autostart.py` starts EPICs a person released with `swarm:go`, and skips a round when less than 20 % of the GitHub API budget is left. `epic_lint.py` checks drafts offline (`--file`) or on GitHub. `epic_summary.py` writes a closing summary per EPIC; `epic_report.py` a monthly trend (first-pass rate, stuck rate, criteria defects, cost).
+- Low-risk EPICs can be released with `swarm:auto-merge`: the EPIC pull request merges by itself when every criterion passed and only listed files changed.
+- Issue templates (`swarm/templates/`, also `.github/ISSUE_TEMPLATE/`), the contracts (`docs/swarm/`) and the `epic` skill (`swarm/skills/epic/`).
+
+### Board (`plugins/swarm-board/`, in every site at `/board/`)
+
+- Wolffia, a live view of a GitHub Project: planets are open issues on rings by status, red glow marks issues that stay too long, clusters are EPICs with their completion arc and the agents working on them.
+- Writes back to GitHub with the site's own `gh` login: drag to change status, release an EPIC, toggle auto-merge, release again after edits.
+- 「＋ 加入 project」: lists the open projects the site's GitHub account can see (any org, most cards first) and adds the ticked ones. Projects are keyed `org/number`; bare numbers belong to the default org (`SWARM_BOARD_ORG`).
+- 📊 Analyse: the site's own AI reads the board (and the selected cards) and answers; the answer links `#numbers` to cards and can be continued in a site conversation.
+- The `epic` skill is installed site-wide (`$DSH_HOME/skills/epic`), with its templates and an offline lint, so any conversation in the site can open an EPIC by the rules.
+- Without a GitHub login the board says so and fetches nothing. Settings: `SWARM_BOARD_ORG`, `SWARM_BOARD_PROJECTS`, `SWARM_BOARD_THINK_CWD` (see `site/dsh-profile/cordis.patch.yml`).
+
+### Consoles
 
 Operator and customer consoles, ported from the private deployment (generic parts only; nothing that depends on the old opencode scheduler).
 

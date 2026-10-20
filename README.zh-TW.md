@@ -2,13 +2,56 @@
 
 繁體中文 | [简体中文](README.zh-CN.md) | [English](README.md)
 
-一套可以自己架設的 AI 辦公室。你架一個平台，邀請客戶進來；每位客戶拿到一個隔離的 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 站台，裡面已經放好辦公室範本：公司、AI 員工角色、排程，以及放自己金鑰的地方。
+[![CI](https://github.com/towNingtek/swarm/actions/workflows/ci.yml/badge.svg)](https://github.com/towNingtek/swarm/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/towNingtek/swarm)](https://github.com/towNingtek/swarm/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+一套可以自己架設、由**蜂群**運作的 AI 辦公室：AI agent 平行處理一個 EPIC 底下的 issue，裁判只在驗收判準全過時才接受成果，人負責決定與驗收。你架一個平台，邀請客戶進來；每位客戶拿到一個隔離的 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 站台，裡面已經放好辦公室範本：公司、AI 員工角色、排程，以及放自己金鑰的地方。
 
 ![營運者建立客戶、送出邀請；客戶啟用帳號、站台自動建好，在自己的站台裡和 AI 一起工作](docs/media/demo.gif)
 
 含字幕的完整影片：[docs/media/demo.mp4](docs/media/demo.mp4)。示範跑在一次性的測試安裝上，模型是腳本，AI 的回覆是預先寫好的。
 
 > 介面目前只有繁體中文。
+
+
+## 群體智能怎麼運作
+
+Swarm 把一個目標拆成 **一個 EPIC 和幾張小 issue**，每張交給一個 AI agent，**平行**實作。成果要等 issue 上的**可執行驗收判準**全部通過才算數，判準由獨立的裁判執行。人負責定目標、放行、驗收，不需要盯進度。
+
+```mermaid
+flowchart LR
+  subgraph P1["① 定義"]
+    direction TB
+    A(["人：目標"]) --> B["epic skill<br/>完成條件・拆卡"]
+    B --> C["判準先實測<br/>＋ lint"]
+  end
+  subgraph P2["② 放行"]
+    direction TB
+    G(["人：swarm:go"])
+  end
+  subgraph P3["③ 平行實作與裁定"]
+    direction TB
+    I["🐝🐝🐝 Agents<br/>各自 worktree"] --> J{"⚖️ 判準<br/>全過？"}
+    J -- 否・重試 --> I
+    J -- 3 次未過 --> M["swarm:stuck<br/>交給人"]
+  end
+  subgraph P4["④ 驗收"]
+    direction TB
+    Q["EPIC 總 PR"] --> U(["人：驗收結案"])
+  end
+  C --> G --> I
+  J -- 是 --> Q
+```
+
+| 階段 | 參與者 | 關卡 |
+|------|--------|------|
+| ① 定義 | 人＋`epic` skill | 寫不出可驗證的「做完」就不開卡；每條判準先在現況實測、必須失敗；草稿要通過 `epic_lint` |
+| ② 放行 | 人 | 加上 `swarm:go` 後判準凍結 |
+| ③ 實作與裁定 | Agents＋runner | 每個 agent 一個 worktree，只能改 issue 列出的檔案；改到同一個檔案的卡排成一條鏈；runner 照原文執行判準、只看 exit code |
+| ④ 驗收 | 人 | 審核 EPIC 總 PR（低風險的可自動合併）；結案摘要計入月報 |
+
+![看板（示範資料）：行星是未關閉的 issue，依狀態排在不同軌道；星團是 EPIC 與它的完成比例；紅暈代表卡住](docs/media/30-board.png)
+
+每個站台都有 **Wolffia 看板**（`/board/`）：即時呈現 GitHub Project，可以拖曳卡片改狀態、放行 EPIC、從任何看得到的組織加入 project，也可以按 **📊 分析** 讓站台自己的 AI 讀完看板回答。細節見 [`swarm/`](swarm/) 與 [`plugins/swarm-board/`](plugins/swarm-board/)。
 
 ## 功能
 
@@ -25,7 +68,8 @@
 
 | 營運者 | 客戶 |
 |---|---|
-| ![一覽所有客戶：站台、額度政策、樣板](docs/media/10-admin-overview.png) | ![用邀請連結啟用帳號](docs/media/04-activate.png) |
+| ![營運總覽：每個站台的用量、最近排程與待處理事項；卡片上有 📊 看板與進入站台按鈕](docs/media/20-admin-overview.png) | ![客戶總覽：自己的站台、用量、最近排程、一鍵進看板](docs/media/21-customer-overview.png) |
+| ![用邀請連結啟用帳號](docs/media/04-activate.png) | ![客戶設定：設定進度與站台密碼](docs/media/22-customer-settings.png) |
 | ![一次性邀請連結（截圖已遮住）](docs/media/03-admin-invite.png) | ![平台首頁：站台已經建好](docs/media/06-site-ready.png) |
 
 在客戶自己的站台裡：回覆經過平台的 relay，用量計入每月額度。
@@ -88,16 +132,19 @@ sudo deploy/install.sh --start
 | [`platform/`](platform/) | 平台、管理後台、站台模型 relay |
 | [`site/`](site/) | 建站引擎與 DSH 站台 image |
 | [`office-template/`](office-template/) | 新站台一開就有的辦公室 |
-| [`plugins/`](plugins/) | 放在本 repo 的 DSH 外掛（品牌外觀） |
+| [`plugins/`](plugins/) | 放在本 repo 的 DSH 外掛：品牌外觀，以及看板（Wolffia）與 `epic` skill |
+| [`swarm/`](swarm/) | 蜂群 orchestrator：agents、裁判、自動開工、結案摘要與月報 |
 | [`deploy/`](deploy/) | 用 systemd、Docker、nginx 在一台主機上安裝 |
 | [`demo/`](demo/) | 上面示範用的腳本模型和錄影腳本 |
-| [`docs/`](docs/) | 架構、安全模型、HTTP API、設計紀錄（英文） |
+| [`docs/`](docs/) | 架構、安全模型、HTTP API、設計紀錄、蜂群契約 |
 
 ## 開發
 
 ```sh
 bash scripts/test.sh          # 全部測試；Python 3.10 以上、Node 22
 ```
+
+這裡怎麼寫 issue（EPIC＋可執行驗收判準）、PR 需要什麼，見 [CONTRIBUTING.md](CONTRIBUTING.md)（英文）。
 
 平台用 Python（FastAPI），頁面由伺服器產生。站台 image 是 DSH 加上 profile patch，不修改 DSH 本身。
 

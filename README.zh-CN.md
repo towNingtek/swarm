@@ -2,13 +2,56 @@
 
 [繁體中文](README.zh-TW.md) | 简体中文 | [English](README.md)
 
-一套可以自己部署的 AI 办公室。你部署一个平台，邀请客户进来；每位客户拿到一个隔离的 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 站点，里面已经放好办公室模板：公司、AI 员工角色、定时任务，以及存放自己密钥的地方。
+[![CI](https://github.com/towNingtek/swarm/actions/workflows/ci.yml/badge.svg)](https://github.com/towNingtek/swarm/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/towNingtek/swarm)](https://github.com/towNingtek/swarm/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+一套可以自己部署、由**蜂群**运作的 AI 办公室：AI agent 并行处理一个 EPIC 下的 issue，裁判只在验收判据全过时才接受成果，人负责决定与验收。你部署一个平台，邀请客户进来；每位客户拿到一个隔离的 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 站点，里面已经放好办公室模板：公司、AI 员工角色、定时任务，以及存放自己密钥的地方。
 
 ![运营者创建客户、发出邀请；客户激活账号、站点自动建好，在自己的站点里和 AI 一起工作](docs/media/demo.gif)
 
 带字幕的完整视频：[docs/media/demo.mp4](docs/media/demo.mp4)。演示运行在一次性的测试安装上，模型是脚本，AI 的回复是预先写好的。
 
 > 界面目前只有繁体中文。
+
+
+## 群体智能如何运作
+
+Swarm 把一个目标拆成 **一个 EPIC 和几张小 issue**，每张交给一个 AI agent，**并行**实现。成果要等 issue 上的**可执行验收判据**全部通过才算数，判据由独立的裁判执行。人负责定目标、放行、验收，不需要盯进度。
+
+```mermaid
+flowchart LR
+  subgraph P1["① 定义"]
+    direction TB
+    A(["人：目标"]) --> B["epic skill<br/>完成条件・拆卡"]
+    B --> C["判据先实测<br/>＋ lint"]
+  end
+  subgraph P2["② 放行"]
+    direction TB
+    G(["人：swarm:go"])
+  end
+  subgraph P3["③ 并行实现与裁定"]
+    direction TB
+    I["🐝🐝🐝 Agents<br/>各自 worktree"] --> J{"⚖️ 判据<br/>全过？"}
+    J -- 否・重试 --> I
+    J -- 3 次未过 --> M["swarm:stuck<br/>交给人"]
+  end
+  subgraph P4["④ 验收"]
+    direction TB
+    Q["EPIC 总 PR"] --> U(["人：验收结案"])
+  end
+  C --> G --> I
+  J -- 是 --> Q
+```
+
+| 阶段 | 参与者 | 关卡 |
+|------|--------|------|
+| ① 定义 | 人＋`epic` skill | 写不出可验证的「完成」就不开卡；每条判据先在现况实测、必须失败；草稿要通过 `epic_lint` |
+| ② 放行 | 人 | 加上 `swarm:go` 后判据冻结 |
+| ③ 实现与裁定 | Agents＋runner | 每个 agent 一个 worktree，只能改 issue 列出的文件；改到同一个文件的卡排成一条链；runner 照原文执行判据、只看 exit code |
+| ④ 验收 | 人 | 审核 EPIC 总 PR（低风险的可自动合并）；结案摘要计入月报 |
+
+![看板（示范数据）：行星是未关闭的 issue，按状态排在不同轨道；星团是 EPIC 与它的完成比例；红晕代表卡住](docs/media/30-board.png)
+
+每个站点都有 **Wolffia 看板**（`/board/`）：实时呈现 GitHub Project，可以拖动卡片改状态、放行 EPIC、从任何看得到的组织加入 project，也可以按 **📊 分析** 让站点自己的 AI 读完看板回答。细节见 [`swarm/`](swarm/) 与 [`plugins/swarm-board/`](plugins/swarm-board/)。
 
 ## 功能
 
@@ -25,7 +68,8 @@
 
 | 运营者 | 客户 |
 |---|---|
-| ![一览所有客户：站点、额度策略、模板](docs/media/10-admin-overview.png) | ![用邀请链接激活账号](docs/media/04-activate.png) |
+| ![运营总览：每个站点的用量、最近排程与待处理事项；卡片上有 📊 看板与进入站点按钮](docs/media/20-admin-overview.png) | ![客户总览：自己的站点、用量、最近排程、一键进看板](docs/media/21-customer-overview.png) |
+| ![用邀请链接激活账号](docs/media/04-activate.png) | ![客户设置：设置进度与站点密码](docs/media/22-customer-settings.png) |
 | ![一次性邀请链接（截图已遮住）](docs/media/03-admin-invite.png) | ![平台首页：站点已经建好](docs/media/06-site-ready.png) |
 
 在客户自己的站点里：回复经过平台的 relay，用量计入每月额度。
@@ -88,16 +132,19 @@ sudo deploy/install.sh --start
 | [`platform/`](platform/) | 平台、管理后台、站点模型 relay |
 | [`site/`](site/) | 建站引擎与 DSH 站点镜像 |
 | [`office-template/`](office-template/) | 新站点一开就有的办公室 |
-| [`plugins/`](plugins/) | 放在本仓库的 DSH 插件（品牌外观） |
+| [`plugins/`](plugins/) | 放在本仓库的 DSH 插件：品牌外观，以及看板（Wolffia）与 `epic` skill |
+| [`swarm/`](swarm/) | 蜂群 orchestrator：agents、裁判、自动开工、结案摘要与月报 |
 | [`deploy/`](deploy/) | 用 systemd、Docker、nginx 在一台主机上安装 |
 | [`demo/`](demo/) | 上面演示用的脚本模型和录屏脚本 |
-| [`docs/`](docs/) | 架构、安全模型、HTTP API、设计记录（英文） |
+| [`docs/`](docs/) | 架构、安全模型、HTTP API、设计记录、蜂群契约 |
 
 ## 开发
 
 ```sh
 bash scripts/test.sh          # 全部测试；Python 3.10 以上、Node 22
 ```
+
+这里怎么写 issue（EPIC＋可执行验收判据）、PR 需要什么，见 [CONTRIBUTING.md](CONTRIBUTING.md)（英文）。
 
 平台用 Python（FastAPI），页面由服务器生成。站点镜像是 DSH 加上 profile patch，不修改 DSH 本身。
 
