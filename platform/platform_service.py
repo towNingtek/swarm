@@ -183,6 +183,10 @@ def build():
     from support_ui import install_customer_ui
 
     install_customer_ui(app)
+    # Customer console overview: the customer's own site, usage and recent runs.
+    from support_customer_overview import install_customer_overview
+
+    install_customer_overview(app, core)
 
     provisioner = None
     if os.environ.get('PLATFORM_PROVISION') == '1':

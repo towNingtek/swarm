@@ -30,7 +30,7 @@ class OnboardingUITests(unittest.TestCase):
         harness = r'''
 const assert = require('node:assert/strict');
 const nodes = {};
-for (const id of ['steps','rules','acknowledge','reload','status','site-job','site-card','office','office-meta','office-note','hives','office-empty','model-meta','model-current','starter-box','starter-bar','starter-usage','model-howto','rules-box','rules-state','site-ready','site-link','site-enter','site-secret','auto-note','copilot','copilot-message','copilot-act','copilot-status','chat-log','chat-mode','chat-ask-ai','chat-form','chat-input','chat-send','chat-status','copilot-launcher','copilot-close','site-password','site-password-form','site-password-new','site-password-reuse','site-password-new-fields','site-password-reuse-fields','site-password-input','site-password-confirm','site-password-platform','site-password-save','site-password-status','sched-form','sched-title','sched-freq','sched-dow','sched-dow-wrap','sched-time','sched-time-wrap','sched-minute','sched-minute-wrap','sched-cron','sched-cron-wrap','sched-role','sched-skill','sched-name','sched-context','sched-save','sched-cancel','sched-status','sched-home','sched-preview','offers','offers-meta','offer-list','offers-waiting','runs-box','runs-meta','run-list','schedule-note-text']) nodes[id] = {
+for (const id of ['site-board','steps','rules','acknowledge','reload','status','site-job','site-card','office','office-meta','office-note','hives','office-empty','model-meta','model-current','starter-box','starter-bar','starter-usage','model-howto','rules-box','rules-state','site-ready','site-link','site-enter','site-secret','auto-note','copilot','copilot-message','copilot-act','copilot-status','chat-log','chat-mode','chat-ask-ai','chat-form','chat-input','chat-send','chat-status','copilot-launcher','copilot-close','site-password','site-password-form','site-password-new','site-password-reuse','site-password-new-fields','site-password-reuse-fields','site-password-input','site-password-confirm','site-password-platform','site-password-save','site-password-status','sched-form','sched-title','sched-freq','sched-dow','sched-dow-wrap','sched-time','sched-time-wrap','sched-minute','sched-minute-wrap','sched-cron','sched-cron-wrap','sched-role','sched-skill','sched-name','sched-context','sched-save','sched-cancel','sched-status','sched-home','sched-preview','offers','offers-meta','offer-list','offers-waiting','runs-box','runs-meta','run-list','schedule-note-text']) nodes[id] = {
  children:[],disabled:false,hidden:false,value:'',textContent:'',append(x){this.children.push(x);},
  replaceChildren(...x){this.children=x;},addEventListener(k,fn){this[k]=fn;},
  setAttribute(k,v){this['attr:'+k]=v;}, focus(){}, dataset:{}, scrollTop:0, scrollHeight:480
@@ -132,6 +132,8 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  jobStatus='succeeded_provisioned'; siteHost='acme.example'; nodes.reload.click(); await tick();
  assert.equal(nodes['site-ready'].hidden,false);
  assert.match(nodes['site-link'].textContent,/https:\/\/acme\.example\//);
+ // 看板連結先隱藏，直到站台真的裝好（swarm#529）。
+ assert.equal(nodes['site-board'].hidden, true);
  assert.match(nodes['site-card'].className,/ready/);
  // Office unreadable: said so, nothing invented.
  assert.match(nodes['office-note'].textContent,/讀不到/);
@@ -389,3 +391,55 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+class CustomerConsoleLayoutTests(unittest.TestCase):
+    """#555: the customer page is a console like the operator one (sidebar + views)."""
+
+    def test_sidebar_views_and_existing_elements(self):
+        for view in ('overview', 'schedules', 'usage', 'settings'):
+            self.assertIn('data-view="%s"' % view, PAGE)
+            self.assertIn('id="view-%s"' % view, PAGE)
+        self.assertNotIn('data-view="support"', PAGE)   # Copilot covers support
+        self.assertNotIn('id="mysched"', PAGE)   # no classic-scheduler table here
+        self.assertIn('id="ov"', PAGE)
+        # nothing the old single page offered may disappear
+        for eid in ('site-enter', 'site-board', 'site-password', 'steps', 'office', 'hives', 'sched-form',
+                    'runs-box', 'model', 'starter-box', 'rules-box', 'acknowledge', 'reload', 'copilot'):
+            self.assertIn('id="%s"' % eid, PAGE)
+
+    def test_view_switcher_shows_one_view_and_remembers_it(self):
+        import shutil, subprocess, json
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('node not available')
+        harness = r"""
+const assert = require('node:assert/strict');
+const views = ['overview','schedules','usage','settings','settings-2'].map(id => ({id:'view-'+id, hidden:false,
+  getAttribute(k){ return k==='data-part-of' && id==='settings-2' ? 'settings' : null; }}));
+const buttons = ['overview','schedules','usage','settings'].map(v => ({v, attrs:{'data-view':v}, L:{},
+  getAttribute(k){ return this.attrs[k] ?? null; }, setAttribute(k,x){ this.attrs[k]=x; }, removeAttribute(k){ delete this.attrs[k]; },
+  addEventListener(t,f){ this.L[t]=f; }}));
+let hash = '#usage';
+global.location = { get hash(){ return hash; } };
+global.history = { replaceState(_a,_b,u){ hash = u; } };
+global.document = { readyState:'complete', addEventListener(){},
+  querySelectorAll(sel){ return sel === '.view' ? views : sel.startsWith('#cnav') ? buttons : []; },
+  getElementById(){ return null; } };
+eval(SWITCHER);
+const shown = () => views.filter(v => !v.hidden).map(v => v.id);
+assert.deepEqual(shown(), ['view-usage'], 'opens the page in the URL hash');
+buttons[3].L.click();
+assert.deepEqual(shown(), ['view-settings', 'view-settings-2'], 'settings shows both of its parts');
+assert.equal(hash, '#settings');
+assert.equal(buttons[3].attrs['aria-current'], 'page'); assert.equal(buttons[2].attrs['aria-current'], undefined);
+hash = '#nope'; buttons[0].L.click(); assert.deepEqual(shown(), ['view-overview']);
+console.log('ok');
+"""
+        from support_onboarding_ui import JS
+        start = JS.index("(() => {\n  // 客戶後台的頁面切換")
+        end = JS.index("})();", start) + len("})();")
+        r = subprocess.run([node, '-e', 'const SWITCHER = ' + json.dumps(JS[start:end]) + ';\n' + harness],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])

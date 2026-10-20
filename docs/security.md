@@ -110,8 +110,8 @@ Access logs: uvicorn's access log is off, and the shipped nginx configs log with
 
 - a separate process on its own port; it mounts no `/customer/*` routes, and the platform process mounts no admin routes;
 - one operator password from `ADMIN_PASSWORD` (at least 16 characters), compared in constant time;
-- cookie `platform_admin_session` with `Path=/admin`, `Secure; HttpOnly; SameSite=Lax`, 8 h lifetime, HMAC-signed with a key generated at startup (a restart signs everyone out);
-- every request passes the edge policy, then needs a valid cookie; otherwise it is redirected to `/admin/login`;
+- cookie `platform_admin_session` with `Path=/admin`, `Secure; HttpOnly; SameSite=Lax`, 8 h lifetime, HMAC-signed with a key derived from a random 32-byte file next to the database (`admin-session.key`, 0600, created on first start, refused if readable by others) mixed with the admin password: a restart keeps the operator signed in, a password change signs everyone out;
+- every request passes the edge policy, then needs a valid cookie; otherwise it is redirected to the sign-in page (`/` on the shared origin, where the username `admin` posts to `/admin/login`; customers cannot take that name);
 - the console can only queue a build. The platform process holds the worker capability that performs it;
 - deletion exists only when `ADMIN_ALLOW_DELETE=1` and requires the caller to repeat the tenant's host (`expected_host`).
 

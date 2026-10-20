@@ -1,0 +1,13 @@
+# 蜂群 orchestrator 設定（#416）。epic_run.py --swarm 讀這份；命令列參數可覆蓋。
+swarm:
+  max_bees: 2              # 同一個 EPIC 同時最多幾隻蜂（第一版 2；跑過 benchmark 再調）
+  per_engine:              # 各引擎同時上限（共用同一份訂閱額度或站台資源）
+    claude: 2
+    codex: 2
+    opencode: 2
+depth:
+  max_minutes: 30          # 一隻蜂一次嘗試的時間上限
+  max_nudges: 3            # 停下等人時，同一個 session 最多自動推幾次
+  max_tries: 3             # 判準沒過最多重試幾次，之後標 swarm:stuck
+  check_timeout: 900       # 每條判準指令的秒數上限
+  # stop_patterns: 不寫就用 epiclib/swarm.py 的 DEFAULT_STOP_PATTERNS

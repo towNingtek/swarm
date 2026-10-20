@@ -62,8 +62,8 @@ class OperatorSessions:
     OPERATOR = 'platform-operator'
     TTL = 8 * 3600
 
-    def __init__(self):
-        self._secret = secrets.token_bytes(32)
+    def __init__(self, secret=None):
+        self._secret = secret or secrets.token_bytes(32)
 
     def issue(self):
         payload = f'{int(time.time()) + self.TTL}:{secrets.token_hex(16)}'
@@ -102,6 +102,28 @@ def _https_origin(name):
     return 'https://' + parsed.hostname.lower()
 
 
+def _session_secret(path, password):
+    """Signing key that survives restarts, so redeploying does not log the operator out.
+
+    A random 0600 file next to the database, mixed with the admin password so
+    changing the password still invalidates every existing session.
+    """
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    except FileExistsError:
+        pass
+    else:
+        with os.fdopen(fd, 'wb') as handle:
+            handle.write(secrets.token_bytes(32))
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, 'rb') as handle:
+        info = os.fstat(handle.fileno())
+        key = handle.read(64)
+    if info.st_uid != os.getuid() or info.st_mode & 0o077 or len(key) != 32:
+        raise RuntimeError(f'{path} must be a private 32-byte file owned by this user')
+    return hmac.new(key, password.encode(), hashlib.sha256).digest()
+
+
 def build():
     origin = _https_origin('ADMIN_ORIGIN')
     platform_origin = _https_origin('PLATFORM_ORIGIN')
@@ -113,13 +135,17 @@ def build():
         raise RuntimeError('PLATFORM_DB does not exist; start the platform service first')
     prefix = os.environ.get('ADMIN_PATH_PREFIX', '/admin').rstrip('/') or '/admin'
 
-    auth = OperatorSessions()
+    auth = OperatorSessions(_session_secret(db.parent / 'admin-session.key', password))
     core = SupportCore(db, admin_verifier=lambda v: auth.OPERATOR if v == auth.OPERATOR else None)
     rooms = SupportRooms(core)
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.router.redirect_slashes = False
     login_path = prefix + '/login'
+    # When the console shares the customer platform's origin, the landing page
+    # (username "admin") is the single sign-in form; /admin/login stays only as
+    # the POST target it submits to.
+    sign_in = '/' if origin == platform_origin else login_path
 
     from support_http_policy import EdgePolicy
     from support_core import SupportError
@@ -164,12 +190,14 @@ def build():
         if path == login_path or auth.verify_session(request.cookies.get(auth.COOKIE_NAME)):
             response = await call_next(request)
         else:
-            response = RedirectResponse(login_path, status_code=302)
+            response = RedirectResponse(sign_in, status_code=302)
         response.headers.update(SENSITIVE_RESPONSE_HEADERS)
         return response
 
     @app.get(login_path, response_class=HTMLResponse)
     async def login_page():
+        if sign_in != login_path:
+            return RedirectResponse(sign_in, status_code=302)
         return HTMLResponse(
             '<!doctype html><html lang="zh-Hant"><meta charset="utf-8">'
             '<title>平台管理登入</title><h1>平台管理登入</h1>'
@@ -199,6 +227,12 @@ def build():
 
     teardown = SiteTeardown(core, enabled=True) if os.environ.get('ADMIN_ALLOW_DELETE') == '1' else None
 
+    # Extra packages rebuild a live site's image (docker build as the platform
+    # user); off unless ADMIN_SITE_PACKAGES=1.
+    from support_site_packages import SitePackages
+
+    site_packages = SitePackages(core) if os.environ.get('ADMIN_SITE_PACKAGES') == '1' else None
+
     # Optional assistant for 「指示 AI」 in the operator's chat popup. Same
     # explicit gateway values as the platform service; missing ones stop start-up.
     model = None
@@ -214,7 +248,8 @@ def build():
                                 public_prefix=prefix, session_auth=auth,
                                 enable_site_job_queue=True, live=True,
                                 platform_host=urlsplit(platform_origin).hostname,
-                                site_domain=site_domain, teardown=teardown, model=model)
+                                site_domain=site_domain, teardown=teardown, model=model,
+                                site_packages=site_packages)
     return app
 
 

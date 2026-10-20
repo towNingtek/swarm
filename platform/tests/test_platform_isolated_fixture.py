@@ -71,7 +71,7 @@ class FixtureJourney:
         self.assertEqual(page.status_code, 200)
         self.assertIn('客戶管理', page.text)
         assets = re.findall(r'(?:href|src)="([^"]+)"', page.text)
-        self.assertEqual(len(assets), 4)  # style, management.js, tasks.js, chat.js
+        self.assertEqual(len(assets), 5)  # style, shell.js, management.js, tasks.js, chat.js
         script = ''
         for path in assets:
             self.assertTrue(path.startswith('/admin/support/customers/assets/'))

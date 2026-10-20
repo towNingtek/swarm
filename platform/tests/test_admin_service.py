@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urlsplit
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -69,7 +70,7 @@ class AdminServiceTests(unittest.TestCase):
         for path in ('/admin', '/admin/customers', '/admin/tenants'):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 302, path)
-            self.assertEqual(response.headers['location'], '/admin/login')
+            self.assertEqual(response.headers['location'], '/')  # shared origin: one sign-in page
         # A foreign authority is refused outright.
         self.assertEqual(self.client.get('/admin/customers',
                                          headers={'host': 'evil.example'}).status_code, 403)
@@ -89,6 +90,50 @@ class AdminServiceTests(unittest.TestCase):
         # Invite links must point at the customer platform, not this console.
         self.assertIn(f'data-invite-origin="{PLATFORM}"', page.text)
         self.assertNotIn('fixture', page.text.lower())
+
+    def test_separate_origin_keeps_its_own_login_page(self):
+        app = self.build(ADMIN_ORIGIN='https://admin.example')
+        client = TestClient(app, base_url='https://admin.example', follow_redirects=False)
+        self.addCleanup(client.close)
+        self.assertEqual(client.get('/admin/customers').headers['location'], '/admin/login')
+        self.assertEqual(client.get('/admin/login').status_code, 200)
+
+    def test_shared_origin_sends_operator_to_the_one_sign_in_page(self):
+        self.assertEqual(self.client.get('/admin/customers').headers['location'], '/')
+        self.assertEqual(self.client.get('/admin/login').headers['location'], '/')
+        # The landing page still posts here.
+        self.assertEqual(self.login().status_code, 303)
+
+    def test_session_survives_restart_but_not_password_change(self):
+        self.login()
+        cookie = self.client.cookies.get(admin_service.OperatorSessions.COOKIE_NAME)
+        key = Path(self.db).parent / 'admin-session.key'
+        self.assertEqual(key.stat().st_mode & 0o777, 0o600)
+        for app, expected in ((self.build(), 200), (self.build(ADMIN_PASSWORD='another-password-1234'), 302)):
+            client = TestClient(app, base_url=ADMIN, follow_redirects=False)
+            self.addCleanup(client.close)
+            client.cookies.set(admin_service.OperatorSessions.COOKIE_NAME, cookie,
+                               domain=urlsplit(ADMIN).hostname, path='/admin')
+            self.assertEqual(client.get('/admin/customers').status_code, expected)
+        key.chmod(0o644)
+        with self.assertRaises(RuntimeError):
+            self.build()
+
+    def test_site_packages_route_only_when_enabled(self):
+        self.login()
+        tenant = self.client.post('/admin/tenants', headers=self.headers, json={
+            'client_request_id': 'pk-1', 'host': 'acme.example', 'room_mode': 'ai',
+            'policy': {'mode': 'disabled'}}).json()
+        tid = (tenant.get('tenant') or tenant)['id']
+        self.assertEqual(self.client.get(f'/admin/tenants/{tid}/packages').status_code, 404)
+        app = self.build(ADMIN_SITE_PACKAGES='1')
+        client = TestClient(app, base_url=ADMIN, follow_redirects=False)
+        self.addCleanup(client.close)
+        client.cookies.set(admin_service.OperatorSessions.COOKIE_NAME,
+                           self.client.cookies.get(admin_service.OperatorSessions.COOKIE_NAME),
+                           domain=urlsplit(ADMIN).hostname, path='/admin')
+        # Wired, but the site was never built: refused, not 404.
+        self.assertEqual(client.get(f'/admin/tenants/{tid}/packages').status_code, 409)
 
     def test_wrong_password_never_issues_a_session(self):
         bad = self.client.post('/admin/login', data={'password': 'wrong'}, headers=self.headers)

@@ -50,7 +50,8 @@ MAX_INVITE_TTL = 86400
 
 
 def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
-                       platform_host=None, teardown=None, templates=None, task_library=None):
+                       platform_host=None, teardown=None, templates=None, task_library=None,
+                       site_packages=None):
     """Extend an existing admin app; never manufacture administrator authority."""
     if rooms.core is not core or quota.core is not core:
         raise ValueError('management dependencies must share core')
@@ -94,13 +95,21 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
         with core._connect() as conn:
             if conn.execute("SELECT name FROM sqlite_master WHERE type='table'"
                             " AND name='support_site_jobs'").fetchone():
-                jobs = {r['tenant_id']: r['status'] for r in
-                        conn.execute('SELECT tenant_id, status FROM support_site_jobs')}
+                jobs = {r['tenant_id']: (r['status'], r['site_name']) for r in
+                        conn.execute('SELECT tenant_id, status, site_name FROM support_site_jobs')}
         chosen = templates.all()
+
+        def board(job):
+            # The optional board plugin, read from the recorded site's profile.
+            if not job or job[0] != 'succeeded_provisioned':
+                return False
+            from support_admin_overview import _board_installed
+            return _board_installed(job[1])
         values = [{'id': r['id'], 'host': r['site_host'],
                    'template': chosen.get(r['id'], templates.default),
                    'platform_host': r['platform_host'], 'enabled': bool(r['enabled']),
-                   'site_job': jobs.get(r['id']),
+                   'site_job': jobs[r['id']][0] if r['id'] in jobs else None,
+                   'board': board(jobs.get(r['id'])),
                    'quota_mode': r['quota_mode'],
                    'policy': {'mode': r['mode'] or 'disabled', 'monthly_limit': r['monthly_limit']},
                    'metadata_only': True, 'provisioning': 'trusted_bootstrap_only'} for r in rows]
@@ -116,6 +125,9 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                 raise InvalidInput('query parameters not accepted')
             if operation == 'read':
                 value = await run_in_threadpool(summaries, actor, tenant_id)
+            elif operation == 'overview':
+                from support_admin_overview import overview
+                value = await run_in_threadpool(overview, core, actor)
             elif operation == 'templates':
                 from support_site_template import available
                 value = {'default': templates.default, 'templates': await run_in_threadpool(available)}
@@ -149,6 +161,12 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                 body = await strict_body(request, {'expected_host': str})
                 value = await run_in_threadpool(teardown.delete_tenant, actor, tenant_id,
                                                 expected_host=body['expected_host'])
+            elif operation == 'packages':
+                value = await run_in_threadpool(site_packages.read, actor, tenant_id)
+            elif operation == 'packages_set':
+                body = await strict_body(request, {'packages': list})
+                value = await run_in_threadpool(site_packages.set, actor, tenant_id,
+                                                body['packages'])
             elif operation == 'queue_site':
                 body = await strict_body(request, {'client_request_id': str})
                 result = await run_in_threadpool(site_jobs.queue, actor, tenant_id,
@@ -204,14 +222,20 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                                 headers=SENSITIVE_RESPONSE_HEADERS)
         except (ValueError, UnicodeError, InvalidInput):
             return _error(400)
-        except Conflict:
-            return _error(409)
+        except Conflict as exc:
+            from support_site_packages import SitePackagesBusy
+            return _error(429 if isinstance(exc, SitePackagesBusy) else 409)
         except Unauthorized:
             return _error(401)
         except SupportError:
             return _error(403)
         except Exception as exc:
             from support_site_teardown import TeardownError
+            if operation == 'packages_set':
+                # Build or self-test failed; the controller restored the old
+                # container. Never surface its message (paths, image ids).
+                return JSONResponse({'error': 'package_change_failed'}, status_code=502,
+                                    headers=SENSITIVE_RESPONSE_HEADERS)
             if isinstance(exc, TeardownError):
                 # External resources may remain; say so instead of a bare 500.
                 return JSONResponse({'error': 'teardown_incomplete'}, status_code=409,
@@ -225,6 +249,10 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
     @app.get('/admin/tenants')
     async def list_tenants(request: Request):
         return await dispatch(request, 'read')
+
+    @app.get('/admin/overview')
+    async def read_overview(request: Request):
+        return await dispatch(request, 'overview')
 
     @app.get('/admin/site-templates')
     async def list_templates(request: Request):
@@ -270,6 +298,15 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
         @app.post('/admin/tenants/{tenant_id}/site-jobs')
         async def queue_site(tenant_id: str, request: Request):
             return await dispatch(request, 'queue_site', tenant_id)
+
+    if site_packages is not None:
+        @app.get('/admin/tenants/{tenant_id}/packages')
+        async def read_packages(tenant_id: str, request: Request):
+            return await dispatch(request, 'packages', tenant_id)
+
+        @app.post('/admin/tenants/{tenant_id}/packages')
+        async def set_packages(tenant_id: str, request: Request):
+            return await dispatch(request, 'packages_set', tenant_id)
 
     if teardown is not None:
         @app.post('/admin/tenants/{tenant_id}/delete')

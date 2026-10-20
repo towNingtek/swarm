@@ -41,3 +41,13 @@
   name: '@deepseek-ai/dsh-api-workspace-controller'
   config:
     documentsDirectory: /opt/swarm-documents
+
+# 看板（dsh-swarm-board，外掛自己的 patch 已 insert）：這裡同 id restate 站台設定。
+# /board/ 在站台登入後面，不要加進任何 publicPrefixes。
+# SWARM_BOARD_PROJECTS：逗號分隔，數字＝預設組織（SWARM_BOARD_ORG）的 project，或「組織/編號」；空＝站台自己從清單加入。
+- id: swarm-board
+  name: 'dsh-swarm-board'
+  config:
+    org: !!js process.env.SWARM_BOARD_ORG || undefined
+    projects: !!js (process.env.SWARM_BOARD_PROJECTS || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => (/^\d+$/.test(s) ? Number(s) : s)).filter((x) => x !== 0)
+    thinkCwd: !!js process.env.SWARM_BOARD_THINK_CWD || undefined

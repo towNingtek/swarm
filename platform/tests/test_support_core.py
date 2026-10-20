@@ -72,6 +72,13 @@ class SupportCoreTests(unittest.TestCase):
                     self.core.redeem_invite(token, host, 'alice', PASSWORD)
         self.core.preview_invite(wrong_host, 'a.example')
 
+    def test_reserved_admin_username_is_refused_and_invite_survives(self):
+        token = self.invite()
+        for name in ('admin', 'Admin'):
+            with self.assertRaises(InvalidInput):
+                self.core.redeem_invite(token, 'a.example', name, PASSWORD)
+        self.core.preview_invite(token, 'a.example')  # still redeemable
+
     def test_password_validation_and_conflict_do_not_consume(self):
         token = self.invite()
         with self.assertRaises(InvalidInput):

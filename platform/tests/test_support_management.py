@@ -70,10 +70,12 @@ class ManagementTests(unittest.TestCase):
             # platform_host is where customers activate; the admin UI needs it to
             # build an invite link that works before the site host exists.
             # site_job lets the operator see build progress; it is a status
-            # string only, never ports, container ids or DNS evidence.
+            # string only, never ports, container ids or DNS evidence. board says
+            # whether the site has the optional board plugin (a boolean).
             self.assertEqual(set(row), {'id', 'host', 'platform_host', 'enabled', 'quota_mode',
                                         'policy', 'metadata_only', 'provisioning', 'site_job',
-                                        'template'})
+                                        'template', 'board'})
+            self.assertIs(row['board'], False)
             self.assertEqual(row['template'], 'swarm')
             self.assertIsNone(row['site_job'])
             self.assertEqual(row['policy']['mode'], 'disabled')

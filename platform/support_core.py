@@ -113,6 +113,9 @@ def _digest(token: str) -> str:
 # rotation on login.
 MIN_PASSWORD_BYTES = 8
 MAX_PASSWORD_BYTES = 1024
+# Account names a customer may not take. "admin" on the shared sign-in page
+# means the platform operator (see support_ui WELCOME_JS).
+RESERVED_USERNAMES = frozenset({"admin"})
 
 
 def _password_bytes(password: str) -> bytes:
@@ -338,6 +341,10 @@ class SupportCore:
 
     def redeem_invite(self, token: str, host: str, username: str, password: str) -> SessionGrant:
         host, username = normalize_host(host), self._username(username)
+        if username in RESERVED_USERNAMES:
+            # The shared sign-in page sends these to the operator console, so a
+            # customer holding one could never sign in as themselves.
+            raise InvalidInput('reserved username')
         self.preview_invite(token, host)
         password_hash = _password_hash(password)  # expensive work before write lock
         try:

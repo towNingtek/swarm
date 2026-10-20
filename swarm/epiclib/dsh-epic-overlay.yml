@@ -1,0 +1,13 @@
+# EPIC runner 的 agent：訂閱外掛（Claude + Codex），保留寫程式要用的工具（bash、檔案）。
+# 拿掉會讓它自己長出新工作、或離開這一張 issue 範圍的工具。
+- insert:
+    - id: llm-subscriptions
+      name: /srv/dsh-swarm/profiles/web/node_modules/dsh-plugin-subscriptions/lib/index.js
+      config:
+        providers: [claude, codex]
+- { id: tool-goal, disabled: true }
+- { id: tool-ralph, disabled: true }
+- { id: tool-workflow, disabled: true }
+- { id: tool-subagent-control, disabled: true }
+- { id: tool-subagent-list-agents, disabled: true }
+- { id: plan-mode, disabled: true }

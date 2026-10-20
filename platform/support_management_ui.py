@@ -14,97 +14,311 @@ from support_http_policy import SENSITIVE_RESPONSE_HEADERS
 
 
 CSS = """
-body { font: 1rem system-ui, sans-serif; max-width: 64rem; margin: 2rem auto; padding: 1rem; color: #192733; background: #f5f7fa; }
-section { background: white; padding: 1rem; margin-block: 1rem; }
-label { display: block; margin-block: .7rem; }
-input, select, button { font: inherit; padding: .5rem; max-width: 100%; }
+:root { color-scheme: light dark;
+  --bg: #f4f5f7; --panel: #ffffff; --panel-2: #f7f8fa; --line: #e3e6eb; --text: #1b2430; --muted: #5d6875;
+  --accent: #ff6a3d; --accent-ink: #ffffff; --accent-soft: #fff0ea; --ok: #1f9d55; --ok-soft: #e6f6ec;
+  --warn: #9a6400; --warn-soft: #fff4d6; --bad: #c2353b; --bad-soft: #fde9ea; --side: #ffffff; --shadow: 0 1px 2px #0000000f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #16181d; --panel: #1f2228; --panel-2: #262a31; --line: #30353e; --text: #e8eaee; --muted: #9aa3ae;
+  --accent: #ff7a4d; --accent-ink: #1a0d07; --accent-soft: #3a2219; --ok: #4ccf86; --ok-soft: #173326;
+  --warn: #f0be55; --warn-soft: #3a2f16; --bad: #ff6b70; --bad-soft: #3d1d20; --side: #1b1e23; --shadow: none; } }
+:root[data-theme="dark"] {
+  --bg: #16181d; --panel: #1f2228; --panel-2: #262a31; --line: #30353e; --text: #e8eaee; --muted: #9aa3ae;
+  --accent: #ff7a4d; --accent-ink: #1a0d07; --accent-soft: #3a2219; --ok: #4ccf86; --ok-soft: #173326;
+  --warn: #f0be55; --warn-soft: #3a2f16; --bad: #ff6b70; --bad-soft: #3d1d20; --side: #1b1e23; --shadow: none; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.55 system-ui, "Noto Sans TC", sans-serif; color: var(--text); background: var(--bg); }
+.shell { display: grid; grid-template-columns: 15rem 1fr; min-height: 100vh; }
+#side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: .2rem;
+  padding: 1rem .8rem; background: var(--side); border-right: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: 1.05rem; padding: .3rem .5rem 1rem; }
+.brand-mark { width: 1.6rem; height: 1.6rem; border-radius: .45rem; background: var(--accent); }
+.brand small { font-weight: 500; color: var(--muted); font-size: .75rem; border: 1px solid var(--line);
+  border-radius: .3rem; padding: 0 .35rem; }
+#side nav { display: flex; flex-direction: column; gap: .15rem; }
+#side nav button, #theme-toggle, #side .side-link { display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: .5rem .7rem; border: 0; border-radius: .5rem; background: none; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer; text-decoration: none; }
+#side nav button:hover, #theme-toggle:hover, #side .side-link:hover { background: var(--panel-2); }
+#side nav button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.nav-count { min-width: 1.3rem; padding: 0 .4rem; border-radius: 1rem; background: var(--accent); color: var(--accent-ink);
+  font-size: .75rem; text-align: center; }
+.nav-count[hidden] { display: none; }
+.side-foot { margin-top: auto; border-top: 1px solid var(--line); padding-top: .6rem; color: var(--muted); }
+main { padding: 1.6rem 2rem 6rem; max-width: 76rem; width: 100%; }
+.view[hidden] { display: none; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1.2rem; }
+h1 { font-size: 1.5rem; margin: 0; }
+h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+h3 { font-size: 1rem; margin: 1rem 0 .4rem; }
+.sub { color: var(--muted); margin: .2rem 0 0; }
+section, .card { background: var(--panel); border: 1px solid var(--line); border-radius: .8rem; padding: 1.1rem 1.2rem;
+  margin-block: 0 1rem; box-shadow: var(--shadow); }
+section > p, .card > p { color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .8rem; margin-bottom: 1rem; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: .8rem; padding: .9rem 1.1rem; }
+.stat .k { color: var(--muted); font-size: .85rem; }
+.stat .v { font-size: 1.7rem; font-weight: 700; line-height: 1.2; margin-top: .2rem; }
+.stat .d { color: var(--muted); font-size: .8rem; }
+#attention-list { list-style: none; margin: 0; padding: 0; }
+#attention-list li { display: flex; align-items: center; gap: .7rem; padding: .6rem .2rem; border-bottom: 1px solid var(--line); }
+#attention-list li:last-child { border-bottom: 0; }
+#attention-list .dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--warn); flex: none; }
+#attention-list .host { font-weight: 600; }
+#attention-list button { margin-left: auto; }
+#site-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem; }
+.site-card { background: var(--panel); border: 1px solid var(--line); border-radius: .8rem; padding: 1rem 1.1rem;
+  display: flex; flex-direction: column; gap: .5rem; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.site-card:hover { border-color: var(--accent); }
+.site-card .name { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+.site-card .rows { display: grid; grid-template-columns: auto 1fr; gap: .15rem .8rem; font-size: .88rem; }
+.site-card .rows span:nth-child(odd) { color: var(--muted); }
+.bar { height: .35rem; border-radius: 1rem; background: var(--panel-2); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.pill { display: inline-flex; align-items: center; gap: .35rem; padding: .05rem .55rem; border-radius: 1rem;
+  font-size: .78rem; font-weight: 600; background: var(--panel-2); color: var(--muted); width: max-content; }
+.pill::before { content: ""; width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.tabs { display: flex; gap: .3rem; margin: 0 0 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted);
+  padding: .55rem .9rem; font-weight: 600; }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs button.tab-gone { display: none; }
+section.tab-off { display: none; }
+.two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-top: 1rem; }
+@media (max-width: 64rem) { .two-col { grid-template-columns: 1fr; } }
+.trend { display: flex; align-items: flex-end; gap: 3px; height: 9rem; padding-top: .5rem; border-bottom: 1px solid var(--line); }
+.trend .col { flex: 1; display: flex; flex-direction: column-reverse; height: 100%; min-width: 0; }
+.trend .col i { display: block; width: 100%; }
+.trend .col:hover { outline: 1px solid var(--line); }
+.trend-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; margin-top: .3rem; }
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .82rem; color: var(--muted); margin-top: .5rem; }
+.legend span::before { content: ""; display: inline-block; width: .7rem; height: .7rem; border-radius: .2rem;
+  margin-right: .35rem; vertical-align: -.05rem; background: var(--c); }
+.c0 { --c: #ff7a4d; } .c1 { --c: #4c9aff; } .c2 { --c: #4ccf86; } .c3 { --c: #c78bff; } .c4 { --c: #f0be55; } .c5 { --c: #ff6b9a; }
+.trend i.c0, .trend i.c1, .trend i.c2, .trend i.c3, .trend i.c4, .trend i.c5 { background: var(--c); }
+.run-list { list-style: none; margin: 0; padding: 0; font-size: .88rem; }
+.run-list li { display: grid; grid-template-columns: auto 1fr; gap: .1rem .6rem; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+.run-list li:last-child { border-bottom: 0; }
+.run-list .meta { grid-column: 2; color: var(--muted); font-size: .8rem; }
+#usage-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+#usage-table th, #usage-table td { text-align: left; padding: .5rem .4rem; border-bottom: 1px solid var(--line); }
+#usage-table th { color: var(--muted); font-weight: 500; }
+#usage-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+label { display: block; margin-block: .6rem; color: var(--text); }
+input, select, textarea { font: inherit; padding: .5rem .65rem; max-width: 100%; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: .45rem; }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { font: inherit; padding: .45rem .9rem; border-radius: .45rem; border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text); cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button[type="submit"], .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+fieldset { border: 1px solid var(--line); border-radius: .5rem; }
 #invite-link { width: 95%; }
-.warning { background: #fff0bb; padding: 1rem; }
-#tenant-detail, #tenant-list { overflow-wrap: anywhere; white-space: pre-wrap; }
+.warning { background: var(--warn-soft); color: var(--text); border-radius: .5rem; padding: .7rem .9rem; border: 0; }
+#page-note { margin-bottom: 1rem; }
+.site-picker { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.site-picker label { margin: 0; }
+#tenant-detail { color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+.site-links { margin: .3rem 0 0; } .site-links a { margin-right: 1rem; }
+.site-card-wrap { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
+  border-radius: .8rem; overflow: hidden; box-shadow: var(--shadow); }
+.site-card-wrap:hover { border-color: var(--accent); }
+.site-card-wrap > .site-card { width: 100%; flex: 1; border: 0; border-radius: 0; background: transparent; }
+.site-card-wrap > .site-card:hover { border: 0; }
+.site-card-actions { display: flex; gap: .5rem; padding: .75rem 1.1rem .9rem; border-top: 1px solid var(--line);
+  background: var(--panel-2); }
+.act { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .55rem .8rem;
+  border-radius: .55rem; font-weight: 600; font-size: .92rem; text-decoration: none; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); transition: filter .15s, border-color .15s; }
+.act:hover { border-color: var(--accent); color: var(--accent); }
+.act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.act.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
+.act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#tenant-list { display: none; }
 #bootstrap-host-row { display: inline-flex; align-items: baseline; gap: .25rem; }
-#bootstrap-domain { color: #55606b; }
-#bootstrap-preview { color: #55606b; margin-block: .4rem; }
+#bootstrap-domain, #bootstrap-preview { color: var(--muted); }
+#bootstrap-preview { margin-block: .4rem; }
 #invite-row { display: flex; gap: .5rem; align-items: center; }
 #invite-row input { flex: 1; }
-#invite-copy-status { color: #55606b; margin-block: .4rem; }
-#danger-section { border-left: .35rem solid #a3232c; }
-#delete-submit:not(:disabled) { background: #a3232c; color: white; border-color: #a3232c; }
-#task-context { width: 100%; font: inherit; box-sizing: border-box; }
-#task-list li, #task-deliveries li { margin-block: .4rem; overflow-wrap: anywhere; }
-#task-list button { margin-inline-start: .4rem; }
+#invite-copy-status { color: var(--muted); margin-block: .4rem; }
+#packages-form label { display: block; }
+#packages-input { display: block; width: 100%; margin: .4rem 0 .8rem; font-family: ui-monospace, monospace; }
+#danger-section { border-color: var(--bad); }
+#delete-submit:not(:disabled) { background: var(--bad); color: white; border-color: var(--bad); }
+#task-context { width: 100%; }
+#task-list, #task-deliveries { padding-left: 1.1rem; }
+#task-list li, #task-deliveries li { margin-block: .45rem; overflow-wrap: anywhere; }
+#task-list button { margin-inline-start: .4rem; padding: .2rem .6rem; }
 #task-picks label { display: inline-block; margin: .2rem 1rem .2rem 0; }
-#task-cron-hint, #task-status { color: #55606b; margin-block: .3rem; }
-.muted { color: #55606b; }
-#chat-launcher { position: fixed; right: 1.2rem; bottom: 1.2rem; z-index: 30; padding: .8rem 1.2rem;
-  border-radius: 999px; border: 1px solid #192733; background: #192733; color: white; font: inherit; font-weight: 600;
-  cursor: pointer; box-shadow: 0 8px 28px #19273344; }
-#chat-section { position: fixed; right: 1.2rem; bottom: 4.8rem; z-index: 31; display: flex; flex-direction: column;
-  width: min(30rem, calc(100vw - 2.4rem)); height: min(44rem, calc(100vh - 6.5rem)); box-sizing: border-box;
-  padding: 1rem; border-radius: .8rem; background: white; border: 1px solid #c9d1da; box-shadow: 0 18px 50px #0003; }
+#task-cron-hint, #task-status { color: var(--muted); margin-block: .3rem; }
+.muted { color: var(--muted); }
+#status { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); margin: 0; z-index: 40;
+  max-width: min(40rem, 90vw); }
+#status:not(:empty) { background: var(--text); color: var(--bg); padding: .55rem 1rem; border-radius: .5rem; }
+#chat-launcher { position: fixed; right: 1.2rem; bottom: 1.2rem; z-index: 30; padding: .75rem 1.2rem;
+  border-radius: 999px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 700;
+  box-shadow: 0 8px 28px #0003; }
+#chat-section { position: fixed; right: 1.2rem; bottom: 4.6rem; z-index: 31; display: flex; flex-direction: column;
+  width: min(30rem, calc(100vw - 2.4rem)); height: min(44rem, calc(100vh - 6.5rem));
+  padding: 1rem; border-radius: .8rem; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 18px 50px #0004; }
 #chat-section[hidden] { display: none; }
 #chat-section > * { flex: none; }
 #chat-section header { display: flex; justify-content: space-between; align-items: center; }
-#chat-section h2 { margin: 0; font-size: 1.1rem; }
-#chat-section h3 { margin: .5rem 0 .2rem; font-size: 1rem; }
+#chat-section h2 { margin: 0; }
+#chat-section h3 { margin: .5rem 0 .2rem; }
 #chat-section p { margin-block: .3rem; }
-#chat-close { width: 2rem; height: 2rem; font-size: 1.1rem; }
-#chat-rooms { width: 100%; font: inherit; margin-top: .2rem; }
+#chat-close { width: 2rem; height: 2rem; padding: 0; font-size: 1.1rem; }
+#chat-rooms { width: 100%; margin-top: .2rem; }
 #chat-panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #chat-panel[hidden] { display: none; }
 #chat-panel > * { flex: none; }
 .chat-hint { font-size: .8rem; }
-.chat-badge { display: inline-block; padding: 0 .45rem; margin-inline-start: .4rem; border-radius: .7rem; background: #dfe5ec; font-size: .85rem; }
-.chat-badge.waiting { background: #a3232c; color: white; }
+.chat-badge { display: inline-block; padding: 0 .45rem; margin-inline-start: .4rem; border-radius: .7rem; background: var(--panel-2);
+  color: var(--text); font-size: .85rem; }
+.chat-badge.waiting { background: var(--bad); color: white; }
 .chat-badge[hidden] { display: none; }
-#chat-modes button[aria-pressed="true"] { background: #192733; color: white; border-color: #192733; }
-#chat-panel > #chat-thread { flex: 1 1 auto; min-height: 6rem; list-style: none; padding: 0; margin: .4rem 0; overflow-y: auto; border: 1px solid #dfe5ec; }
-#chat-thread li { padding: .45rem .7rem; white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid #eef1f5; }
-#chat-thread li.customer { background: #fff8e1; }
-#chat-thread li.human { background: #e8f1fb; }
+#chat-modes { display: flex; gap: .3rem; flex-wrap: wrap; }
+#chat-modes button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+#chat-panel > #chat-thread { flex: 1 1 auto; min-height: 6rem; list-style: none; padding: 0; margin: .4rem 0; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: .5rem; }
+#chat-thread li { padding: .45rem .7rem; white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); }
+#chat-thread li.customer { background: var(--warn-soft); }
+#chat-thread li.human { background: var(--accent-soft); }
 #chat-thread .who { font-weight: 600; margin-inline-end: .4rem; }
-#chat-thread .when { color: #55606b; font-size: .8rem; margin-inline-start: .4rem; }
-#chat-reply { width: 100%; font: inherit; box-sizing: border-box; }
+#chat-thread .when { color: var(--muted); font-size: .8rem; margin-inline-start: .4rem; }
+#chat-reply { width: 100%; }
 .chat-actions { display: flex; gap: .5rem; }
-main { padding-bottom: 5rem; }
+@media (max-width: 52rem) {
+  .shell { grid-template-columns: 1fr; }
+  #side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  #side nav { flex-direction: row; flex-wrap: wrap; }
+  .side-foot { margin: 0; border: 0; padding: 0; }
+  main { padding: 1rem; }
+}
 """
 
 PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>客戶管理</title><link rel="stylesheet" href="/admin/customers/assets/style.css">
+<script defer src="/admin/customers/assets/shell.js"></script>
 <script defer src="/admin/customers/assets/management.js"></script>
 <script defer src="/admin/customers/assets/tasks.js"></script>
 <script defer src="/admin/customers/assets/chat.js"></script>
-</head><body><main>
-<h1>客戶管理</h1><p class="warning" id="page-note">僅管理客戶與客服中繼資料；本頁不會建立 Docker 站台、不部署、不設定 DNS。顯示「已啟用」僅代表客戶帳號可使用邀請啟用，並不表示站台已上線。</p>
-<section><h2>客戶清單</h2><p>沒有客戶時，請由核准的管理流程建立客戶資料與客服房間，再回此頁發送邀請。</p><ul id="tenant-list"></ul>
-<form id="bootstrap-form" hidden autocomplete="off"><p class="warning" id="bootstrap-note"></p>
-<label for="bootstrap-host">客戶站台名稱（此刻不需存在）</label>
-<span id="bootstrap-host-row"><input id="bootstrap-host" type="text" required placeholder="ab"
- autocapitalize="off" autocorrect="off" spellcheck="false"><span id="bootstrap-domain"></span></span>
-<p id="bootstrap-preview"></p>
-<button id="bootstrap-submit" type="submit">建立客戶</button></form>
-<label>選擇租戶 <select id="tenants"></select></label><button id="refresh" type="button">重新載入</button>
-<p id="tenant-detail"></p></section>
-<section><h2>發送邀請</h2><p>邀請只顯示一次，請自行安全傳遞。此頁不自動開啟連結、不保存邀請。切換租戶或離頁會清除。送出失敗可能已發出邀請，請勿盲目重試；需由可信任管理員撤銷不需要的邀請。</p>
+</head><body><div class="shell">
+<aside id="side" aria-label="主選單"><div class="brand"><span class="brand-mark" aria-hidden="true"></span>Swarm <small>管理</small></div>
+<nav>
+<button type="button" data-view="overview" aria-current="page">總覽<span id="nav-attention" class="nav-count" hidden></span></button>
+<button type="button" data-view="site">站台管理</button>
+<button type="button" data-view="tasks">任務庫</button>
+<button type="button" data-view="usage">用量</button>
+<button type="button" data-view="settings">設定</button>
+</nav>
+<div class="side-foot"><button id="theme-toggle" type="button">切換深淺色</button></div></aside>
+<main>
+
+<div class="view" id="view-overview">
+<div class="page-head"><div><h1>總覽</h1><p class="sub" id="overview-sub">各站台目前狀況與需要你處理的事</p></div>
+<button id="overview-refresh" type="button">重新整理</button></div>
+<div class="stats">
+<div class="stat"><div class="k">站台</div><div class="v" id="stat-sites">–</div><div class="d" id="stat-online"></div></div>
+<div class="stat"><div class="k">本月平台模型用量</div><div class="v" id="stat-tokens">–</div><div class="d">token（客戶自己的模型不算）</div></div>
+<div class="stat"><div class="k">等你處理</div><div class="v" id="stat-attention">–</div><div class="d">見下方清單</div></div>
+</div>
+<div class="card"><h2>等你處理</h2><ul id="attention-list"></ul></div>
+<h2>站台</h2><div id="site-cards"></div>
+<div class="two-col">
+<div class="card"><h2>近 30 天平台模型用量</h2><div id="trend" class="trend" role="img" aria-label="近 30 天每日用量"></div>
+<div id="trend-legend" class="legend"></div></div>
+<div class="card"><h2>最近排程</h2><ul id="run-list" class="run-list"></ul></div>
+</div>
+</div>
+
+<div class="view" id="view-site" hidden>
+<div class="page-head"><div><h1>站台管理</h1><p class="sub">選一個客戶站台，下面的操作都只作用在它身上。</p></div></div>
+<p class="warning" id="page-note">僅管理客戶與客服中繼資料；本頁不會建立 Docker 站台、不部署、不設定 DNS。顯示「已啟用」僅代表客戶帳號可使用邀請啟用，並不表示站台已上線。</p>
+<section><h2>客戶清單</h2><div class="site-picker"><label>目前站台 <select id="tenants"></select></label><button id="refresh" type="button">重新載入</button></div>
+<p id="tenant-detail"></p><p id="site-links" class="site-links"></p><ul id="tenant-list"></ul></section>
+<div class="tabs" role="tablist" aria-label="站台功能">
+<button type="button" role="tab" data-tab="invite" aria-selected="true">邀請</button>
+<button type="button" role="tab" data-tab="quota" aria-selected="false">額度</button>
+<button type="button" role="tab" data-tab="template" aria-selected="false">樣板</button>
+<button type="button" role="tab" data-tab="build" aria-selected="false">建站</button>
+<button type="button" role="tab" data-tab="packages" aria-selected="false">套件</button>
+<button type="button" role="tab" data-tab="danger" aria-selected="false">刪除</button>
+</div>
+<section data-panel="invite"><h2>發送邀請</h2><p>邀請只顯示一次，請自行安全傳遞。此頁不自動開啟連結、不保存邀請。切換租戶或離頁會清除。送出失敗可能已發出邀請，請勿盲目重試；需由可信任管理員撤銷不需要的邀請。</p>
 <form id="invite-form" autocomplete="off"><label>有效秒數（60–86400）<input id="ttl" type="number" min="60" max="86400" step="1" value="3600" required></label>
 <button id="invite-submit" type="submit">產生邀請</button></form>
 <label for="invite-link">一次性邀請連結</label>
 <span id="invite-row"><input id="invite-link" type="text" readonly autocomplete="off" spellcheck="false">
 <button id="invite-copy" type="button" disabled>複製</button></span>
 <p id="invite-copy-status" role="status" aria-live="polite"></p></section>
-<section><h2>工作區樣板</h2><p>建站時放進客戶工作區的起始內容（只放一次；之後改選不會改動已建好的工作區，也不會覆蓋客戶改過的檔案）。所有站台都另有平台指引（回覆語言、起步模型、如何接上自己的模型）。樣板不含任何金鑰。</p>
-<form id="template-form"><label>樣板 <select id="template"></select></label>
-<button id="template-submit" type="submit">儲存樣板</button></form><p id="template-desc"></p></section>
-<section id="site-job-section" hidden><h2>建站任務</h2><p class="warning" id="site-job-note"></p>
-<button id="site-job-submit" type="button">排入建站任務</button><p id="site-job-result"></p></section>
-<section id="danger-section" hidden><h2>刪除客戶</h2>
-<p class="warning">會刪除容器、DNS 記錄、反向代理設定、站台資料與所有客戶紀錄（帳號、邀請、模型設定）。<strong>無法復原</strong>；客戶需重新邀請並重建站台。</p>
-<label>請輸入要刪除的站台名稱以確認 <input id="delete-confirm" type="text" autocomplete="off" spellcheck="false"></label>
-<button id="delete-submit" type="button" disabled>永久刪除此客戶</button><p id="delete-result"></p></section>
-<section><h2>平台模型每月額度</h2><p>同一個額度池涵蓋母站客服助手與子站的起步模型（平台借給新站台、客戶尚未接上自己模型前使用）。單位為 token，每月（UTC）重算；串流中斷而無法得知實際用量時，以預估值計入。客戶在子站接上自己的模型後，不佔這個額度。停用為預設；不限額仍受系統安全速率與供應商限制。</p><form id="quota-form"><label>政策 <select id="policy">
+<section data-panel="quota"><h2>平台模型每月額度</h2><p>同一個額度池涵蓋母站客服助手與子站的起步模型（平台借給新站台、客戶尚未接上自己模型前使用）。單位為 token，每月（UTC）重算；串流中斷而無法得知實際用量時，以預估值計入。客戶在子站接上自己的模型後，不佔這個額度。停用為預設；不限額仍受系統安全速率與供應商限制。</p><form id="quota-form"><label>政策 <select id="policy">
 <option value="disabled">停用（disabled）</option><option value="unlimited">無上限（unlimited）</option><option value="capped">每月上限（capped）</option></select></label>
 <label>每月額度（僅 capped 使用）<input id="limit" type="number" min="0" max="1000000000000" step="1"></label>
 <button id="quota-submit" type="submit">儲存政策</button></form></section>
+<section data-panel="template"><h2>工作區樣板</h2><p>建站時放進客戶工作區的起始內容（只放一次；之後改選不會改動已建好的工作區，也不會覆蓋客戶改過的檔案）。所有站台都另有平台指引（回覆語言、起步模型、如何接上自己的模型）。樣板不含任何金鑰。</p>
+<form id="template-form"><label>樣板 <select id="template"></select></label>
+<button id="template-submit" type="submit">儲存樣板</button></form><p id="template-desc"></p></section>
+<section id="site-job-section" data-panel="build" hidden><h2>建站任務</h2><p class="warning" id="site-job-note"></p>
+<button id="site-job-submit" type="button">排入建站任務</button><p id="site-job-result"></p></section>
+<section id="packages-section" data-panel="packages" hidden><h2>額外套件</h2>
+<p>站台以一般使用者執行，自己無法安裝軟體。在這裡列出要裝的 Debian 套件（例如 <code>openssh-client curl python3 jq</code>），平台會為這個站台建一個專屬映像檔並重建容器：約一到數分鐘，期間站台暫停；工作區、對話與設定都不受影響。失敗會自動退回原本的容器。清空後儲存即回到標準映像檔。</p>
+<form id="packages-form"><label>套件（以空白或換行分隔）<textarea id="packages-input" rows="3" spellcheck="false" autocomplete="off"></textarea></label>
+<button id="packages-submit" type="submit" disabled>儲存並重建站台</button></form><p id="packages-result" role="status" aria-live="polite"></p></section>
+<section id="danger-section" data-panel="danger" hidden><h2>刪除客戶</h2>
+<p class="warning">會刪除容器、DNS 記錄、反向代理設定、站台資料與所有客戶紀錄（帳號、邀請、模型設定）。<strong>無法復原</strong>；客戶需重新邀請並重建站台。</p>
+<label>請輸入要刪除的站台名稱以確認 <input id="delete-confirm" type="text" autocomplete="off" spellcheck="false"></label>
+<button id="delete-submit" type="button" disabled>永久刪除此客戶</button><p id="delete-result"></p></section>
+</div>
+
+<div class="view" id="view-tasks" hidden>
+<div class="page-head"><div><h1>任務庫</h1><p class="sub">寫好的任務可以交給任何客戶站台。</p></div></div>
+<section id="tasks-section"><h2>任務範本</h2>
+<p>在這裡寫好任務（prompt + 建議時間 + 由哪個角色執行），交給客戶站台。任務進到客戶站台後就是客戶的：客戶可以改、刪，這裡之後改範本也不會覆蓋。客戶站台的排程由平台執行器照時間在客戶自己的站台裡執行，使用站台的預設模型（起步模型時會計入平台額度）。</p>
+<ul id="task-list"></ul>
+<form id="task-form" autocomplete="off"><h3 id="task-form-title">新增任務範本</h3>
+<label>任務名稱 <input id="task-title" type="text" maxlength="60" required placeholder="每日待辦整理"></label>
+<label>任務代號（英文小寫） <input id="task-name" type="text" maxlength="63" required placeholder="daily_todo" spellcheck="false"></label>
+<label>建議由誰執行（角色代號；站台沒有這個角色時改由 pm 或第一個角色） <input id="task-role" type="text" maxlength="63" required value="pm" spellcheck="false"></label>
+<label>時間（cron，台北時間，星期用 mon…sun） <input id="task-cron" type="text" maxlength="64" required value="0 9 * * *" spellcheck="false"></label>
+<p id="task-cron-hint"></p>
+<label>skill（選填，站台 .dsh/skills 裡的名稱） <input id="task-skill" type="text" maxlength="63" spellcheck="false"></label>
+<label for="task-context">要做什麼（prompt）</label>
+<textarea id="task-context" rows="5" maxlength="2000" required></textarea>
+<label><input id="task-default" type="checkbox"> 新站台預設帶入（建好站、客戶建立第一間公司後自動加入）</label>
+<button id="task-save" type="submit">儲存範本</button> <button id="task-cancel" type="button">清空</button></form></section>
+<section><h2>交給客戶</h2>
+<label>客戶 <select id="task-tenant"></select></label>
+<fieldset id="task-picks"><legend>要交付的任務</legend></fieldset>
+<label>方式 <select id="task-mode"><option value="offer">客戶確認：出現在客戶設定頁，由客戶選公司後加入</option>
+<option value="direct">直接加入：平台寫進客戶的第一間公司（還沒有公司就等客戶建好）</option></select></label>
+<button id="task-push" type="button">交付</button>
+<ul id="task-deliveries"></ul>
+<p id="task-status" role="status" aria-live="polite"></p></section>
+</div>
+
+<div class="view" id="view-usage" hidden>
+<div class="page-head"><div><h1>用量</h1><p class="sub">平台借給站台的起步模型用量（token）。客戶接上自己的模型後就不算在這裡。</p></div></div>
+<section><table id="usage-table"><thead id="usage-head"></thead><tbody id="usage-body"></tbody></table></section>
+</div>
+
+<div class="view" id="view-settings" hidden>
+<div class="page-head"><div><h1>設定</h1><p class="sub">新增客戶站台。</p></div></div>
+<section><h2>新增客戶</h2>
+<form id="bootstrap-form" hidden autocomplete="off"><p class="warning" id="bootstrap-note"></p>
+<label for="bootstrap-host">客戶站台名稱（此刻不需存在）</label>
+<span id="bootstrap-host-row"><input id="bootstrap-host" type="text" required placeholder="ab"
+ autocapitalize="off" autocorrect="off" spellcheck="false"><span id="bootstrap-domain"></span></span>
+<p id="bootstrap-preview"></p>
+<button id="bootstrap-submit" type="submit">建立客戶</button></form>
+<p class="muted">建立後到「站台管理」選它，排入建站任務，再產生邀請。</p></section>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p></main></div>
 <button id="chat-launcher" type="button" aria-expanded="false" aria-controls="chat-section">客戶對話<span id="chat-count" class="chat-badge waiting" hidden></span></button>
 <aside id="chat-section" hidden aria-label="客戶對話">
 <header><h2>客戶對話</h2><button id="chat-close" type="button" aria-label="收起">×</button></header>
@@ -119,30 +333,203 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <p class="chat-actions"><button id="chat-reply-send" type="submit">回覆客戶</button><button id="chat-assist" type="button" title="客戶看不到這段文字，只看到 AI 依指示寫的回覆">指示 AI 回覆</button></p></form>
 <p id="chat-panel-status" role="status" aria-live="polite"></p></div>
 <p class="muted chat-hint">「回覆客戶」：客戶看到、標示「平台人員」。「指示 AI 回覆」：這段文字只有你看得到，AI 依它寫一則回覆給客戶。模式只在你按上方按鈕時改變：AI 自動回覆＝客戶每句 AI 都回；真人接手＝AI 只在客戶按「請 AI 助手回答」時回；只由真人＝AI 不回。</p></aside>
+</body></html>'''
 
-<section id="tasks-section"><h2>任務庫</h2>
-<p>在這裡寫好任務（prompt + 建議時間 + 由哪個角色執行），交給客戶站台。任務進到客戶站台後就是客戶的：客戶可以改、刪，這裡之後改範本也不會覆蓋。客戶站台的排程由平台執行器照時間在客戶自己的站台裡執行，使用站台的預設模型（起步模型時會計入平台額度）。</p>
-<ul id="task-list"></ul>
-<form id="task-form" autocomplete="off"><h3 id="task-form-title">新增任務範本</h3>
-<label>任務名稱 <input id="task-title" type="text" maxlength="60" required placeholder="每日待辦整理"></label>
-<label>任務代號（英文小寫） <input id="task-name" type="text" maxlength="63" required placeholder="daily_todo" spellcheck="false"></label>
-<label>建議由誰執行（角色代號；站台沒有這個角色時改由 pm 或第一個角色） <input id="task-role" type="text" maxlength="63" required value="pm" spellcheck="false"></label>
-<label>時間（cron，台北時間，星期用 mon…sun） <input id="task-cron" type="text" maxlength="64" required value="0 9 * * *" spellcheck="false"></label>
-<p id="task-cron-hint"></p>
-<label>skill（選填，站台 .dsh/skills 裡的名稱） <input id="task-skill" type="text" maxlength="63" spellcheck="false"></label>
-<label for="task-context">要做什麼（prompt）</label>
-<textarea id="task-context" rows="5" maxlength="2000" required></textarea>
-<label><input id="task-default" type="checkbox"> 新站台預設帶入（建好站、客戶建立第一間公司後自動加入）</label>
-<button id="task-save" type="submit">儲存範本</button> <button id="task-cancel" type="button">清空</button></form>
-<h3>交給客戶</h3>
-<label>客戶 <select id="task-tenant"></select></label>
-<fieldset id="task-picks"><legend>要交付的任務</legend></fieldset>
-<label>方式 <select id="task-mode"><option value="offer">客戶確認：出現在客戶設定頁，由客戶選公司後加入</option>
-<option value="direct">直接加入：平台寫進客戶的第一間公司（還沒有公司就等客戶建好）</option></select></label>
-<button id="task-push" type="button">交付</button>
-<ul id="task-deliveries"></ul>
-<p id="task-status" role="status" aria-live="polite"></p></section>
-<p id="status" role="status" aria-live="polite"></p></main></body></html>'''
+SHELL_JS = r"""'use strict';
+(() => {
+  // Navigation, theme and the read-only overview. Text only (textContent).
+  const byId = (id) => document.getElementById(id);
+  const VIEWS = ['overview', 'site', 'tasks', 'usage', 'settings'];
+  const JOB = {queued:'排隊中', running:'建立中', succeeded_provisioned:'運作中', succeeded_simulated:'模擬',
+    failed:'建站失敗', reconciliation_required:'需人工確認'};
+  let data = null;
+  // 進入站台／看板連結（開新分頁、noopener）；只給合法網域。
+  const HOST_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+  function siteLink(href, text) {
+    const a = document.createElement('a');
+    a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = text;
+    return a;
+  }
+  function actButton(href, text, title, primary) {
+    const a = siteLink(href, text);
+    a.className = primary ? 'act primary' : 'act'; a.title = title;
+    return a;
+  }
+  function el(tag, text, cls) {
+    const n = document.createElement(tag);
+    if (text !== undefined && text !== null) n.textContent = text;
+    if (cls) n.className = cls;
+    return n;
+  }
+  const fmt = (n) => Number(n || 0).toLocaleString('zh-TW');
+  function ago(at) {
+    if (!at) return '—';
+    const s = Math.max(0, Date.now() / 1000 - at);
+    if (s < 3600) return Math.round(s / 60) + ' 分鐘前';
+    if (s < 86400) return Math.round(s / 3600) + ' 小時前';
+    return Math.round(s / 86400) + ' 天前';
+  }
+  function show(view) {
+    if (!VIEWS.includes(view)) view = 'overview';
+    for (const v of VIEWS) byId('view-' + v).hidden = v !== view;
+    for (const b of document.querySelectorAll('#side nav button')) {
+      if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    }
+    if (view === 'overview' || view === 'usage') load();
+  }
+  let showTab = () => {};
+  function openSite(id, wanted) {
+    const select = byId('tenants');
+    if (id && [...select.options].some((o) => o.value === id)) {
+      select.value = id; select.dispatchEvent(new Event('change'));
+    }
+    show('site');
+    if (wanted) showTab(wanted);
+  }
+  function pill(site) {
+    if (site.online === true) return el('span', '在線', 'pill ok');
+    if (site.online === false) return el('span', '沒有回應', 'pill bad');
+    return el('span', JOB[site.site_job] || '尚未建站', 'pill warn');
+  }
+  function render() {
+    if (!data) return;
+    const t = data.totals;
+    byId('stat-sites').textContent = fmt(t.sites);
+    byId('stat-online').textContent = t.online + ' 個在線';
+    byId('stat-tokens').textContent = fmt(t.tokens_month);
+    byId('stat-attention').textContent = fmt(t.attention);
+    byId('overview-sub').textContent = '各站台目前狀況與需要你處理的事（' + data.month + '）';
+    const badge = byId('nav-attention');
+    badge.textContent = t.attention ? String(t.attention) : ''; badge.hidden = !t.attention;
+    const list = byId('attention-list'); list.replaceChildren();
+    if (!data.attention.length) list.append(el('li', '目前沒有需要處理的事。', 'muted'));
+    for (const a of data.attention) {
+      const li = el('li'); li.append(el('span', null, 'dot'), el('span', a.host, 'host'), el('span', a.text));
+      const go = el('button', a.kind === 'chat' ? '回覆' : '前往'); go.type = 'button';
+      go.addEventListener('click', () => {
+        if (a.kind === 'chat') byId('chat-launcher').click();
+        else openSite(a.tenant_id, {site_job: 'build', quota: 'quota', invite: 'invite'}[a.kind]);
+      });
+      li.append(go); list.append(li);
+    }
+    const cards = byId('site-cards'); cards.replaceChildren();
+    for (const s of data.sites) {
+      const card = el('button', null, 'site-card'); card.type = 'button';
+      card.append(el('span', s.host, 'name'), pill(s));
+      const rows = el('div', null, 'rows');
+      const add = (k, v) => rows.append(el('span', k), el('span', v));
+      add('本月用量', fmt(s.usage_month.tokens) + ' token');
+      add('額度', s.policy.mode === 'capped' ? fmt(s.policy.monthly_limit) + ' / 月'
+        : s.policy.mode === 'unlimited' ? '不限' : '停用');
+      add('客戶帳號', s.accounts ? s.accounts + ' 個' : '尚無（' + (s.open_invites ? '邀請有效中' : '未邀請') + '）');
+      add('最近排程', s.last_run ? s.last_run.name + '・' + (RUN[s.last_run.status] || s.last_run.status) + '・' + ago(s.last_run.at) : '—');
+      if (s.waiting) add('客服', s.waiting + ' 則等回覆');
+      card.append(rows);
+      if (s.policy.mode === 'capped' && s.policy.monthly_limit) {
+        const bar = el('div', null, 'bar'); const fill = el('i');
+        fill.style.width = Math.min(100, 100 * s.usage_month.tokens / s.policy.monthly_limit) + '%';
+        bar.append(fill); card.append(bar);
+      }
+      card.addEventListener('click', () => openSite(s.id));
+      // 進入站台／看板：卡片本身是按鈕（點了開站台管理），連結放在卡片下方，開新分頁。
+      const wrap = el('div', null, 'site-card-wrap'); wrap.append(card);
+      const host = String(s.host || '').toLowerCase();
+      if (HOST_RE.test(host) && s.site_job === 'succeeded_provisioned') {
+        // 卡片底部的動作按鈕：看板（主要）＋進入站台；都開新分頁。沒裝看板就只有進入站台。
+        const links = el('div', null, 'site-card-actions');
+        if (s.board === true) links.append(actButton('https://' + host + '/board/', '📊 看板', '開這個站台的看板（新分頁）', true));
+        links.append(actButton('https://' + host + '/', '進入站台 ↗', '開這個站台的 AI 對話（新分頁）', s.board !== true));
+        wrap.append(links);
+      }
+      cards.append(wrap);
+    }
+    const months = [...new Set(data.sites.flatMap((s) => s.usage_history.map((h) => h.month)))].sort().slice(-6);
+    const head = byId('usage-head'); head.replaceChildren();
+    const hr = el('tr'); hr.append(el('th', '站台')); for (const m of months) hr.append(el('th', m));
+    head.append(hr);
+    const body = byId('usage-body'); body.replaceChildren();
+    for (const s of data.sites) {
+      const tr = el('tr'); tr.append(el('td', s.host));
+      for (const m of months) {
+        const h = s.usage_history.find((x) => x.month === m);
+        tr.append(el('td', h ? fmt(h.tokens) : '—', 'num'));
+      }
+      body.append(tr);
+    }
+    if (!data.sites.length) { const tr = el('tr'); tr.append(el('td', '還沒有站台。')); body.append(tr); }
+  }
+  function renderTrend() {
+    const box = byId('trend'); box.replaceChildren();
+    const legend = byId('trend-legend'); legend.replaceChildren();
+    const order = data.sites.map((s) => s.id);
+    const color = (id) => 'c' + (Math.max(0, order.indexOf(id)) % 6);
+    const days = [];
+    const today = new Date(data.generated_at * 1000 + 8 * 3600 * 1000);
+    for (let i = 29; i >= 0; i--) days.push(new Date(today - i * 86400000).toISOString().slice(0, 10));
+    const by = {};
+    for (const d of data.daily) (by[d.day] = by[d.day] || []).push(d);
+    const max = Math.max(1, ...days.map((d) => (by[d] || []).reduce((a, x) => a + x.tokens, 0)));
+    for (const day of days) {
+      const col = el('div', null, 'col');
+      const parts = by[day] || [];
+      const total = parts.reduce((a, x) => a + x.tokens, 0);
+      col.title = day + '：' + fmt(total) + ' token' + parts.map((x) => '\n' + hostOf(x.tenant_id) + ' ' + fmt(x.tokens)).join('');
+      for (const x of parts) { const seg = el('i', null, color(x.tenant_id)); seg.style.height = (100 * x.tokens / max) + '%'; col.append(seg); }
+      box.append(col);
+    }
+    const axis = byId('trend-axis') || el('div', null, 'trend-axis'); axis.id = 'trend-axis'; axis.replaceChildren(
+      el('span', days[0].slice(5)), el('span', '最高 ' + fmt(max) + ' / 天'), el('span', days[29].slice(5)));
+    box.after(axis);
+    for (const s of data.sites) legend.append(el('span', s.host, color(s.id)));
+    if (!data.daily.length) legend.append(el('span', '近 30 天沒有使用平台模型。'));
+  }
+  const hostOf = (id) => (data.sites.find((s) => s.id === id) || {}).host || '';
+  const RUN = {succeeded: '成功', failed: '失敗', running: '執行中', skipped: '略過'};
+  function renderRuns() {
+    const list = byId('run-list'); list.replaceChildren();
+    if (!data.recent_runs.length) list.append(el('li', '還沒有排程執行紀錄。', 'muted'));
+    for (const r of data.recent_runs) {
+      const li = el('li');
+      const cls = r.status === 'succeeded' ? 'pill ok' : r.status === 'failed' ? 'pill bad' : 'pill warn';
+      li.append(el('span', RUN[r.status] || r.status, cls), el('strong', r.name),
+        el('span', r.host + '・' + r.hive + '・' + (r.trigger === 'manual' ? '手動' : '排程') + '・' + ago(r.started_at), 'meta'));
+      list.append(li);
+    }
+  }
+  async function load() {
+    try {
+      const r = await fetch('/admin/overview', {credentials: 'same-origin', cache: 'no-store', redirect: 'error'});
+      if (!r.ok) throw new Error(String(r.status));
+      data = await r.json(); render(); renderTrend(); renderRuns();
+    } catch (_) {
+      byId('overview-sub').textContent = '總覽載入失敗，請重新整理。';
+    }
+  }
+  for (const b of document.querySelectorAll('#side nav button')) b.addEventListener('click', () => show(b.dataset.view));
+  // Site page tabs. Sections keep their own `hidden` (management.js decides
+  // whether build/delete apply); tabs only add a class on top of that.
+  const tabs = [...document.querySelectorAll('.tabs button')];
+  let tab = 'invite';
+  showTab = function (name) {
+    const usable = (t) => { const p = document.querySelector('section[data-panel="' + t.dataset.tab + '"]'); return p && !p.hidden; };
+    for (const t of tabs) t.classList.toggle('tab-gone', !usable(t));
+    if (!tabs.some((t) => t.dataset.tab === name && usable(t))) name = 'invite';
+    tab = name;
+    for (const t of tabs) t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false');
+    for (const p of document.querySelectorAll('section[data-panel]')) p.classList.toggle('tab-off', p.dataset.panel !== name);
+  };
+  for (const t of tabs) t.addEventListener('click', () => showTab(t.dataset.tab));
+  new MutationObserver(() => showTab(tab)).observe(byId('view-site'), {subtree: true, attributes: true, attributeFilter: ['hidden']});
+  showTab('invite');
+  byId('overview-refresh').addEventListener('click', load);
+  const root = document.documentElement;
+  const dark = () => root.dataset.theme ? root.dataset.theme === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+  byId('theme-toggle').addEventListener('click', () => { root.dataset.theme = dark() ? 'light' : 'dark'; });
+  show('overview');
+  setInterval(() => { if (!document.hidden && !byId('view-overview').hidden) load(); }, 60000);
+})();
+"""
 
 MANAGEMENT_JS = r"""'use strict';
 (() => {
@@ -150,6 +537,7 @@ MANAGEMENT_JS = r"""'use strict';
   const status = byId('status');
   let rows = [], current = null, generation = 0, busy = false, leaving = false;
   let templates = [];
+  let packagesReady = false;
   // Mode comes from a server-rendered attribute, never from user input.
   // 'loopback'  = isolated fixture, simulated executor
   // 'live'      = real deployment: queuing a job builds REAL infrastructure
@@ -223,6 +611,7 @@ MANAGEMENT_JS = r"""'use strict';
     // Typing the exact site name is the deliberate act; a disabled button until
     // then prevents deleting the wrong tenant by reflex.
     const typed = byId('delete-confirm').value.trim().toLowerCase();
+    byId('packages-submit').disabled = busy || leaving || !current || !packagesReady;
     byId('delete-submit').disabled = busy || leaving || !manage || !current ||
       typed !== String(current.host || '').toLowerCase();
   }
@@ -254,6 +643,25 @@ MANAGEMENT_JS = r"""'use strict';
     return describe(row) + '\n完整 id：' + row.id +
       '\n客戶啟用網址：' + (row.platform_host || row.host);
   }
+  // 進入站台／看板：只對已建好的站台、而且 host 是合法網域時才給連結（開新分頁、noopener）。
+  const HOST_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+  function siteLink(href, text) {
+    const a = document.createElement('a');
+    a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = text;
+    return a;
+  }
+  function renderSiteLinks(row) {
+    const box = byId('site-links');
+    if (!box) return;
+    box.replaceChildren();
+    const host = row && String(row.host || '').toLowerCase();
+    // site_job is the job status string ("succeeded_provisioned" once built).
+    const job = row && (typeof row.site_job === 'string' ? row.site_job : row.site_job && row.site_job.status);
+    if (!host || !HOST_RE.test(host) || job !== 'succeeded_provisioned') return;
+    box.append(siteLink('https://' + host + '/', '進入站台 ↗'));
+    // The board plugin is optional: link it only where the site has it.
+    if (row.board === true) box.append(siteLink('https://' + host + '/board/', '看板 ↗'));
+  }
   function renderList() {
     byId('tenant-list').replaceChildren();
     for (const row of rows) {
@@ -267,12 +675,32 @@ MANAGEMENT_JS = r"""'use strict';
     // Never carry a typed confirmation across a tenant switch.
     byId('delete-confirm').value = '';
     byId('delete-result').textContent = '';
+    // The queue-time message goes stale once the job runs; the button and the
+    // detail line show the live state after every reload.
+    byId('site-job-result').textContent = '';
     current = rows.find((row) => row.id === byId('tenants').value) || null;
     byId('tenant-detail').textContent = current ? detailText(current) : '沒有可用租戶。';
+    renderSiteLinks(current);
     byId('policy').value = current ? current.policy.mode : 'disabled';
     if (current) byId('template').value = current.template;
     templateDesc();
     byId('limit').value = current && current.policy.monthly_limit !== null ? String(current.policy.monthly_limit) : '';
+    loadPackages();
+    controls();
+  }
+  // Only provisioned sites have packages; the tab stays hidden otherwise
+  // (and on deployments where the route is not wired).
+  async function loadPackages() {
+    packagesReady = false; byId('packages-input').value = ''; byId('packages-result').textContent = '';
+    byId('packages-section').hidden = true;
+    const row = current, epoch = generation;
+    if (!row || row.site_job !== 'succeeded_provisioned') return;
+    try {
+      const data = await api('/' + encodeURIComponent(row.id) + '/packages');
+      if (leaving || epoch !== generation || !Array.isArray(data.packages)) return;
+      byId('packages-input').value = data.packages.join(' ');
+      byId('packages-section').hidden = false; packagesReady = true;
+    } catch (_) { /* route absent or site unavailable: keep the tab hidden */ }
     controls();
   }
   async function api(path, body) {
@@ -282,7 +710,11 @@ MANAGEMENT_JS = r"""'use strict';
       options.body = JSON.stringify(body);
     }
     const response = await fetch('/admin/tenants' + path, options);
-    if (!response.ok) throw new Error('request failed');
+    if (!response.ok) {
+      let message = 'request failed';
+      try { const e = await response.json(); if (e && e.error === 'refused' && typeof e.message === 'string') message = e.message; } catch (_) {}
+      throw new Error(message);
+    }
     return response.json();
   }
   async function task(action, failure) {
@@ -348,7 +780,7 @@ MANAGEMENT_JS = r"""'use strict';
     if (!templates.length) { try { await loadTemplates(); } catch (_) { templates = []; } }
     generation++; clearInvite(); current = null; rows = [];
     byId('tenants').replaceChildren(); byId('tenant-list').replaceChildren();
-    byId('tenant-detail').textContent = ''; controls();
+    byId('tenant-detail').textContent = ''; if (byId('site-links')) byId('site-links').replaceChildren(); controls();
     const epoch = generation;
     try {
       const data = await api('');
@@ -438,6 +870,27 @@ MANAGEMENT_JS = r"""'use strict';
         ? '建站任務已排入；執行器會在數分鐘內建立真實站台。請用「重新載入」查看進度。'
         : '建站意圖已排入佇列；fixture 模擬執行器會標為模擬完成，並非真實建站。';
     }, '排入建站任務未確認成功；請重新載入，不要盲目重試。');
+  });
+  byId('packages-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!current || !packagesReady) return;
+    const row = current;
+    const packages = byId('packages-input').value.split(/\s+/).filter(Boolean);
+    if (packages.some((p) => !/^[a-z0-9][a-z0-9+.-]{0,62}$/.test(p))) {
+      byId('packages-result').textContent = '套件名稱只能用小寫英數與 + . -（例如 openssh-client）。'; return;
+    }
+    if (!confirm('會重建 ' + row.host + ' 的容器，站台暫停約一到數分鐘。繼續？')) return;
+    byId('packages-result').textContent = '建置中，請勿關閉頁面…';
+    return task(async (epoch) => {
+      let result;
+      try { result = await api('/' + encodeURIComponent(row.id) + '/packages', {packages}); }
+      catch (error) { byId('packages-result').textContent = '未完成，站台已退回原本的容器。'; throw error; }
+      if (leaving || epoch !== generation) return;
+      byId('packages-input').value = result.packages.join(' ');
+      byId('packages-result').textContent = result.packages.length
+        ? '完成：' + row.host + ' 已安裝 ' + result.packages.join('、') + '。'
+        : '完成：' + row.host + ' 已回到標準映像檔。';
+    }, '套件變更未完成（可能是套件名稱不存在或建置失敗），站台已退回原本的容器。');
   });
   byId('delete-confirm').addEventListener('input', controls);
   byId('delete-submit').addEventListener('click', () => {
@@ -859,5 +1312,6 @@ def install_management_ui(app, core, *, loopback_fixture=False, live=False, site
     add('/admin/customers/assets/style.css', CSS, 'text/css')
     add('/admin/customers/assets/tasks.js', TASKS_JS, 'text/javascript')
     add('/admin/customers/assets/chat.js', CHAT_JS, 'text/javascript')
+    add('/admin/customers/assets/shell.js', SHELL_JS, 'text/javascript')
     app.state.support_management_ui_installed = True
     return app

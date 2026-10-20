@@ -95,6 +95,26 @@ WELCOME_JS = r"""'use strict';
     password.value = ''; confirmField.value = '';
     const activating = Boolean(invite);
     if (activating) body.invite = invite;
+    // One sign-in page for everyone: the reserved account name "admin" is the
+    // platform operator, whose console lives under /admin with its own cookie.
+    // Activation never goes there (the core refuses "admin" as a customer name).
+    if (!activating && body.username.trim().toLowerCase() === 'admin') {
+      const form = new URLSearchParams({password: body.password});
+      body.password = ''; body = null;
+      try {
+        const response = await fetch('/admin/login', {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'manual',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: form.toString()
+        });
+        if (response.type === 'opaqueredirect') { location.replace('/admin/customers'); return; }
+        status.textContent = response.status === 429 ? '嘗試次數過多，請稍後再試。' : '帳號或密碼不正確。請確認後再試。';
+      } catch (error) {
+        status.textContent = '無法連線。請檢查網路後再試。';
+      } finally {
+        button.disabled = false;
+      }
+      return;
+    }
     try {
       const response = await fetch(activating ? '/customer/activate' : '/customer/login', {
         method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',

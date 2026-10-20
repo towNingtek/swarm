@@ -25,6 +25,7 @@ import json
 import stat
 import tempfile
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1125,7 +1126,8 @@ def _set_env_line(text: str, key: str, value: str) -> str:
     return "\n".join(lines)
 
 
-def _recreate_site(name, transform_env, *, drop_sessions, probe, what, restored) -> None:
+def _recreate_site(name, transform_env, *, drop_sessions, probe, what, restored,
+                   choose_image=None) -> None:
     """Recreate a site's container with a changed env, rolling back on failure.
 
     The image is pinned to the running container's image id; resources, port
@@ -1148,10 +1150,19 @@ def _recreate_site(name, transform_env, *, drop_sessions, probe, what, restored)
         image = run(["docker", "inspect", "--format", "{{.Image}}", current])
         if not image.startswith("sha256:"):
             raise SiteError("cannot pin the running site image")
-        # Move to the current image only when it seals the exact same web
-        # profile (e.g. a boot-check fix); anything else is an upgrade, which
-        # needs an explicit migration and is refused here.
-        target = run(["docker", "image", "inspect", "--format", "{{.Id}}", DSH_IMAGE])
+        if choose_image is not None:
+            # Built BEFORE anything is stopped: a failed build changes nothing.
+            image = choose_image(state, image)
+            target = image
+        elif state.get("packages"):
+            # A site with extra packages runs its own derived image; moving it
+            # to the shared image would silently drop them.
+            target = image
+        else:
+            # Move to the current image only when it seals the exact same web
+            # profile (e.g. a boot-check fix); anything else is an upgrade, which
+            # needs an explicit migration and is refused here.
+            target = run(["docker", "image", "inspect", "--format", "{{.Id}}", DSH_IMAGE])
         if target != image:
             if not target.startswith("sha256:") or _profile_seal(target) != _profile_seal(image):
                 raise SiteError("site image differs from the current image's sealed profile; "
@@ -1203,9 +1214,108 @@ def _recreate_site(name, transform_env, *, drop_sessions, probe, what, restored)
                                 f"({', '.join(errors)}); old container kept as {previous}") from exc
             raise SiteError(f"{what} failed; {restored}") from exc
         _docker_rm_id(previous)
-        if state.get("image") != image:
+        state = load_state(name)
+        if choose_image is not None:
+            state.update(getattr(choose_image, "state_update", {}))
+        if state.get("image") != image or choose_image is not None:
             state["image"] = image
             save_state(name, state)
+
+
+# ---------------------------------------------------------------------------
+# Extra system packages per site. The site itself runs unprivileged and cannot
+# install anything; the operator chooses packages and the platform builds a
+# derived image (as root, at build time only) on top of the site's base image.
+# Recreating the container keeps them because they live in the image.
+
+MAX_PACKAGES = 40
+_PACKAGE_NAME = re.compile(r"[a-z0-9][a-z0-9+.-]{0,62}")
+
+
+def normalize_packages(packages) -> list[str]:
+    """Debian package names only: no options, versions, paths or shell."""
+    if not isinstance(packages, (list, tuple)):
+        raise SiteError("packages must be a list")
+    names = set()
+    for item in packages:
+        if not isinstance(item, str) or not _PACKAGE_NAME.fullmatch(item):
+            raise SiteError(f"invalid package name: {str(item)[:64]!r}")
+        names.add(item)
+    if len(names) > MAX_PACKAGES:
+        raise SiteError(f"at most {MAX_PACKAGES} packages")
+    return sorted(names)
+
+
+def _site_dockerfile(base_tag: str, packages: list[str]) -> str:
+    uid, _, gid = CONTAINER_USER.partition(":")
+    if not (uid.isdigit() and gid.isdigit()):
+        raise SiteError("container user must be numeric uid:gid")
+    lines = [f"FROM {base_tag}", "USER root"]
+    if packages:
+        lines.append("RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "
+                     "--no-install-recommends " + " ".join(packages) +
+                     " && rm -rf /var/lib/apt/lists/*")
+    # The container runs as the host uid, which may have no passwd entry: ssh,
+    # git-over-ssh and whoami refuse to work without one.
+    lines.append(f"RUN getent passwd {uid} >/dev/null || "
+                 f"echo 'site:x:{uid}:{gid}::{WORKSPACE_IN_CONTAINER}:/bin/sh' >> /etc/passwd; "
+                 f"getent group {gid} >/dev/null || echo 'site:x:{gid}:' >> /etc/group")
+    lines.append("USER dsh")
+    return "\n".join(lines) + "\n"
+
+
+def build_site_image(name: str, base_image: str, packages: list[str]) -> str:
+    """Build `<container prefix><name>-image:latest` on base_image; return its image id."""
+    if not base_image.startswith("sha256:"):
+        raise SiteError("base image must be pinned by id")
+    # BuildKit resolves a bare id as a registry name; give it a local tag.
+    base_tag = f"swarm-site-base:{base_image[7:19]}"
+    run(["docker", "tag", base_image, base_tag])
+    tag = f"{container_name(name)}-image:latest"
+    result = subprocess.run(["docker", "build", "-q", "--network", "default", "-t", tag, "-"],
+                            input=_site_dockerfile(base_tag, packages),
+                            capture_output=True, text=True, timeout=900)
+    if result.returncode != 0:
+        tail = "\n".join(result.stderr.strip().splitlines()[-3:])
+        raise SiteError(f"package build failed: {tail}")
+    image = run(["docker", "image", "inspect", "--format", "{{.Id}}", tag])
+    if not image.startswith("sha256:"):
+        raise SiteError("cannot pin the built site image")
+    return image
+
+
+def set_site_packages(name: str, packages, *, self_test=None, builder=None) -> dict:
+    """Rebuild a site's image with exactly these extra packages, reversibly.
+
+    Same safety as the password swap: env, data, port and resources are
+    unchanged; the old container is kept until the new one passes the
+    authenticated self-test, and any failure puts the old one back. An empty
+    list returns the site to its base image.
+    """
+    packages = normalize_packages(packages)
+    build = builder or build_site_image
+    result = {}
+
+    def choose(state, running):
+        base = state.get("base_image") or running
+        image = build(name, base, packages) if packages else base
+        choose.state_update = {"base_image": base, "packages": packages}
+        result.update(image=image, packages=packages)
+        return image
+
+    def probe(port, host, env):
+        key = _env_line(env, "WEB_AUTH_ENTRY_SECRET")
+        (self_test or _dsh_self_test)(port, None, base_url=f"https://{host}", entry_key=key)
+
+    _recreate_site(name, lambda text, _host: text, drop_sessions=False, probe=probe,
+                   what="package change", restored="site restored with its old packages",
+                   choose_image=choose)
+    return result
+
+
+def site_packages(name: str) -> list[str]:
+    state = load_state(name)
+    return list(state.get("packages") or [])
 
 
 def _profile_seal(image: str) -> str:

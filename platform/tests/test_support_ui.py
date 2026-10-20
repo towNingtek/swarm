@@ -308,5 +308,44 @@ global.fetch = async (path, options) => {
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+    def test_admin_username_signs_in_to_operator_console(self):
+        harness = r"""
+const assert = require('node:assert/strict');
+const nodes = {};
+for (const id of ['credentials','password','password-confirm','confirm-row','status','action','username','page-title','intro','invite-required']) nodes[id] = {value:'', textContent:'', disabled:false, required:false, hidden:true, addEventListener(k,fn){this[k]=fn;}};
+global.document = {documentElement:{},getElementById:id=>nodes[id]};
+let destination, calls = [];
+global.location = {search:'',pathname:'/customer/welcome',replace:p=>destination=p};
+global.history = {replaceState(){}}; global.addEventListener = () => {};
+let reply = {type:'opaqueredirect', status:0};
+global.fetch = async (path, options) => { calls.push([path, options]); return reply; };
+"""
+        assertions = r"""
+(async () => {
+ nodes.username.value=' Admin '; nodes.password.value='operator-password-long';
+ await nodes.credentials.submit({preventDefault(){}});
+ assert.equal(calls.length,1);
+ const [path, options] = calls[0];
+ assert.equal(path,'/admin/login');                 // never /customer/login
+ assert.equal(options.method,'POST');
+ assert.equal(options.credentials,'same-origin');
+ assert.equal(options.redirect,'manual');
+ assert.equal(options.body,'password=operator-password-long');
+ assert.equal(nodes.password.value,'');
+ assert.equal(destination,'/admin/customers');
+ // Wrong password: stays on the page with a message, button usable again.
+ destination = undefined; reply = {type:'basic', status:401};
+ nodes.username.value='admin'; nodes.password.value='wrong-password-x';
+ await nodes.credentials.submit({preventDefault(){}});
+ assert.equal(destination, undefined);
+ assert.ok(nodes.status.textContent.includes('不正確'));
+ assert.equal(nodes.action.disabled,false);
+})().catch(e=>{process.stderr.write(String(e.stack));process.exitCode=1;});
+"""
+        result = subprocess.run([os.environ.get('NODE', 'node'), '-e', harness + WELCOME_JS + assertions],
+                                capture_output=True, text=True,
+                                env={k:v for k,v in os.environ.items() if k != 'NODE_OPTIONS'})
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 if __name__ == '__main__':
     unittest.main()

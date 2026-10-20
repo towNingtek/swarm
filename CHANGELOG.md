@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.0 — 2026-10-21
+
+The swarm: issues are run by AI agents in parallel and accepted only when their criteria pass; a board to see and steer it; new operator and customer consoles.
+
+### Swarm orchestrator (`swarm/`)
+
+- `epic_run.py --swarm`: runs an EPIC's `by:swarm` sub-issues with AI agents (official `claude`, `codex` or `opencode` CLIs, signed in by their owners), each in its own git worktree and limited to the files the sub-issue lists. Sub-issues that touch the same files are chained by their dependencies.
+- The judge: a separate runner executes each sub-issue's acceptance commands verbatim and counts only exit codes; up to three tries, then `swarm:stuck` for a person. Secrets in command output are redacted before results are posted.
+- `epic_autostart.py` starts EPICs a person released with `swarm:go`, and skips a round when less than 20 % of the GitHub API budget is left. `epic_lint.py` checks drafts offline (`--file`) or on GitHub. `epic_summary.py` writes a closing summary per EPIC; `epic_report.py` a monthly trend (first-pass rate, stuck rate, criteria defects, cost).
+- Low-risk EPICs can be released with `swarm:auto-merge`: the EPIC pull request merges by itself when every criterion passed and only listed files changed.
+- Issue templates (`swarm/templates/`, also `.github/ISSUE_TEMPLATE/`), the contracts (`docs/swarm/`) and the `epic` skill (`swarm/skills/epic/`).
+
+### Board (`plugins/swarm-board/`, in every site at `/board/`)
+
+- Wolffia, a live view of a GitHub Project: planets are open issues on rings by status, red glow marks issues that stay too long, clusters are EPICs with their completion arc and the agents working on them.
+- Writes back to GitHub with the site's own `gh` login: drag to change status, release an EPIC, toggle auto-merge, release again after edits.
+- 「＋ 加入 project」: lists the open projects the site's GitHub account can see (any org, most cards first) and adds the ticked ones. Projects are keyed `org/number`; bare numbers belong to the default org (`SWARM_BOARD_ORG`).
+- 📊 Analyse: the site's own AI reads the board (and the selected cards) and answers; the answer links `#numbers` to cards and can be continued in a site conversation.
+- The `epic` skill is installed site-wide (`$DSH_HOME/skills/epic`), with its templates and an offline lint, so any conversation in the site can open an EPIC by the rules.
+- Without a GitHub login the board says so and fetches nothing. Settings: `SWARM_BOARD_ORG`, `SWARM_BOARD_PROJECTS`, `SWARM_BOARD_THINK_CWD` (see `site/dsh-profile/cordis.patch.yml`).
+
+### Consoles
+
+Operator and customer consoles, ported from the private deployment (generic parts only; nothing that depends on the old opencode scheduler).
+
+- Operator console (`/admin/customers`): a sidebar shell (總覽 / 站台管理 / 任務庫 / 用量 / 設定) with a dark and light theme that follows the system and can be switched. The overview (`GET /admin/overview`, `platform/support_admin_overview.py`) shows, per site, whether it answers, this month's platform-model usage against its quota, accounts and open invites, the last scheduled run and unanswered customer messages; an attention list; 30 days of daily usage per site; the latest scheduled runs (never their output). Each built site card has 📊 看板 and 進入站台 buttons in its footer (看板 only where the optional `dsh-swarm-board` plugin is installed, read from the site's web profile on disk). The site page is split into tabs (邀請 / 額度 / 樣板 / 建站 / 套件 / 刪除); tabs whose feature is not enabled are hidden.
+- One sign-in page: when the console shares the platform origin, the landing page's username `admin` signs in to the operator console, and `/admin/login` (GET) and unauthenticated console requests go to `/`. Customers can no longer take the name `admin`.
+- Operator sessions survive restarts: the session key is a 0600 file next to the database (`admin-session.key`) mixed with the admin password, so a redeploy keeps the operator signed in and a password change still signs everyone out.
+- Customer console (`/customer/onboarding`): a sidebar (總覽 / 排程 / 用量 / 設定) with the view kept in the URL hash. The overview (`GET /customer/overview`, `platform/support_customer_overview.py`) shows the customer's own usage this month, schedule count, recent runs and what needs attention. A one-click 📊 看板 button opens the site's `/board/` through a single-use entry ticket (`POST /customer/site-entry {"next": "/board/"}`; `SiteEntry.ALLOWED_NEXT` allows only `/` and `/board/`); it appears only when `GET /customer/onboarding/status` reports `board: true`.
+- Per-site extra packages (`ADMIN_SITE_PACKAGES=1`, `platform/support_site_packages.py`, `site/dsh_sitectl.py set_site_packages`): the operator lists Debian packages for a site; the platform builds a derived image on the site's base image and recreates the container with the same safety as a password change (built before anything stops, old container kept until the new one passes the self-test). An empty list returns the site to the shared image; password and isolation changes keep a package site on its own image.
+- Teardown: a retry after an earlier attempt removed the site but failed on the records now finishes (state folder and container both gone counts as removed; any other error is still reported).
+
 ## 0.1.0 — 2026-10-02
 
 First public release.

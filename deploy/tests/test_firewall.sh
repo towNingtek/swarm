@@ -10,7 +10,10 @@ REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 docker run --rm -i --cap-add NET_ADMIN -v "$REPO:/repo:ro" debian:12-slim bash -s <<'IN_CONTAINER'
 set -euo pipefail
 apt-get update -qq >/dev/null && apt-get install -y -qq iptables >/dev/null
-export SWARM_ENV=/tmp/platform.env SWARM_IPTABLES=iptables-legacy
+# Use the backend the kernel offers: legacy where it exists (as on most Docker hosts), else nft
+# (newer CI kernels have no legacy tables). The firewall script takes the binary from SWARM_IPTABLES.
+if iptables-legacy -S >/dev/null 2>&1; then IPT=iptables-legacy; else IPT=iptables-nft; fi
+export SWARM_ENV=/tmp/platform.env SWARM_IPTABLES=$IPT
 cat > "$SWARM_ENV" <<'ENV'
 SWARM_SITE_BRIDGE=br-test     # comment
 SWARM_SITE_SUBNET=172.29.99.0/24
@@ -18,7 +21,7 @@ SWARM_MODEL_RELAY="172.17.0.1:9999"
 ENV
 FW=/repo/deploy/bin/swarm-site-firewall
 pass=0; fail() { echo "FAIL: $*"; exit 1; }; ok() { pass=$((pass+1)); echo "ok - $*"; }
-IPT=iptables-legacy
+echo "iptables backend: $IPT"
 before="$($IPT -S | sort)"
 
 bash "$FW" >/dev/null

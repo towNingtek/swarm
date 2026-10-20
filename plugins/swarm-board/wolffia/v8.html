@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wolffia｜協作星系 v8（真實 Project）</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05090c;color:#c9d4d8;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;font-size:13px}
+#wrap{display:flex;height:100%}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+#top{display:flex;align-items:center;gap:8px;padding:14px 22px;flex-wrap:wrap}
+#top h1{font-size:13px;letter-spacing:2px;margin:0 10px 0 0;font-weight:600;color:#e5edee}
+#pSel{background:#0b1116;color:#dfe9ec;border:1px solid #28343c;border-radius:7px;padding:4px 8px;font-size:12.5px;margin-right:6px}
+#tLbl{color:#dfe9ec;min-width:170px;font-variant-numeric:tabular-nums}
+button{background:transparent;color:#c9d4d8;border:1px solid #28343c;border-radius:20px;padding:6px 12px;font-size:12px;cursor:pointer}
+button:hover{border-color:#4a5c66}
+button.on{border-color:#c9d4d8;color:#fff}
+#stage{flex:1;position:relative;min-height:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:default}
+#tlw{padding:6px 22px 14px}
+#tl{width:100%;margin:0;accent-color:#c9d4d8}
+#side{width:300px;flex:none;transition:width .2s,padding .2s;background:#090e12;border-left:1px solid #19232a;overflow-y:auto;padding:24px 20px}
+.sec{border-top:1px solid #19232a;margin-top:22px;padding-top:16px}
+.sec:first-child{border:0;margin:0;padding:0}
+h2{font-size:10px;letter-spacing:1.5px;color:#697c88;margin:0 0 10px;font-weight:600}
+.tip{font-size:11px;color:#7d8d96;line-height:1.7}
+.row{display:flex;justify-content:space-between;gap:8px;font-size:12px;margin:5px 0;line-height:1.5}
+.row a{color:#c9d4d8;text-decoration:none}.row a:hover{color:#fff;text-decoration:underline}
+.v{font-variant-numeric:tabular-nums;white-space:nowrap}
+#star{font-size:14px;line-height:1.7;color:#e3edef}
+#sug .sg{margin:0 0 12px;font-size:12.5px;line-height:1.6;color:#e3edef}#sug .sg b{font-size:13px}#sug .k{font-size:10.5px;padding:0 6px;border-radius:8px;margin-left:6px;background:#1c2b33;color:#9fd3e6}#sug .k.h{background:#2b2433;color:#d8b3f0}
+#sug a{color:#7fc8ff;margin-right:6px;text-decoration:none}#sug .why{color:#9aabb3;font-size:11.5px}#sug .when{color:#7d8d96;font-size:11px}
+#hov{position:absolute;display:none;pointer-events:none;background:#0b1116f2;border:1px solid #233038;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.6;max-width:300px;z-index:5}
+#pin{position:absolute;left:22px;bottom:16px;display:none;max-width:420px;background:#0b1116f7;border:1px solid #3a4a54;border-radius:10px;padding:11px 34px 11px 13px;font-size:12px;line-height:1.6;z-index:6}
+#toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:none;background:#0b1116f2;border:1px solid #3a4a54;border-radius:10px;padding:9px 14px;font-size:12.5px;line-height:1.6;z-index:7;text-align:center}
+#noGh{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:none;background:#0b1116f2;border:1px solid #c9a54a;border-radius:10px;padding:10px 16px;font-size:13px;line-height:1.6;z-index:6;text-align:center}
+#toast.err{border-color:#a8473f}#toast .dim{color:#7d8d96;font-size:11.5px}
+#goDlg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:8}
+#goDlg .box{max-width:440px;background:#0b1116;border:1px solid #3d6b4f;border-radius:12px;padding:14px 16px;font-size:12.5px;line-height:1.7;color:#c9d4d8}
+#goDlg b{color:#eaf0f0;font-size:14px}#goDlg .dim{color:#7d8d96;font-size:11.5px}#goDlg label{display:flex;gap:7px;align-items:flex-start;margin:10px 0;cursor:pointer}
+#goDlg .bt{text-align:right;margin-top:6px}#goDlg button{margin-left:8px;padding:3px 12px;border-radius:5px;cursor:pointer;font:inherit;background:#101a20;color:#c9d4d8;border:1px solid #33444e}
+#goDlg button#goOk{background:#1f3a2a;color:#8fe3a8;border-color:#3d6b4f}
+#pin .sl{max-height:220px;overflow:auto;margin:6px 0;border-top:1px solid #233038;padding-top:6px}
+#pin .sl div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#pin .dim{color:#7d8d96;font-size:11px}
+#pin .rm{cursor:pointer;color:#56646c;margin-left:4px}#pin .rm:hover{color:#ff9b8f}
+#pin input{display:block;width:100%;margin:7px 0 5px;background:#05090c;border:1px solid #28343c;border-radius:6px;color:#dfe9ec;padding:5px 7px;font-size:11.5px}
+#pin a{color:#b9d2d7}#pin .x{position:absolute;right:11px;top:8px;cursor:pointer;color:#7d8d96}
+#wrap.fold #side{width:0!important;padding:0;border:0;overflow:hidden}
+#sideDrag{flex:none;width:5px;margin-right:-5px;position:relative;z-index:2;cursor:col-resize;background:transparent}#sideDrag:hover,#wrap.drag #sideDrag{background:#28343c}#wrap.fold #sideDrag{display:none}#wrap.drag #side{transition:none}#wrap.drag{user-select:none;cursor:col-resize}
+#bSide{margin-left:6px}#zoomBox{margin-left:auto;display:flex;gap:4px}#zoomBox button{padding:6px 10px}#zFit{min-width:58px;font-variant-numeric:tabular-nums}
+#cv.pan{cursor:grab}#cv.panning{cursor:grabbing}
+#side{display:flex;flex-direction:column}#pInfo{flex:1}
+#wrap.chat #side{width:380px}
+#tabs{display:flex;gap:6px;margin:-8px 0 16px}#tabs button{flex:1;border-radius:7px;padding:5px 0}
+#pChat{flex:1;display:flex;flex-direction:column;min-height:0}
+#msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding-bottom:8px;min-height:200px}
+.m{font-size:12.5px;line-height:1.65;padding:8px 10px;border-radius:9px;max-width:92%;white-space:pre-wrap;word-break:break-word}
+.m.u{align-self:flex-end;background:#16232b;color:#e3edef}.m.a{align-self:flex-start;background:#0d151b;border:1px solid #1b272f}
+.m .dim,#selHint{color:#7d8d96;font-size:11px}#selHint{margin:4px 0}
+.act{margin-top:7px;padding:7px 9px;border:1px solid #3a4a54;border-radius:8px;background:#0b1116}
+.act button{margin:6px 6px 0 0;padding:4px 11px}.act button.go{border-color:#ffd27a;color:#ffd27a}
+.act.done{opacity:.6}.act.done button{display:none}
+#engRow{display:flex;align-items:center;gap:6px;margin:2px 0 6px;font-size:11px;color:#7d8d96}#eng{background:#05090c;color:#dfe9ec;border:1px solid #28343c;border-radius:6px;font:inherit;font-size:11px;padding:2px 4px}
+#neb{position:absolute;left:4%;right:4%;top:5%;bottom:5%;display:none;flex-direction:column;background:#060a0e;border:1px solid #33444e;border-radius:14px;z-index:5;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+#nebH{padding:12px 44px 8px 16px;font-size:12.5px;line-height:1.6;border-bottom:1px solid #1b272f;color:#c9d4d8}#nebH b{color:#eaf0f0;font-size:14px}
+#nebH .dim{color:#7d8d96;font-size:11px}#nebH .x{position:absolute;right:14px;top:10px;cursor:pointer;color:#7d8d96;font-size:15px}
+#nebC{flex:1;min-height:0;width:100%;display:block}
+#nebTip{position:absolute;left:14px;bottom:10px;right:14px;font-size:11.5px;color:#9fb0b7;pointer-events:none;min-height:16px}
+#thinkRow{display:none;align-items:center;gap:6px;margin:6px 0 0;font-size:11px;color:#7d8d96}#thinkB{padding:4px 11px;border-color:#b9a4ff;color:#d6c9ff}#thinkScope{background:#05090c;color:#dfe9ec;border:1px solid #28343c;border-radius:6px;font:inherit;font-size:11px;padding:2px 4px}
+#chatF{display:flex;gap:6px;align-items:flex-end}#chatIn{flex:1;resize:none;background:#05090c;color:#dfe9ec;border:1px solid #28343c;border-radius:8px;padding:7px 9px;font:inherit;font-size:12.5px}
+@media(max-width:850px){#wrap{flex-direction:column;height:auto}#main{height:78vh;min-height:480px}#side{width:100%!important;border-left:0}#sideDrag{display:none}}
+.isn{color:#7fd8ff;cursor:pointer;border-bottom:1px dotted #7fd8ff80}.isn:hover{background:#7fd8ff22;border-radius:3px}
+.mdP{margin:0 0 6px}.mdL{margin:0 0 6px;padding-left:20px}.mdL li{margin:1px 0}.mdHr{border:0;border-top:1px solid #28343c;margin:6px 0}
+#msgs code{background:#0b1419;border:1px solid #1f2a31;border-radius:4px;padding:0 3px;font:11.5px ui-monospace,Menlo,Consolas,monospace}
+.mdPre{margin:0 0 6px;max-width:100%;overflow-x:auto;background:#05090c;border:1px solid #1f2a31;border-radius:6px;padding:6px 8px}.mdPre code{background:none;border:0;padding:0;white-space:pre}
+.m.a.ans{position:relative;padding-right:26px}.mdExpand{position:absolute;top:3px;right:3px;padding:0 5px;font-size:12px;line-height:18px;border-radius:5px;color:#7d8d96;background:transparent;border:1px solid transparent;cursor:pointer}.mdExpand:hover{border-color:#28343c;color:#dfe9ec}
+.foldBar{display:none;cursor:pointer;color:#9fb0b7;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.m.a.old .foldBar{display:block}.m.a.old:not(.fold) .foldBar{margin-bottom:6px;border-bottom:1px solid #1b272f;padding-bottom:4px}.m.a.fold .mdBody{display:none}.m.a.fold{padding-top:5px;padding-bottom:5px}
+#mdBig{position:fixed;left:0;top:0;right:0;bottom:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:50}
+#mdBigBox{position:relative;width:900px;max-width:calc(100vw - 32px);max-height:85vh;overflow:auto;box-sizing:border-box;padding:16px 40px 16px 18px;background:#060a0e;border:1px solid #33444e;border-radius:12px;font-size:13.5px;line-height:1.7;color:#dfe9ec;word-break:break-word}#mdBigBox .x{position:absolute;right:12px;top:8px;cursor:pointer;color:#7d8d96;font-size:15px}#mdBigBox .dim{color:#7d8d96;font-size:11px}
+#apBox{position:fixed;left:0;top:0;right:0;bottom:0;display:none;align-items:flex-start;justify-content:center;padding-top:10vh;background:rgba(0,0,0,.55);z-index:50}
+#apPanel{position:relative;width:520px;max-width:calc(100vw - 32px);max-height:75vh;display:flex;flex-direction:column;box-sizing:border-box;padding:14px 16px;background:#060a0e;border:1px solid #33444e;border-radius:12px;font-size:13px;color:#dfe9ec}
+#apPanel h3{margin:0 0 8px;font-size:14px;font-weight:600}#apX{position:absolute;right:12px;top:8px;cursor:pointer;color:#7d8d96;font-size:15px}
+#apQ{background:#0b1116;color:#dfe9ec;border:1px solid #28343c;border-radius:7px;padding:6px 9px;font:inherit;margin-bottom:8px}
+#apList{overflow:auto;flex:1}#apFoot{display:flex;align-items:center;gap:10px;margin-top:8px}#apMsg{color:#7d8d96;font-size:12px;min-height:16px;flex:1}#apGo{background:#f5b301;color:#1a1305;border:0;border-radius:7px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}#apGo[disabled]{background:#2a3238;color:#7d8d96;cursor:default}
+.apRow{display:flex;width:100%;align-items:center;gap:8px;text-align:left;background:none;border:0;border-bottom:1px solid #141d23;color:#dfe9ec;padding:7px 4px;font:inherit;cursor:pointer}
+.apRow:hover:not([disabled]){background:#0f1a21}.apRow[disabled]{cursor:default;color:#7d8d96}.apRow .o{color:#7d8d96;font-size:11.5px}.apRow .n{margin-left:auto;color:#7d8d96;font-size:11.5px;white-space:nowrap}.apRow .ck{width:16px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center;border:1px solid #3a4b55;border-radius:4px;color:#7fd99a;font-size:12px}.apRow.on .ck{background:#f5b301;border-color:#f5b301;color:#1a1305}.apRow[disabled] .ck{border-color:transparent}
+#mdBig code{background:#0b1419;border:1px solid #1f2a31;border-radius:4px;padding:0 3px;font:11.5px ui-monospace,Menlo,Consolas,monospace}
+.mdWrap{max-width:100%;overflow-x:auto;margin:0 0 6px}.mdTable{border-collapse:collapse;font-size:11px}.mdTable th,.mdTable td{border:1px solid #28343c;padding:3px 6px;text-align:left;vertical-align:top}.mdTable th{background:#0b1419;color:#eaf0f0;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="wrap">
+ <div id="main">
+  <div id="top">
+   <h1>WOLFFIA · 協作星系 v8</h1>
+   <select id="pSel" title="切換 project"></select>
+   <button id="bReset" style="display:none" title="只影響這個瀏覽器">↺ 還原排列</button>
+   <span id="tLbl"></span>
+   <button id="bPlay" title="空白鍵＝播放／暫停">▶ 播放</button>
+   <span style="color:#56646c;margin-left:8px">播放範圍</span>
+   <button data-w="7">7 天</button><button data-w="14" class="on">14 天</button><button data-w="30">30 天</button>
+   <span style="color:#56646c;margin-left:8px">速度</span>
+   <button data-s="0.5">0.5×</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button>
+   <span id="zoomBox"><button id="zOut" title="縮小（-）">－</button><button id="zFit" title="回到全景（0）">100%</button><button id="zIn" title="放大（+）">＋</button><button id="zSel" title="對焦到選取（F）">⌖ 對焦選取</button></span>
+   <button id="bSide" title="收合／展開右側面板">側欄 ⟩</button>
+  </div>
+  <div id="stage"><canvas id="cv"></canvas><div id="hov"></div><div id="pin"></div><div id="neb"><div id="nebH"></div><canvas id="nebC"></canvas><div id="nebTip"></div></div><div id="toast"></div><div id="noGh"></div><div id="goDlg"></div></div><div id="mdBig"></div>
+  <div id="apBox"><div id="apPanel"><span id="apX" title="關閉">✕</span><h3>＋ 加入 project</h3><input id="apQ" type="search" placeholder="搜尋名稱或組織" autocomplete="off"><div id="apList"></div><div id="apFoot"><span id="apMsg"></span><button type="button" id="apGo" disabled>加入</button></div></div></div>
+  <div id="tlw"><input id="tl" type="range" min="0" max="1000" value="1000"></div>
+ </div>
+ <div id="sideDrag" title="拖曳調整側欄寬度（雙擊回預設）"></div>
+ <div id="side">
+  <div id="tabs"><button data-tab="info" class="on">概況</button><button data-tab="chat">✦ Copilot</button></div>
+  <div id="pChat" style="display:none">
+   <div id="msgs"><div class="m a">我可以幫你看這個 project、圈出 issue、提議改狀態。改狀態一定會先問你。<br><span class="dim">例：「哪些卡最久？」「我選的做完了嗎？」「最後一則留言？」「把我選的移到進行中」</span></div></div>
+   <div id="selHint" class="dim"></div>
+    <div id="engRow">引擎 <select id="eng"><option value="">（預設）</option></select><span id="engNow"></span><span id="engUse" style="margin-left:auto"></span></div>
+   <form id="chatF"><textarea id="chatIn" rows="2" placeholder="問 copilot…（Enter 送出，Shift+Enter 換行）"></textarea><button type="submit">送出</button></form>
+   <div id="thinkRow"><button id="thinkB" type="button" title="用站台的 harness 分析現在這個看板（問題＋選取的卡＋看板資料）">📊 分析</button><select id="thinkScope" title="分析範圍"><option value="one">這個 project</option><option value="all">全部 project</option></select><span>分析現在的畫面</span></div>
+  </div>
+  <div id="pInfo">
+  <div class="sec"><h2>★ 現在該你處理</h2><div id="star"></div></div>
+  <div class="sec" id="sugSec" style="display:none"><h2>💡 建議</h2><div id="sug"></div></div>
+  <div class="sec"><h2>PROJECT</h2><div id="proj"></div></div>
+  <div class="sec"><h2>堵塞（依停留天數）</h2><div id="block"></div></div>
+  <div class="sec"><h2>這段期間的流動</h2><div id="flow"></div></div>
+  <div class="sec"><h2>讀圖方式</h2><div class="tip">
+   中央星核＝GitHub Project；行星＝每一張未關閉的 issue。<br>
+   由外往內：待辦 → 進行中 → 審核後請關閉 → 關閉後流進星核。<br>
+   紅暈＝堵塞，停越久越紅；黃暈＝★。<br>
+   大顆的星團＝EPIC（子 issue 越多越大），外圈綠色弧＝子 issue 完成比例；綠色閃環＝待你驗收；紅點閃＝裡面有 swarm 卡住。單擊 EPIC＝展開它的子 issue 與依賴（Shift＋點或圈選＝選取 EPIC）。<br>
+   ▶ 播放（空白鍵）＝重播所選天數內的開立、移動與關閉；再按一次暫停。<br>
+   點行星＝選取；Shift／⌘＋點＝加減選；在空白處拖曳＝圈選多張；雙擊＝開 GitHub（雙擊中間的星核＝開這個 Project 的看板）；Esc＝取消選取。<br>
+   拖曳行星＝沿著軌道換位置，可以把相關的 issue 排在一起；位置只存在這個瀏覽器。<br>
+   往內／外拖到另一圈＝改狀態，會直接寫回 GitHub（只在「現在」可以改）；拖進中間的星核＝完成（會先問你，再關閉 issue）。EPIC 展開後，子 issue 也一樣可以拖。<br>
+   ⌥ Option（Windows／Linux：Alt）＋拖曳＝3D 翻轉（上下＝傾斜、左右＝旋轉）；翻轉時一切照常可以操作。0 或「100%」＝回到正面全景；3＝快速傾斜／放平。<br>
+   縮放：滾輪／觸控板捏合／＋－鍵；平移：兩指滑動、按住空白鍵拖曳或右鍵拖曳；0＝回全景；F＝對焦選取；空白處雙擊＝放大。拉近後會顯示完整標題與負責人。<br>
+   🐝 繞著星轉＝swarm 正在做這張（標籤＝引擎 · 已做幾分鐘；每 15 秒更新）；做完會沿軌道滑進最內圈。系統設定「減少動態效果」時只顯示標示、不繞行。<br>
+   背景星塵只是意象，不代表數量。</div></div>
+  <div class="sec"><h2>資料與限制</h2><div class="tip" id="note"></div></div>
+  </div>
+ </div>
+</div>
+<script src="data/index.js"></script>
+<script>
+// 選哪個 project：網址 ?p=N（預設組織的 N）或 ?p=組織/N（別的組織的 project）；沒指定或不在清單裡就用預設。
+// 在解析階段同步載入，主程式就能直接用 window.PROJECT。window.PROJECT_NUM＝這個 project 的 key（index.js 的 key）：
+// 預設組織是編號（2），別的組織是 "組織/編號"（"acme/1"）；資料檔 p2.js／p-acme-1.js
+window.pKey=function(s){ try{ s=decodeURIComponent(String(s)).trim(); }catch(e){ return null; }
+  if(/^\d{1,9}$/.test(s)&&+s>0) return +s;
+  var m=/^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/(\d{1,9})$/.exec(s); if(!m||!(+m[2]>0)) return null;
+  var o=m[1].toLowerCase(); return o===String((window.PROJECT_INDEX||{}).org||"").toLowerCase()?+m[2]:o+"/"+(+m[2]); };
+window.rowKey=function(x){ return x.key!==undefined?x.key:x.num; };
+window.pFile=function(k){ return typeof k==="string"?"p-"+k.replace("/","-"):"p"+k; };
+(function(){
+  var IX=window.PROJECT_INDEX||{projects:[]}, m=location.search.match(/[?&]p=([^&#]*)/), n=m?window.pKey(m[1]):null;
+  if(/[?&]demo=1/.test(location.search)){ window.PROJECT_NUM="demo"; document.write('<script src="data/demo-epic.js"><\/script>'); return; }
+  if(!IX.projects.some(function(x){return window.rowKey(x)===n;})){ n=IX["default"]; if(n!==undefined&&n!==null&&window.pKey(n)!==null) n=window.pKey(n); }
+  window.PROJECT_NUM=n;
+  document.write('<script src="data/'+window.pFile(n)+'.js"><\/script>');
+})();
+</script>
+<script>window.PROJECT=window.PROJECTS&&window.PROJECTS[window.PROJECT_NUM];</script>
+<script>
+// 尚未連接 GitHub：只在站台 DSH 的 /board/ 底下。站台沒有登入 gh 時不會抓資料（data/status.json 回 {"github":false}），
+// 改成提示怎麼連接，不顯示錯誤。還沒有任何資料時先用空的看板，頁面不會壞掉。
+(function(){ if(!/^\/board\//.test(location.pathname||"")) return;
+  if(!window.PROJECT) window.PROJECT={num:typeof window.PROJECT_NUM==="string"?+window.PROJECT_NUM.split("/")[1]:window.PROJECT_NUM||0,key:window.PROJECT_NUM,empty:true,cols:["待辦","進行中 (7 天一輪)","審核後請關閉","完成"],title:"尚無資料",url:"",fetched:new Date().toISOString(),items:[]};
+  var x=new XMLHttpRequest(); x.open("GET","data/status.json");
+  x.onload=function(){ var r=null; if(x.status===200){ try{ r=JSON.parse(x.responseText); }catch(e){} }
+    if(!r||r.github!==false) return;
+    var B=document.getElementById("noGh"); B.textContent="尚未連接 GitHub：請在站台的 AI 對話說「幫我連接 GitHub」"; B.style.display="block"; };
+  x.send(); })();
+</script>
+<script>
+// ── 資料 ──
+var PJ=window.PROJECT, DAY=864e5, NOW=Date.parse(PJ.fetched);
+var COLS=PJ.cols.filter(function(c){return c!=="完成";});          // 未完成的欄，由外往內
+var RING={}; COLS.forEach(function(c,i){ RING[c]=300-i*(190/Math.max(1,COLS.length-1)); });
+// 停留上限：「進行中」取欄名的 7 天；其他兩欄是假設值，畫面會標明
+var LIMIT={"待辦":30,"進行中 (7 天一輪)":7,"審核後請關閉":7};
+function limitOf(c){ return LIMIT[c]||14; }
+// 舊版 Status 是英文欄名，對到現在的欄
+var ALIAS={"Todo":"待辦","In Progress":"進行中 (7 天一輪)","Review":"審核後請關閉","Done":"完成"};
+var ITEMS=PJ.items.map(function(x){
+  var h=x.hist.map(function(e){return {t:Date.parse(e[0]),s:ALIAS[e[1]]||e[1]};});
+  return {n:x.n,t:x.t,u:x.u,repo:x.repo,who:x.who,created:Date.parse(x.created),
+    closed:x.closed?Date.parse(x.closed):null,labels:x.labels||[],status:x.status,sinceU:x.since?Date.parse(x.since):null,h:h,
+    px:600,py:360,seen:false,type:x.type||null,parentU:x.parent||null,bl:x.blockedBy||[],target:x.target||null,
+    goAt:x.goAt?Date.parse(x.goAt):null,edited:x.edited?Date.parse(x.edited):null};
+});
+// ── EPIC 圖（契約見 discussion.md「issue 契約」）：issue type＝Epic 或 label＝epic ──
+// sub-issue＝parent 也在這個 project 裡的 issue：主星系不畫，只在 EPIC 面板裡出現
+function hasL(it,l){ return it.labels.indexOf(l)>=0; }
+var AUTO="swarm:auto-merge";   // 低風險 EPIC：判準全過、只改範圍內檔案時自動合併總 PR
+var BYU={}, KIDS={};
+ITEMS.forEach(function(it){ BYU[it.u]=it; it.epic=it.type==="Epic"||hasL(it,"epic"); });
+ITEMS.forEach(function(it){ var p=it.parentU&&BYU[it.parentU]; if(p){ it.sub=true; it.par=p; (KIDS[p.u]=KIDS[p.u]||[]).push(it); p.epic=true; } });
+// EPIC 大小：至少一般的 2 倍，子 issue 越多越大（增加越來越慢），最多 3.5 倍
+ITEMS.forEach(function(it){ it.esc=it.epic?Math.min(3.5,2+.55*Math.log(1+(KIDS[it.u]||[]).length)):1; });
+function kidsOf(e){ return KIDS[e.u]||[]; }
+// 要不要「↻ 重新放行」：已放行（swarm:go，goAt＝最近一次加上它的時間）之後，有 sub-issue 新開或內文被改過
+function needRego(e){ return !!(hasL(e,"swarm:go")&&!e.closed&&e.goAt&&kidsOf(e).some(function(k){ return k.created>e.goAt||(k.edited&&k.edited>e.goAt); })); }
+// 某時刻的狀態：{col, since}；尚未開立回傳 null；已關閉 col="closed"
+function stateAt(it,t){
+  if(it.created>t) return null;
+  var col=null, since=it.created, last=null;
+  it.h.forEach(function(e){ if(e.t>t) return;
+    if(e.s==="closed"){ col="closed"; since=e.t; }
+    else if(e.s==="reopen"){ col=last||COLS[0]; since=e.t; }
+    else { col=e.s==="完成"?"closed":e.s; if(e.s!=="完成") last=e.s; since=e.t; } });
+  if(col===null){ col=it.h.length?COLS[0]:(it.closed&&it.closed<=t?"closed":(it.status==="完成"?"closed":(it.status||COLS[0]))); }
+  if(col!=="closed"&&RING[col]===undefined) col=COLS[0];
+  // 變更紀錄不完整時（最後一筆之後又被改過，紀錄沒寫到），以目前的 Status 為準
+  var lastT=it.h.length?it.h[it.h.length-1].t:it.created, cur=it.status==="完成"?"closed":it.status;
+  var guess=false;
+  if(t>=lastT&&cur&&cur!==col&&(cur==="closed"||RING[cur]!==undefined)&&!(cur!=="closed"&&it.closed&&!it.h.some(function(e){return e.s==="reopen";}))){ col=cur; guess=true;
+    // 透過 API 改的狀態，GitHub 不會留下變更紀錄；改用 Status 欄位的更新時間當作進入這欄的時間
+    if(it.sinceU&&it.sinceU>lastT&&it.sinceU<=t) since=it.sinceU; }
+  return {col:col,since:since,guess:guess};
+}
+function dwell(st,t){ return (t-st.since)/DAY; }
+function blockRatio(st,t){ return st&&st.col!=="closed"? dwell(st,t)/limitOf(st.col) : 0; }
+// 期間內的事件（開立、換欄、關閉）
+function eventsIn(a,b){
+  var ev=[];
+  ITEMS.forEach(function(it){
+    if(it.created>a&&it.created<=b) ev.push({t:it.created,it:it,k:"open",to:COLS[0]});
+    var prev=null;
+    it.h.forEach(function(e){
+      var to=(e.s==="closed"||e.s==="完成")?"closed":(e.s==="reopen"?COLS[0]:e.s);
+      if(e.t>a&&e.t<=b&&to!==prev&&!(to===COLS[0]&&Math.abs(e.t-it.created)<6e4)) ev.push({t:e.t,it:it,k:to==="closed"?"close":"move",from:prev,to:to});
+      prev=to; });
+  });
+  return ev.sort(function(x,y){return x.t-y.t;});
+}
+// ★：我現在該處理什麼——只列卡在人手上的事，越接近完成越優先：
+//   1 待驗收的 EPIC（epic:review）→ 2 擋住後續的 swarm:stuck → 3 擋住後續的 by:human → 4 超過上限的零散 issue
+//   同一級：超過上限的比例高的先；by:swarm 正在跑的不列（人推它也沒用）
+function isOpenAt(it,t){ var st=stateAt(it,t); return !!(st&&st.col!=="closed"); }
+function blocksN(x,t){ var pool=x.par?kidsOf(x.par):ITEMS; return pool.filter(function(y){ return y!==x&&y.bl.indexOf(x.u)>=0&&isOpenAt(y,t); }).length; }
+var STAR_WHY={1:"子 issue 全部通過，等你驗收結案",2:"swarm 卡住了",3:"等人處理",4:"超過停留上限"};
+function pickStar(t){
+  var best=null;
+  ITEMS.forEach(function(it){ var st=stateAt(it,t); if(!st||st.col==="closed") return;
+    var tier=0, r=blockRatio(st,t), nb=0;
+    if(it.epic&&!it.sub){ if(hasL(it,"epic:review")) tier=1; }
+    else if(it.sub){ nb=blocksN(it,t); if(nb&&hasL(it,"swarm:stuck")) tier=2; else if(nb&&hasL(it,"by:human")) tier=3; }
+    else if(r>=1) tier=4;
+    if(!tier) return;
+    var rank=(5-tier)*1e6+(tier===4?COLS.indexOf(st.col)*1000:0)+r*100+dwell(st,t)/1000;
+    if(!best||rank>best.rank) best={it:it.sub?it.par:it,sub:it.sub?it:null,tgt:it,st:st,r:r,rank:rank,tier:tier,nb:nb}; });
+  return best;
+}
+// 面板上方：最長的未完成依賴鏈，以及鏈上有幾張 by:human
+function longestChain(e,t){
+  var K=kidsOf(e).filter(function(k){ return isOpenAt(k,t); }), memo={};
+  function go(k,seen){ if(memo[k.u]) return memo[k.u]; if(seen[k.u]) return {n:0,h:0}; seen[k.u]=1;
+    var b={n:0,h:0}; K.forEach(function(y){ if(k.bl.indexOf(y.u)>=0){ var c=go(y,seen); if(c.n>b.n||(c.n===b.n&&c.h>b.h)) b=c; } });
+    seen[k.u]=0; return memo[k.u]={n:b.n+1,h:b.h+(hasL(k,"by:human")?1:0)}; }
+  var best={n:0,h:0}; K.forEach(function(k){ var c=go(k,{}); if(c.n>best.n||(c.n===best.n&&c.h>best.h)) best=c; }); return best;
+}
+// ── 時間軸 ──
+var WIN=14, T=NOW, playing=false, playStart=0, SPEED=1;
+function t0(){ return NOW-WIN*DAY; }
+function fmt(t){ var d=new Date(t); return (d.getMonth()+1)+"/"+d.getDate(); }
+function daysAgo(t){ var x=Math.round((NOW-t)/DAY); return x<=0?"今天":x+" 天前"; }
+// ── 畫面 ──
+var cv=document.getElementById("cv"), ctx=cv.getContext("2d"), CX=600, CY=360, SX=1.45, VW=1200, VH=720, view={s:1,ox:0,oy:0,Z:1,base:1};
+// 鏡頭：Z＝縮放倍率，cam＝畫面中心對到的世界座標；*T＝目標值（平滑靠近）
+// 3D：把星系平面立起來看。pitch＝往後倒的角度，yaw＝水平旋轉，amt＝平面→3D 的過渡（0..1）
+var D3={pitch:0,yaw:0,amt:0,pitchT:0,yawT:0,amtT:0}, PO={x:0,y:0,k:1,d:0}, FOC=1000;
+function P(x,y,z){ // 世界座標 → 投影後座標（仍在 view 空間，鏡頭縮放在後面套）
+  if(D3.amt<1e-3&&D3.pitch<1e-3&&Math.abs(D3.yaw)<1e-3){ PO.x=x; PO.y=y; PO.k=1; PO.d=0; return PO; }
+  var X=x-CX, Y=(y-CY)*(1+(SX-1)*D3.amt), cy=Math.cos(D3.yaw), sy=Math.sin(D3.yaw);
+  var Xr=X*cy-Y*sy, Yr=X*sy+Y*cy, cp=Math.cos(D3.pitch), sp=Math.sin(D3.pitch), Z=z||0;
+  var ys=Yr*cp-Z*sp, d=-(Yr*sp+Z*cp), k=FOC/(FOC+d); // 畫面上方＝往後倒＝離鏡頭較遠（d>0、變小）
+  var f=1-.14*D3.amt; PO.x=CX+Xr*k*f; PO.y=CY+(ys*k-90*Math.sin(D3.pitch))*f; PO.k=k; PO.d=d; return PO; } // f、-90：近的放大後會超出下緣，整體縮一點並往上移
+function unP(u,v){ // P 的反函數（z=0 平面）：滑鼠位置 → 星系平面上的座標；看到地平線以上回傳 null
+  if(D3.amt<1e-3&&D3.pitch<1e-3&&Math.abs(D3.yaw)<1e-3) return {x:u,y:v};
+  var f=1-.14*D3.amt, Xp=(u-CX)/f, Yp=(v-CY)/f+90*Math.sin(D3.pitch), cp=Math.cos(D3.pitch), sp=Math.sin(D3.pitch);
+  var den=cp*FOC+Yp*sp; if(den<=1e-6) return null;
+  var Yr=Yp*FOC/den, k=FOC/(FOC-Yr*sp); if(!(k>0)) return null;
+  var Xr=Xp/k, cy=Math.cos(D3.yaw), sy=Math.sin(D3.yaw), X=Xr*cy+Yr*sy, Y=-Xr*sy+Yr*cy;
+  return {x:CX+X, y:CY+Y/(1+(SX-1)*D3.amt)}; }
+var CAM={Z:1,x:600,y:360,ZT:1,xT:600,yT:360}, ZMIN=.6, ZMAX=8;
+var seed=9617; function rnd(){ seed=seed*16807%2147483647; return (seed-1)/2147483646; }
+var DUST=[]; for(var i=0;i<2200;i++){ var u=rnd(), arm=i%3, r=18+Math.pow(u,.8)*360;
+  DUST.push({r:r,a:arm*2.094+u*5.4+(rnd()-.5)*(.12+.38*u),s:.25+Math.pow(rnd(),5)*1.6,al:.08+rnd()*.45,p:rnd()*6.28}); var h1=Math.sin(i*12.9898)*43758.5, h2=Math.sin(i*78.233)*12543.1; DUST[i].z=((h1-Math.floor(h1))-.5)*Math.pow(h2-Math.floor(h2),2)*110*(1-r/420); }
+var CL=[]; for(var j=0;j<90;j++){ var a=rnd()*6.28, rr=Math.pow(rnd(),1.6); CL.push({x:Math.cos(a)*rr,y:Math.sin(a)*rr*.7,s:.4+Math.pow(rnd(),4)*1.8,b:.3+rnd()*.7}); }
+var CORE=[]; for(var k=0;k<160;k++){ var a2=rnd()*6.28, r2=Math.pow(rnd(),2)*46; CORE.push({x:Math.cos(a2)*r2,y:Math.sin(a2)*r2*.7,s:.3+Math.pow(rnd(),5)*2,b:.3+rnd()*.7}); var hc=Math.sin(k*91.7)*24634.6; CORE[k].z=((hc-Math.floor(hc))-.5)*2*Math.sqrt(Math.max(0,46*46-r2*r2))*.9; }
+var SPARK=[], FLASH=0, hov=null;
+function dot(x,y,r,c,a){ ctx.globalAlpha=Math.max(0,Math.min(1,a)); ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,r,0,6.2832); ctx.fill(); }
+function halo(x,y,r,rgb,a){ var g=ctx.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,"rgba("+rgb+",.55)"); g.addColorStop(.35,"rgba("+rgb+",.22)"); g.addColorStop(1,"rgba("+rgb+",0)");
+  ctx.globalAlpha=Math.max(0,Math.min(1,a)); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.2832); ctx.fill(); }
+function text(s,x,y,c,size,al,w){ ctx.globalAlpha=al===undefined?1:al; ctx.fillStyle=c; ctx.font=(w||400)+" "+size+"px -apple-system,'PingFang TC','Noto Sans TC',sans-serif"; ctx.textAlign="center"; ctx.fillText(s,x,y); }
+function short(t,n){ n=n||13; t=t.replace(/^\[[^\]]*\]\s*/,""); return t.length>n?t.slice(0,n-1)+"…":t; }
+function tag(t){ var m=t.match(/^\[([^\]]*)\]/); return m?m[1]:""; }
+// 堵塞顏色：未超過上限＝冷白；超過越久越紅（到 3 倍上限全紅）
+function blockRGB(r){ if(r<1) return "220,232,236"; var k=Math.min(1,(r-1)/2); return Math.round(255)+","+Math.round(200-123*k)+","+Math.round(87-10*k); }
+// 版位：每欄一圈，圈內依編號平均排開，每圈錯開角度
+// 手動角度：只存在這個瀏覽器（localStorage），每個 project 一份；只改角度，不改半徑（欄位）
+var ANG_KEY="wolffia.angles.p"+(typeof PJ.key==="string"?PJ.key:(PJ.num||0)), ANG={};
+try{ ANG=JSON.parse(localStorage.getItem(ANG_KEY)||"{}")||{}; }catch(e){ ANG={}; }
+function saveAng(){ try{ localStorage.setItem(ANG_KEY,JSON.stringify(ANG)); }catch(e){} }
+var drag=null;
+function angAt(p){ return Math.atan2(p.y-CY,(p.x-CX)/SX); }
+function layout(t){
+  var by={}; COLS.forEach(function(c){by[c]=[];});
+  ITEMS.forEach(function(it){ var st=stateAt(it,t); it.st=st; if(st&&st.col!=="closed"&&!it.sub) by[st.col].push(it); });
+  COLS.forEach(function(c,ci){ var L=by[c].sort(function(a,b){return a.n-b.n;});
+    L.forEach(function(it,i){ var a=ANG.hasOwnProperty(it.u)?ANG[it.u]:-1.5708+ci*.55+i*6.2832/L.length;
+      if(drag&&drag.it===it&&drag.moved) a=drag.a;
+      var R0=(drag&&drag.it===it&&drag.moved&&drag.r)?drag.r:RING[c];
+      it.ang=a; it.tx=CX+Math.cos(a)*R0*SX; it.ty=CY+Math.sin(a)*R0; }); });
+  ITEMS.forEach(function(it){ var st=it.st;
+    if(it.sub){ it.vis=0; if(st) { it.tx=it.par.tx||CX; it.ty=it.par.ty||CY; } return; }
+    if(!st){ it.tx=it.px; it.ty=it.py; it.vis=0; }
+    else if(st.col==="closed"){ it.tx=CX; it.ty=CY; it.vis=0; }
+    else it.vis=1; });
+}
+function spark(A,B,rgb,big){ if(SPARK.length<200) SPARK.push({A:{x:A.x,y:A.y},B:{x:B.x,y:B.y},rgb:rgb,t:AT,dur:(big?3400:2400)/SPEED,big:big}); }
+var LASTR=0, DT=16.7, EM=.05, EA=.06;
+var TZ=1;
+// 動畫時鐘：播放中途暫停時停住（流星、行星移動、星核閃光都凍結）；只有星塵繼續轉
+var AT=0;
+function render(now){
+  DT=LASTR?Math.min(100,now-LASTR):16.7; LASTR=now;
+  // 以 1× 為基準：行星移動比原本慢一半；跟著速度一起變快或變慢
+  var FROZEN=!playing&&T<NOW; if(!FROZEN) AT+=DT;
+  var k=FROZEN?0:DT/16.7*SPEED; EM=1-Math.pow(1-.025,k); EA=1-Math.pow(1-.04,k);
+  var w=cv.clientWidth, h=cv.clientHeight, dpi=Math.min(window.devicePixelRatio||1,2);
+  if(cv.width!==Math.round(w*dpi)||cv.height!==Math.round(h*dpi)){ cv.width=Math.round(w*dpi); cv.height=Math.round(h*dpi); }
+  var ez=1-Math.pow(1-.22,DT/16.7); CAM.Z+=(CAM.ZT-CAM.Z)*ez; CAM.x+=(CAM.xT-CAM.x)*ez; CAM.y+=(CAM.yT-CAM.y)*ez;
+  if(Math.abs(CAM.ZT-CAM.Z)<1e-4){ CAM.Z=CAM.ZT; CAM.x=CAM.xT; CAM.y=CAM.yT; }
+  D3.amtT=Math.min(1,D3.pitchT/.6); // 倒得越多，橢圓越接近正圓
+  var e3=1-Math.pow(1-.08,DT/16.7); D3.pitch+=(D3.pitchT-D3.pitch)*e3; D3.yaw+=(D3.yawT-D3.yaw)*e3; D3.amt+=(D3.amtT-D3.amt)*e3;
+  if(Math.abs(D3.pitchT-D3.pitch)<1e-4){ D3.pitch=D3.pitchT; } if(Math.abs(D3.yawT-D3.yaw)<1e-4){ D3.yaw=D3.yawT; } if(Math.abs(D3.amtT-D3.amt)<1e-4){ D3.amt=D3.amtT; }
+  view.base=Math.min(w/VW,h/VH); view.Z=CAM.Z; view.s=view.base*CAM.Z; view.ox=w/2-CAM.x*view.s; view.oy=h/2-CAM.y*view.s;
+  // 放大時字和光暈不要跟著等比變大，多出來的空間拿來顯示更多內容
+  TZ=1/Math.pow(CAM.Z,.65); paintZoom();
+  ctx.setTransform(dpi,0,0,dpi,0,0); ctx.clearRect(0,0,w,h);
+  ctx.translate(view.ox,view.oy); ctx.scale(view.s,view.s);
+  // 星塵（純意象）
+  var rot=now/160000, cr=Math.cos(rot), sr=Math.sin(rot);
+  DUST.forEach(function(p){ var a=p.a+rot*.18, x=Math.cos(a)*p.r*1.25, y=Math.sin(a)*p.r*.78;
+    var q=P(CX+x*cr-y*sr, CY+x*sr+y*cr, p.z*D3.amt); dot(q.x, q.y, p.s*q.k, p.p>5.85?"#d6c6a7":"#dce8ea", p.al*(.85+.15*Math.sin(now/3200+p.p))); });
+  // 欄位圈：極淡，只讓人讀得出由外往內
+  COLS.forEach(function(c){ var tgt=drag&&drag.moved&&drag.to===c&&drag.it.st&&drag.to!==drag.it.st.col;
+    ctx.globalAlpha=tgt?.6:.07; ctx.strokeStyle=tgt?"#ffd27a":"#dce8ea"; ctx.lineWidth=(tgt?2:1)/view.Z; ctx.beginPath();
+    for(var a=0;a<=96;a++){ var t=a/96*6.2832, q=P(CX+Math.cos(t)*RING[c]*SX,CY+Math.sin(t)*RING[c],0); if(a) ctx.lineTo(q.x,q.y); else ctx.moveTo(q.x,q.y); } ctx.stroke();
+    var qt=P(CX,CY-RING[c],0); text(tgt?"放開＝移到「"+c+"」":c,qt.x,qt.y-8*TZ,tgt?"#ffd27a":"#6d7f88",(tgt?12.5:11)*TZ,tgt?1:.85,tgt?600:400); });
+  // 星核＝Project
+  var done=ITEMS.filter(function(it){return it.st&&it.st.col==="closed";}).length;
+  if(FLASH>0){ var qf=P(CX,CY,0); halo(qf.x,qf.y,90,"230,240,245",FLASH); }
+  // 3D 時星核是一顆球：點散在球體上，跟著鏡頭轉
+  CORE.forEach(function(q,i){ var zz=D3.amt*q.z; var o=P(CX+q.x,CY+q.y*(1+(1/.7-1)*D3.amt)/(1+(SX-1)*D3.amt),zz); dot(o.x,o.y,q.s*o.k,"#f0f5f5",q.b); });
+  var qc=P(CX,CY,0), lz=Math.max(TZ,.5);
+  if(drag&&drag.moved&&drag.to===DONE){ halo(qc.x,qc.y,110,"143,227,168",.55); text("放開＝完成（關閉 issue）",qc.x,qc.y-78*lz,"#8fe3a8",12.5*lz,1,600); }
+  text(PJ.title,qc.x,qc.y+70,"#eaf0f0",17*lz,1,600);
+  text("PROJECT · 已完成 "+done+" 張",qc.x,qc.y+70+18*lz,"#6f8088",10*lz);
+  // 行星＝issue
+  var star=pickStar(T);
+  // 先算投影位置（sx,sy＝畫面上的位置，點選／圈選都用它），再由遠到近畫
+  var ORD=[];
+  ITEMS.forEach(function(it){
+    it.px+=(it.tx-it.px)*EM; it.py+=(it.ty-it.py)*EM;
+    it.al=(it.al||0)+((it.vis||0)-(it.al||0))*EA;
+    var sl=slideAt(it,now,"m",CX,CY,SX,it.tx,it.ty); if(sl){ it.px=sl.x; it.py=sl.y; if(!it.vis) it.al=1-.7*sl.p; }   // 沿軌道滑到新的一圈；剛完成＝滑進星核
+    if(FIN[it.u]&&now-FIN[it.u].t0>=FIN_MS) delete FIN[it.u];
+    var q=P(it.px,it.py,0); it.sx=q.x; it.sy=q.y; it.k=q.k; it.dz=q.d;
+    if(it.al>=.02) ORD.push(it); });
+  ORD.sort(function(a,b){ return b.dz-a.dz; });
+  ORD.forEach(function(it){
+    var x=it.sx, y=it.sy, kk=it.k, fog=D3.amt>0?Math.max(.35,Math.min(1,.55+.45*kk)):1;
+    var st=it.st, r=st&&st.col!=="closed"?blockRatio(st,T):0, isStar=star&&star.it===it, es=it.esc, R=26*kk*es, hs=it.epic?.75*es:1;
+    if(r>=1) halo(x,y,(46+Math.min(30,(r-1)*12))*kk*hs,"255,77,77",fog*it.al*(.35+.45*Math.min(1,(r-1)/2)));
+    if(isStar) halo(x,y,80*kk*hs,"255,200,87",fog*it.al*(.8+.15*Math.sin(now/500)));
+    if(SEL[it.u]||ISNH===it){ ctx.globalAlpha=it.al*.9; ctx.strokeStyle="#7fd8ff"; ctx.lineWidth=2/Math.sqrt(view.Z); ctx.setLineDash([5,4]); ctx.lineDashOffset=-now/60;
+      ctx.beginPath(); ctx.arc(x,y,R+9*kk,0,6.2832); ctx.stroke(); ctx.setLineDash([]); halo(x,y,50*kk,"127,216,255",.25*it.al); }
+    var col="rgb("+blockRGB(r)+")";
+    CL.forEach(function(p){ dot(x+p.x*R,y+p.y*R,p.s*kk,col,fog*p.b*it.al*(hov===it?1:.8)); });
+    if(it.epic){ CL.forEach(function(p){ dot(x-p.y*R*.62,y+p.x*R*.62,p.s*kk*1.1,col,fog*p.b*it.al*.75); });
+      // 進度環：子 issue 完成比例（關閉的張數 / 全部）
+      var K=kidsOf(it), dn=K.filter(function(k){ return !isOpenAt(k,T); }).length, rr=R*.62+5*kk;
+      ctx.globalAlpha=fog*it.al*.22; ctx.strokeStyle="#dce8ea"; ctx.lineWidth=2.2*kk; ctx.beginPath(); ctx.arc(x,y,rr,0,6.2832); ctx.stroke();
+      if(K.length&&dn){ ctx.globalAlpha=fog*it.al*.9; ctx.strokeStyle="#8fe3a8"; ctx.beginPath(); ctx.arc(x,y,rr,-1.5708,-1.5708+6.2832*dn/K.length); ctx.stroke(); }
+      if(hasL(it,"epic:review")){ ctx.globalAlpha=fog*it.al*(.55+.35*Math.sin(now/400)); ctx.strokeStyle="#8fe3a8"; ctx.lineWidth=1.5*kk; ctx.beginPath(); ctx.arc(x,y,rr+6*kk,0,6.2832); ctx.stroke(); }
+      if(kidsOf(it).some(function(k){ return isOpenAt(k,T)&&hasL(k,"swarm:stuck"); })) dot(x+rr*.72,y-rr*.72,4.2*kk,"#ff6b5e",fog*it.al*(.55+.45*Math.sin(now/260))); }
+    dot(x,y,(isStar?4:2.8)*kk*(it.epic?1.6:1),"#ffffff",it.al);
+    var nb=it.epic?runningN(it):0;   // 工作中：自己在跑，或 EPIC 底下有在跑的
+    if(RUN[it.u]||nb) bee(ctx,x,y,R+14*kk,now,it.n,13*TZ,fog*it.al);
+    // 拉近後：標題變長、多一行負責人與欄位天數
+    var Zl=view.Z*kk, tz=TZ*(D3.amt>0?Math.max(.6,kk):1), L1=Zl>=3.2?60:Zl>=1.8?30:13, y0=y+R+16*tz;
+    text((isStar?"✦ ":"")+short(it.t,L1),x,y0,isStar?"#ffffff":"#b9c5ca",12.5*tz,fog*it.al);
+    var d=st&&st.col!=="closed"?Math.floor(dwell(st,T)):0;
+    var ep=it.epic?" · EPIC "+kidsOf(it).filter(function(k){ return !isOpenAt(k,T); }).length+"/"+kidsOf(it).length+(hasL(it,AUTO)?" · ⚡":""):"";
+    text("#"+it.n+ep+(r>=1?" · 卡 "+d+" 天":(Zl>=1.8&&st&&st.col!=="closed"?" · "+d+" 天":"")),x,y0+15*tz,r>=1?"#ff9b8f":(it.epic?"#9fb8c0":"#62737c"),10.5*tz,fog*it.al);
+    if(Zl>=1.8) text((it.who.length?it.who.join("、"):"未指派")+(it.labels&&it.labels.length?" · "+it.labels.slice(0,3).join(" / "):""),x,y0+29*tz,"#56646c",10*tz,fog*it.al*.9);
+    if(RUN[it.u]||nb) text(nb?"🐝 "+nb+" 隻工作中":runLabel(it.u),x,y0+(Zl>=1.8?43:29)*tz,"#ffd27a",10.5*tz,fog*it.al);
+  });
+  if(NEB) renderNeb(now);
+  // 圈選中的路徑
+  if(lasso&&lasso.moved){ ctx.globalAlpha=.85; ctx.strokeStyle="#7fd8ff"; ctx.fillStyle="rgba(127,216,255,.06)"; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); lasso.pts.forEach(function(q,i){ if(i) ctx.lineTo(q.x,q.y); else ctx.moveTo(q.x,q.y); }); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.setLineDash([]); }
+  // 流動
+  SPARK=SPARK.filter(function(s){ return AT-s.t<s.dur; });
+  SPARK.forEach(function(s){ var k=(AT-s.t)/s.dur; if(k<0) return; var e=1-Math.pow(1-k,3);
+    for(var q=0;q<10;q++){ var kk=Math.max(0,e-q*.025), x=s.A.x+(s.B.x-s.A.x)*kk, y=s.A.y+(s.B.y-s.A.y)*kk;
+      var o=P(x,y,0); dot(o.x,o.y,(s.big?2.4:1.8)*(1-q/12)*o.k,"rgb("+s.rgb+")",(1-q/10)*(1-k*.4)); } });
+  if(!FROZEN) FLASH*=Math.pow(.95,DT*SPEED/16.7);
+  ctx.globalAlpha=1;
+}
+// ── 時間推進：觸發這段期間的流動 ──
+function setT(t,animate){
+  var prev=T; T=Math.max(t0(),Math.min(NOW,t));
+  if(animate&&T>prev){
+    eventsIn(prev,T).forEach(function(ev){ var it=ev.it; if(it.sub) return;
+      if(ev.k==="open"){ it.px=CX+(it.n%2?-1:1)*700; it.py=CY+(it.n%3-1)*300; spark({x:it.px,y:it.py},{x:it.px,y:it.py},"220,232,236"); }
+      else if(ev.k==="close"){ spark({x:it.px,y:it.py},{x:CX,y:CY},"255,214,140",true); FLASH=Math.min(1,FLASH+.6); }
+      else spark({x:it.px,y:it.py},{x:CX+(it.px-CX)*.8,y:CY+(it.py-CY)*.8},"200,225,232"); });
+  }
+  layout(T);
+  if(!animate) ITEMS.forEach(function(it){ if(it.vis){ it.px=it.tx; it.py=it.ty; it.al=1; } else it.al=0; });
+  document.getElementById("tl").value=Math.round((T-t0())/(NOW-t0())*1000);
+  var d=new Date(T);
+  document.getElementById("tLbl").textContent=(T>=NOW?"現在 ":"")+fmt(T)+" "+("0"+d.getHours()).slice(-2)+":00";
+  paintSide();
+}
+// ── 側欄 ──
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+// 分析回答的 Markdown 排版：先 esc() 全部文字（回答裡的 HTML 一律不生效），再轉表格／清單／code／粗體／標題。連結只留文字。
+function mdRender(text){
+  var L=esc(text==null?"":text).replace(/\r\n?/g,"\n").split("\n"), out=[], para=[], i=0, m;
+  function inl(s){ var C=[];
+    s=s.replace(/`([^`]+)`/g,function(_,c){ C.push("<code>"+c+"</code>"); return "\u0000"+(C.length-1)+"\u0000"; });
+    s=s.replace(/!?\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g,"$1").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/__([^_]+)__/g,"<b>$1</b>");
+    return s.replace(/\u0000(\d+)\u0000/g,function(_,k){ return C[k]; }); }
+  function flush(){ if(para.length) out.push('<p class="mdP">'+para.map(inl).join("<br>")+"</p>"); para=[]; }
+  function cells(s){ s=s.trim().replace(/^\|/,"").replace(/\|$/,""); return s.split("|").map(function(c){ return c.trim(); }); }
+  var SEP=/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+  while(i<L.length){ var l=L[i];
+    if(/^\s*```/.test(l)){ flush(); var code=[]; i++;
+      while(i<L.length&&!/^\s*```/.test(L[i])) code.push(L[i++]);
+      i++; out.push('<pre class="mdPre"><code>'+code.join("\n")+"</code></pre>"); continue; }
+    if(l.indexOf("|")>=0&&i+1<L.length&&SEP.test(L[i+1])&&L[i+1].indexOf("-")>=0){ flush();
+      var hd=cells(l), n=hd.length, rows=[]; i+=2;
+      while(i<L.length&&L[i].indexOf("|")>=0&&L[i].trim()) rows.push(cells(L[i++]));
+      out.push('<div class="mdWrap"><table class="mdTable"><thead><tr>'+hd.map(function(c){ return "<th>"+inl(c)+"</th>"; }).join("")+"</tr></thead><tbody>"+
+        rows.map(function(r){ var t=""; for(var k=0;k<n;k++) t+="<td>"+inl(r[k]||"")+"</td>"; return "<tr>"+t+"</tr>"; }).join("")+"</tbody></table></div>"); continue; }
+    if((m=/^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(l))){ flush();
+      var ol=/\d/.test(m[1]), re=ol?/^\s*\d+[.)]\s+(.*)$/:/^\s*[-*+]\s+(.*)$/, li=[];
+      while(i<L.length&&(m=re.exec(L[i]))){ li.push("<li>"+inl(m[1])+"</li>"); i++; }
+      out.push((ol?'<ol class="mdL">':'<ul class="mdL">')+li.join("")+(ol?"</ol>":"</ul>")); continue; }
+    if((m=/^\s*#{1,6}\s+(.+?)\s*#*\s*$/.exec(l))){ flush(); out.push('<p class="mdP"><b>'+inl(m[1])+"</b></p>"); i++; continue; }
+    if(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l)){ flush(); out.push('<hr class="mdHr">'); i++; continue; }
+    if(!l.trim()){ flush(); i++; continue; }
+    para.push(l); i++; }
+  flush(); return out.join("");
+}
+function link(it){ return '<a href="'+it.u+'" target="_blank">#'+it.n+' '+esc(short(it.t))+'</a>'; }
+function paintSide(){
+  var s=pickStar(T);
+  document.getElementById("star").innerHTML=s?
+    link(s.tgt)+(s.sub?'<br><span class="dim" style="color:#7d8d96;font-size:11px">屬於 EPIC '+link(s.it)+'</span>':'')+
+    '<br><span style="color:#ffd27a">'+STAR_WHY[s.tier]+(s.nb?'，擋住後續 '+s.nb+' 張':'')+'</span>'+
+    '<br><span style="color:#7d8d96;font-size:11px">在「'+esc(s.st.col)+'」已 '+Math.floor(dwell(s.st,T))+' 天（上限 '+limitOf(s.st.col)+' 天）</span>'+
+    '<div class="tip" style="margin-top:6px">只列卡在人手上的事。順序：待驗收的 EPIC → 擋住後續的 swarm:stuck → 擋住後續的 by:human → 超過上限的零散 issue。'+(s.tgt.who.length?'<br>負責：'+esc(s.tgt.who.join("、")):'<br>尚未指派負責人')+'</div>'
+    :'<span style="color:#7d8d96">目前沒有卡在人手上的事。</span>';
+  var cnt={}; COLS.forEach(function(c){cnt[c]=0;}); var done=0;
+  ITEMS.forEach(function(it){ var st=stateAt(it,T); if(!st) return; if(st.col==="closed") done++; else cnt[st.col]++; });
+  document.getElementById("proj").innerHTML='<div class="row"><a href="'+PJ.url+'" target="_blank">'+esc(PJ.title)+' ↗</a><span class="v">'+ITEMS.length+' 張</span></div>'+
+    COLS.map(function(c){return '<div class="row"><span>'+esc(c)+'</span><span class="v">'+cnt[c]+'</span></div>';}).join("")+
+    '<div class="row"><span>完成</span><span class="v">'+done+'</span></div>';
+  var B=[]; ITEMS.forEach(function(it){ var st=stateAt(it,T); if(!st||st.col==="closed") return; var r=blockRatio(st,T); if(r>=1) B.push({it:it,st:st,r:r}); });
+  B.sort(function(a,b){return COLS.indexOf(b.st.col)-COLS.indexOf(a.st.col)||b.r-a.r;});
+  document.getElementById("block").innerHTML=B.length?B.map(function(b){
+    return '<div class="row">'+(b.it.sub?'<span><span style="color:#56646c">#'+b.it.par.n+' ↳ </span>'+link(b.it)+'</span>':link(b.it))+'<span class="v" style="color:#ff9b8f">'+Math.floor(dwell(b.st,T))+' 天'+(b.st.guess?'*':'')+'</span></div>'; }).join("")+
+    '<div class="tip">上限：待辦 30 天（假設）、進行中 7 天（欄名）、審核後請關閉 7 天（假設）。<br>* 變更紀錄不完整，天數是推定值。</div>':'<div class="tip">沒有。</div>';
+  var E=eventsIn(t0(),NOW), op=0,mv=0,cl=0; E.forEach(function(e){ if(e.k==="open")op++; else if(e.k==="close")cl++; else mv++; });
+  document.getElementById("flow").innerHTML='<div class="row"><span>最近 '+WIN+' 天（'+fmt(t0())+'–'+fmt(NOW)+'）</span></div>'+
+    '<div class="row"><span>開立</span><span class="v">'+op+'</span></div><div class="row"><span>換欄</span><span class="v">'+mv+'</span></div>'+
+    '<div class="row"><span>關閉</span><span class="v">'+cl+'</span></div>'+
+    (cl===0?'<div class="tip" style="color:#d9a24a">這段期間沒有任何 issue 關閉。</div>':'');
+  document.getElementById("note").innerHTML='資料抓取：'+PJ.fetched.replace("T"," ").slice(0,16)+' UTC（每 10 分鐘自動更新，重新整理頁面才會看到）。<br>停留天數＝進入目前欄位的時間到現在，取自 issue 的 Status 變更紀錄。';
+}
+// ── 選取：給之後的 copilot 用（window.WOLFFIA.selection() 取得目前選了哪些 issue）──
+var SEL={}, lasso=null;
+function selList(){ return ITEMS.filter(function(it){ return SEL[it.u]&&(it.vis||(it.sub&&it.st&&it.st.col!=="closed")); }); }
+function setSel(list,mode){ // mode: "set" | "add" | "toggle"
+  if(mode==="set") SEL={};
+  list.forEach(function(it){ if(mode==="toggle"&&SEL[it.u]) delete SEL[it.u]; else SEL[it.u]=true; });
+  paintSel(); if(window.paintHint) window.paintHint(); }
+function paintSel(){ var L=selList(), P=document.getElementById("pin");
+  if(!L.length){ P.style.display="none"; return; }
+  var cnt={}; L.forEach(function(it){ cnt[it.st.col]=(cnt[it.st.col]||0)+1; });
+  P.innerHTML='<b>已選 '+L.length+' 張</b> <span class="dim">'+COLS.filter(function(c){return cnt[c];}).map(function(c){return esc(c)+' '+cnt[c];}).join('、')+'</span>'+
+    '<div class="sl">'+L.map(function(it){ return '<div>'+(it.sub?'<span class="dim">#'+it.par.n+' ↳ </span>':'')+'<a href="'+it.u+'" target="_blank" rel="noopener">#'+it.n+'</a> '+esc(short(it.t))+
+      ' <span class="dim">'+esc(it.st.col)+' '+Math.floor(dwell(it.st,T))+' 天</span> <span class="rm" data-u="'+it.u+'">✕</span></div>'; }).join('')+'</div>'+
+    '<span class="dim">Shift／⌘＋點＝加減選 · 空白處拖曳＝圈選 · 雙擊＝開 GitHub · Esc＝取消</span><span class="x">✕</span>';
+  if(NEB) P.style.zIndex=7;
+  P.querySelector(".x").onclick=function(){ setSel([],"set"); };
+  Array.prototype.forEach.call(P.querySelectorAll(".rm"),function(b){ b.onclick=function(){ delete SEL[b.getAttribute("data-u")]; paintSel(); }; });
+  P.style.display="block"; }
+function inPoly(x,y,pts){ var c=false; for(var i=0,j=pts.length-1;i<pts.length;j=i++){ var a=pts[i],b=pts[j];
+  if((a.y>y)!==(b.y>y)&&x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x) c=!c; } return c; }
+window.WOLFFIA={
+  project:function(){ return {num:PJ.num,title:PJ.title}; },
+  selection:function(){ return selList().map(function(it){ return {n:it.n,url:it.u,title:it.t,repo:it.repo,status:it.st.col,days:Math.floor(dwell(it.st,T)),who:it.who}; }); },
+  select:function(nums,mode){ setSel(ITEMS.filter(function(it){ return it.vis&&nums.indexOf(it.n)>=0; }),mode||"set"); return this.selection(); },
+  clear:function(){ setSel([],"set"); },
+  focus:function(n){ return isnFocus(n); }
+};
+// ── 分析回答裡的 #編號 → 看板上的卡：滑過亮起（ISNH）、點一下選取並聚焦、雙擊開 GitHub ──
+var ISNH=null;
+function isnFind(n,repo,u){ var L=ITEMS.filter(function(it){ return it.n===n; }); if(!L.length) return null;
+  if(u) for(var i=0;i<L.length;i++) if(L[i].u===u) return L[i];
+  if(repo){ repo=repo.toLowerCase(); var R=L.filter(function(it){ var r=String(it.repo||"").toLowerCase(); return r===repo||r.split("/").pop()===repo; }); if(R.length) return R[0]; }
+  return L.filter(function(it){ return it.vis; })[0]||L[0]; }
+// mdRender 之後：只包看板上有的卡；<code>（含 ``` 區塊）與標籤本身不動。寫「repo #91」時用前面的 repo 選同號的卡。
+function isnLink(html){
+  return String(html).split(/(<code>[\s\S]*?<\/code>|<[^>]*>)/).map(function(s,k){ if(k%2) return s;
+    return s.replace(/(^|[^A-Za-z0-9])#(\d+)(?!\d)/g,function(m,pre,d,off){
+      var rm=/(?:^|[^A-Za-z0-9_.\/-])([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)?)\s+$/.exec(s.slice(0,off+pre.length)), it=isnFind(+d,rm&&rm[1]);
+      return it?pre+'<span class="isn" data-n="'+it.n+'" data-u="'+esc(it.u)+'">#'+d+'</span>':m; }); }).join(""); }
+function isnOf(el){ return el&&el.getAttribute?isnFind(+el.getAttribute("data-n"),null,el.getAttribute("data-u")):null; }
+function isnFocus(n,u){ var it=typeof n==="object"&&n?n:isnFind(+n,null,u); if(!it) return false; setSel([it],"set"); fitSel(); return true; }
+function isnAct(kind,el){ var it=isnOf(el);
+  if(kind==="over") ISNH=it; else if(kind==="out"){ if(!it||ISNH===it) ISNH=null; }
+  else if(kind==="click"&&it) isnFocus(it);
+  else if(kind==="dbl"&&it) window.open(it.u,"_blank","noopener");
+  return it; }
+function isnEl(ev){ var t=ev.target; while(t&&t.nodeType===1&&!(t.classList&&t.classList.contains("isn"))) t=t.parentNode; return t&&t.nodeType===1?t:null; }
+if(document.addEventListener) [["mouseover","over"],["mouseout","out"],["click","click"],["dblclick","dbl"]].forEach(function(p){
+  document.addEventListener(p[0],function(ev){ var t=isnEl(ev); if(!t) return; if(p[1]!=="over"&&p[1]!=="out") ev.preventDefault(); isnAct(p[1],t); }); });
+// ── 縮放與平移 ──
+function zoomAt(f,sx,sy){ // f＝倍率；(sx,sy)＝畫面座標，那一點固定不動
+  var z=Math.max(ZMIN,Math.min(ZMAX,CAM.ZT*f)); if(z===CAM.ZT) return;
+  var b=cv.getBoundingClientRect(), w=b.width, h=b.height, base=view.base||Math.min(w/VW,h/VH);
+  if(sx===undefined){ sx=w/2; sy=h/2; }
+  var s0=base*CAM.ZT, wx=CAM.xT+(sx-w/2)/s0, wy=CAM.yT+(sy-h/2)/s0, s1=base*z;
+  CAM.ZT=z; CAM.xT=wx-(sx-w/2)/s1; CAM.yT=wy-(sy-h/2)/s1; clampCam(); }
+function panBy(dx,dy){ var s=(view.base||1)*CAM.ZT; CAM.xT-=dx/s; CAM.yT-=dy/s; CAM.x=CAM.xT; CAM.y=CAM.yT; clampCam(); CAM.x=CAM.xT; CAM.y=CAM.yT; }
+function clampCam(){ var m=VW*.6; CAM.xT=Math.max(-m+VW/2,Math.min(VW/2+m,CAM.xT)); CAM.yT=Math.max(VH/2-VH*.6,Math.min(VH/2+VH*.6,CAM.yT)); }
+function fitAll(){ CAM.ZT=1; CAM.xT=VW/2; CAM.yT=VH/2; if(typeof flat==="function") flat(); }
+function fitSel(){ var L=selList().filter(function(it){ return it.vis; }); if(!L.length) return false;
+  var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; L.forEach(function(it){ var q=P(it.tx,it.ty,0); x0=Math.min(x0,q.x); x1=Math.max(x1,q.x); y0=Math.min(y0,q.y); y1=Math.max(y1,q.y); });
+  var pad=110, z=Math.min(VW/(x1-x0+pad*2),VH/(y1-y0+pad*2)); CAM.ZT=Math.max(1,Math.min(4,z)); CAM.xT=(x0+x1)/2; CAM.yT=(y0+y1)/2+20; return true; }
+function paintZoom(){ var B=document.getElementById("zFit"), t=Math.round(CAM.ZT*100)+"%"; if(B.textContent!==t) B.textContent=t;
+  var S=document.getElementById("zSel"), on=!!selList().length; if(S.disabled===on) S.disabled=!on; }
+cv.addEventListener("wheel",function(ev){ ev.preventDefault();
+  var b=cv.getBoundingClientRect(), sx=ev.clientX-b.left, sy=ev.clientY-b.top;
+  // 觸控板：捏合（瀏覽器會帶 ctrlKey）＝縮放，兩指滑動＝平移；滑鼠滾輪（一格一格）＝縮放
+  var wheelMouse=ev.deltaMode===1||(ev.deltaX===0&&Math.abs(ev.deltaY)>=50&&Math.abs(ev.deltaY)%1===0);
+  if(ev.ctrlKey||ev.metaKey||wheelMouse){ var dy=ev.deltaMode===1?ev.deltaY*33:ev.deltaY; zoomAt(Math.exp(-dy*(ev.ctrlKey?.012:.0022)),sx,sy); CAM.Z=CAM.ZT; CAM.x=CAM.xT; CAM.y=CAM.yT; }
+  else panBy(-ev.deltaX,-ev.deltaY); },{passive:false});
+var pan=null, spaceDown=false, spaceUsed=false;
+cv.addEventListener("mousedown",function(ev){ if(ev.button===1||ev.button===2||spaceDown){ ev.preventDefault(); ev.stopImmediatePropagation(); if(spaceDown) spaceUsed=true; pan={x:ev.clientX,y:ev.clientY}; cv.classList.add("panning"); } },true);
+cv.addEventListener("contextmenu",function(ev){ ev.preventDefault(); });
+window.addEventListener("mousemove",function(ev){ if(!pan) return; panBy(ev.clientX-pan.x,ev.clientY-pan.y); pan.x=ev.clientX; pan.y=ev.clientY; ev.stopImmediatePropagation(); },true);
+window.addEventListener("mouseup",function(ev){ if(!pan) return; pan=null; cv.classList.remove("panning"); justDragged=true; ev.stopImmediatePropagation(); },true);
+window.addEventListener("keydown",function(ev){ var tg=(ev.target&&ev.target.tagName)||""; if(/INPUT|TEXTAREA|SELECT/.test(tg)) return;
+  // 空白鍵：按一下＝播放／暫停；按住＋拖曳＝平移（有拖就不切換播放）
+  if(ev.key===" "){ ev.preventDefault(); if(!ev.repeat){ spaceDown=true; spaceUsed=false; cv.classList.add("pan"); } }
+  else if(ev.key==="+"||ev.key==="="){ zoomAt(1.4); } else if(ev.key==="-"||ev.key==="_"){ zoomAt(1/1.4); }
+  else if(ev.key==="0"){ fitAll(); } else if(ev.key==="3"){ D3.pitch<.05?(D3.pitchT=1.05,D3.yawT=D3.yaw-.35):flat(); } else if(ev.key==="f"||ev.key==="F"){ fitSel(); } });
+window.addEventListener("keyup",function(ev){ if(ev.key!==" "||!spaceDown) return;
+  ev.preventDefault(); // 焦點在按鈕上時，避免按鈕自己也被空白鍵按下（會切兩次）
+  spaceDown=false; cv.classList.remove("pan"); if(!spaceUsed&&!pan) document.getElementById("bPlay").onclick.call(document.getElementById("bPlay")); });
+document.getElementById("zIn").onclick=function(){ zoomAt(1.4); };
+document.getElementById("zOut").onclick=function(){ zoomAt(1/1.4); };
+document.getElementById("zFit").onclick=function(){ fitAll(); };
+document.getElementById("zSel").onclick=function(){ fitSel(); };
+// 觸控：兩指捏合縮放、兩指拖曳平移
+var touch=null;
+cv.addEventListener("touchstart",function(ev){ if(ev.touches.length!==2) return; ev.preventDefault();
+  var a=ev.touches[0],b=ev.touches[1]; touch={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2}; },{passive:false});
+cv.addEventListener("touchmove",function(ev){ if(!touch||ev.touches.length!==2) return; ev.preventDefault();
+  var a=ev.touches[0],b=ev.touches[1], d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY), x=(a.clientX+b.clientX)/2, y=(a.clientY+b.clientY)/2, r=cv.getBoundingClientRect();
+  panBy(x-touch.x,y-touch.y); zoomAt(d/touch.d,x-r.left,y-r.top); CAM.Z=CAM.ZT; CAM.x=CAM.xT; CAM.y=CAM.yT; touch={d:d,x:x,y:y}; },{passive:false});
+cv.addEventListener("touchend",function(){ touch=null; });
+// ── 3D 翻轉：只用來看。左鍵拖曳＝旋轉；點選、雙擊、縮放照常；改狀態、軌道拖曳、圈選要回平面 ──
+var rot3=null, ALTK=/Mac|iPhone|iPad/.test((typeof navigator!=="undefined"&&navigator.platform)||"")?"⌥":"Alt";
+function flat(){ D3.pitchT=0; D3.yawT=Math.round(D3.yaw/(2*Math.PI))*2*Math.PI; } // 回到俯視（轉回最近的正向，不會多轉一圈）
+cv.addEventListener("mousedown",function(ev){ if(!ev.altKey||ev.button!==0||spaceDown) return; ev.preventDefault(); ev.stopImmediatePropagation();
+  justDragged=false; rot3={x:ev.clientX,y:ev.clientY,x0:ev.clientX,y0:ev.clientY,moved:false}; },true);
+window.addEventListener("mousemove",function(ev){ if(!rot3) return; ev.stopImmediatePropagation();
+  if(!rot3.moved&&Math.hypot(ev.clientX-rot3.x0,ev.clientY-rot3.y0)<4) return; rot3.moved=true; cv.style.cursor="grabbing"; document.getElementById("hov").style.display="none";
+  D3.yawT+=(ev.clientX-rot3.x)*.008; D3.pitchT=Math.max(0,Math.min(1.45,D3.pitchT+(ev.clientY-rot3.y)*.006)); D3.yaw=D3.yawT; D3.pitch=D3.pitchT;
+  rot3.x=ev.clientX; rot3.y=ev.clientY; },true);
+window.addEventListener("mouseup",function(ev){ if(!rot3) return; if(rot3.moved) justDragged=true; rot3=null; cv.style.cursor="default"; ev.stopImmediatePropagation(); },true);
+// ── 互動 ──
+function toView(ev){ var b=cv.getBoundingClientRect(); return {x:(ev.clientX-b.left-view.ox)/view.s, y:(ev.clientY-b.top-view.oy)/view.s}; }
+function toPlane(ev){ var q=toView(ev); return unP(q.x,q.y); } // 傾斜時：換算回星系平面，拖曳改狀態才準
+function onCore(p){ var q=P(CX,CY,0); return Math.hypot(q.x-p.x,q.y-p.y)<CORE_R*Math.max(.6,Math.min(1.5,1/Math.sqrt(view.Z||1)))+10; }
+function hit(p){ var best=null,bs=1e9,b0=Math.max(34/Math.sqrt(view.Z),22);
+  ITEMS.forEach(function(it){ if(!it.vis) return; var lim=b0*(it.epic?Math.max(1,it.esc*.8):1), d=Math.hypot((it.sx===undefined?it.px:it.sx)-p.x,(it.sy===undefined?it.py:it.sy)-p.y)/lim;
+    if(d<1&&(d<bs-.15||(d<bs+.15&&best&&it.dz<best.dz))){ bs=Math.min(bs,d); best=it; } }); return best; }
+cv.addEventListener("mousedown",function(ev){ justDragged=false; var it=hit(toView(ev));
+  if(!it){ ev.preventDefault(); lasso={pts:[toView(ev)],x:ev.clientX,y:ev.clientY,add:ev.shiftKey||ev.metaKey||ev.ctrlKey,moved:false}; return; }
+  ev.preventDefault();
+  var q0=toPlane(ev)||{x:it.px,y:it.py}; drag={it:it,x:ev.clientX,y:ev.clientY,a0:it.ang,p0:angAt(q0),a:it.ang,moved:false}; });
+window.addEventListener("mousemove",function(ev){
+  if(lasso){ if(!lasso.moved&&Math.hypot(ev.clientX-lasso.x,ev.clientY-lasso.y)<5) return; lasso.moved=true; lasso.pts.push(toView(ev)); cv.style.cursor="crosshair"; return; }
+  if(!drag) return;
+  if(!drag.moved&&Math.hypot(ev.clientX-drag.x,ev.clientY-drag.y)<5) return;
+  drag.moved=true; document.getElementById("hov").style.display="none"; cv.style.cursor="grabbing";
+  var q=toPlane(ev); if(!q) return; drag.a=drag.a0+(angAt(q)-drag.p0);
+  // 往內外拖：只有在「現在」才能換欄；離哪一圈近就是哪一欄
+  if(T>=NOW){ drag.r=Math.hypot((q.x-CX)/SX,q.y-CY); drag.to=nearCol(drag.r); } else { drag.r=0; drag.to=null; }
+  layout(T);
+  drag.it.px=drag.it.tx; drag.it.py=drag.it.ty; });
+window.addEventListener("mouseup",function(){
+  if(lasso){ var Lz=lasso; lasso=null; cv.style.cursor="default";
+    if(Lz.moved&&Lz.pts.length>2){ justDragged=true; setSel(ITEMS.filter(function(it){ return it.vis&&inPoly(it.sx===undefined?it.px:it.sx,it.sy===undefined?it.py:it.sy,Lz.pts); }),Lz.add?"add":"set"); }
+    return; }
+  if(!drag) return;
+  var d=drag;
+  if(d.moved){ ANG[d.it.u]=Math.atan2(Math.sin(d.a),Math.cos(d.a)); saveAng(); justDragged=true; }
+  drag=null; cv.style.cursor="default";
+  if(d.moved&&d.to&&d.it.st&&d.to!==d.it.st.col&&(d.to!==DONE||closeOk(d.it))) setStatus(d.it,d.to);
+  layout(T); paintArr(); });
+var DONE="完成", CORE_R=62;   // 拖進星核（半徑內）＝完成＝關閉 issue
+function nearCol(r){ if(r<CORE_R) return DONE; var best=null,bd=48; COLS.forEach(function(c){ var x=Math.abs(r-RING[c]); if(x<bd){bd=x;best=c;} }); return best; }
+function closeOk(it){ return confirm("把 #"+it.n+" 移到「完成」並關閉 GitHub issue？"+(it.epic?"\n（這是 EPIC，請確認子 issue 都已完成）":"")); }
+// 寫回 GitHub：先在畫面上移過去，失敗就退回原欄
+function toast(html,cls){ var E=document.getElementById("toast"); E.innerHTML=html; E.className=cls||""; E.style.display="block";
+  clearTimeout(toast.t); if(cls!=="busy") toast.t=setTimeout(function(){ E.style.display="none"; },cls==="err"?9000:4000); }
+// 拖曳改過的狀態記在這個瀏覽器（localStorage，每個 project 一份）：資料要等後端重抓才會更新，這段時間重新整理頁面仍以剛做的改動為準
+// MOVES[u]＝{s:新狀態, t:改動時間}；資料追上（fetched 晚於改動、或狀態已一致）就刪掉；超過 15 分鐘的丟掉
+var MOVES_KEY="wolffia.moves."+window.PROJECT_NUM, MOVE_MS=15*60e3;
+function moveOk(v,t){ return !!v&&typeof v==="object"&&typeof v.s==="string"&&+v.t>0&&t-v.t<=MOVE_MS; }
+function saveMove(u,col){ var m=lsGet(MOVES_KEY), t=Date.now();
+  Object.keys(m).forEach(function(k){ if(!moveOk(m[k],t)) delete m[k]; }); m[u]={s:col,t:t}; lsSet(MOVES_KEY,m); }
+function colOf(x){ return x.closed?DONE:(ALIAS[x.status]||x.status); }   // 資料裡的狀態（關閉＝完成）
+// 頁面載入資料後：資料比改動舊、且狀態不同 → 以改動為準
+function applyMoves(){ var m=lsGet(MOVES_KEY), t=Date.now();
+  Object.keys(m).forEach(function(u){ var v=m[u], it=BYU[u], st=it&&stateAt(it,NOW);
+    if(!moveOk(v,t)||!st||NOW>=v.t||(st.col==="closed"?DONE:st.col)===v.s||(v.s!==DONE&&RING[v.s]===undefined)){ delete m[u]; return; }
+    it.status=v.s; it.sinceU=NOW; if(v.s===DONE) it.closed=NOW; });
+  lsSet(MOVES_KEY,m); }
+// 重抓到新資料：追上的改動刪掉
+function caughtUp(p){ var m=lsGet(MOVES_KEY), f=Date.parse(p.fetched), t=Date.now(), n=0;
+  (p.items||[]).forEach(function(x){ var v=m[x.u]; if(v&&(!moveOk(v,t)||f>=v.t||colOf(x)===v.s)){ delete m[x.u]; n++; } });
+  if(n) lsSet(MOVES_KEY,m); }
+function setStatus(it,col){
+  // 直接把這張 issue 改成「重新抓資料後會看到的樣子」，畫面才會跟 reload 一致：
+  // 拖回變更紀錄上的那一欄＝停留天數照舊（紅暈保留）；真的換到別欄＝從現在開始算
+  if(PJ.demo){ toast('#'+it.n+'：示範資料，不會寫入 GitHub。',"err"); layout(T); return; }
+  var from=it.st.col, prevS=it.status, prevU=it.sinceU, prevC=it.closed;
+  it.status=col; it.sinceU=NOW; if(col===DONE) it.closed=NOW; layout(T); paintSide(); if(NEB) renderNeb(performance.now());
+  toast('#'+it.n+'：「'+esc(from)+'」→「'+esc(col)+'」<br><span class="dim">寫入 GitHub 中…</span>',"busy");
+  var x=new XMLHttpRequest(); x.open("POST","api/status"); x.setRequestHeader("Content-Type","application/json");
+  x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(e){}
+    if(x.status===200&&r.ok){ saveMove(it.u,col); toast('#'+it.n+' 已移到「'+esc(col)+'」'+(col===DONE?'並關閉':'')+' ✓<br><span class="dim">已寫入 GitHub（'+esc(r.by)+'）。約 1 分鐘後資料會重新整理。</span>'); return; }
+    fail(r.error||("HTTP "+x.status)); };
+  x.onerror=function(){ fail("連不到伺服器"); };
+  function fail(msg){ it.status=prevS; it.sinceU=prevU; it.closed=prevC; layout(T); paintSide();
+    toast('#'+it.n+' 沒有改成功，已退回「'+esc(from)+'」<br><span class="dim">'+esc(msg)+'</span>',"err"); }
+  x.send(JSON.stringify({project:PJ.key!==undefined&&PJ.key!==null?PJ.key:PJ.num,url:it.u,status:col}));
+}
+var justDragged=false;
+function paintArr(){ var n=0; for(var k in ANG) if(ANG.hasOwnProperty(k)) n++; var B=document.getElementById("bReset");
+  B.style.display=n?"inline-block":"none"; B.textContent="↺ 還原排列（"+n+"）"; }
+document.getElementById("bReset").onclick=function(){ if(!confirm("把這個 project 手動拖過的位置全部還原？")) return; ANG={}; saveAng(); layout(T); paintArr(); };
+cv.addEventListener("mousemove",function(ev){ if(drag&&drag.moved) return; var it=hit(toView(ev)), H=document.getElementById("hov"); hov=it; cv.style.cursor=it?"grab":(onCore(toView(ev))?"pointer":"default");
+  if(!it){ H.style.display="none"; return; }
+  var st=it.st, r=blockRatio(st,T);
+  var EK2=it.epic?kidsOf(it):null;
+  H.innerHTML='<b>#'+it.n+'</b> '+esc(it.t)+(EK2?'<br><span style="color:#9fb8c0">EPIC · 子 issue '+EK2.filter(function(k){ return !isOpenAt(k,T); }).length+'/'+EK2.length+' 完成'+(it.target?' · 期限 '+esc(it.target):'')+'</span>':'')+'<br><span style="color:#7d8d96">'+esc(it.repo)+' · '+esc(st.col)+' '+Math.floor(dwell(st,T))+' 天'+(st.guess?'（推定）':'')+(r>=1?'（<span style="color:#ff9b8f">超過上限 '+limitOf(st.col)+' 天</span>）':'')+'</span>'+
+    '<br>負責：'+(it.who.length?esc(it.who.join("、")):'未指派')+'<br><span style="color:#56646c">'+(it.epic?'點＝展開 · Shift＋點／圈選＝選取':'點＝選取')+' · 雙擊＝開 GitHub · '+'拖曳＝移動 · '+ALTK+'＋拖曳＝翻轉'+'</span>';
+  var b=cv.getBoundingClientRect(); H.style.display="block"; H.style.left=Math.min(ev.clientX-b.left+14,b.width-310)+"px"; H.style.top=(ev.clientY-b.top+14)+"px"; });
+cv.addEventListener("mouseleave",function(){ hov=null; document.getElementById("hov").style.display="none"; });
+cv.addEventListener("click",function(ev){ if(NEB){ closeNeb(); return; } if(justDragged) return; var it=hit(toView(ev));
+  if(!it){ if(!(ev.shiftKey||ev.metaKey||ev.ctrlKey)) setSel([],"set"); return; }
+  if(it.epic&&!(ev.shiftKey||ev.metaKey||ev.ctrlKey)){ openNeb(it); return; }
+  setSel([it],(ev.shiftKey||ev.metaKey||ev.ctrlKey)?"toggle":"set"); });
+cv.addEventListener("dblclick",function(ev){ if(NEB) return; var it=hit(toView(ev));
+  var core=!it&&onCore(toView(ev));
+  if(!it&&!core){ var b=cv.getBoundingClientRect(); zoomAt(2,ev.clientX-b.left,ev.clientY-b.top); return; }
+  if(core) it={n:"",u:PJ.url};          // 星核＝Project：雙擊開 GitHub 看板
+  var w=null; try{ w=window.open(it.u,"_blank"); }catch(e){} if(w){ try{ w.opener=null; }catch(e){} }
+  else toast('#'+it.n+'：這個預覽框不允許開新分頁，請用右下選取清單裡的連結開啟。',"err"); });
+window.addEventListener("keydown",function(ev){ if(ev.key==="Escape"){ if(window.mdBigOpen&&window.mdBigOpen()){ window.closeMdBig(); return; } if(goDlgOpen()){ closeGoDlg(); return; } if(NEB){ closeNeb(); return; } lasso=null; setSel([],"set"); } });
+document.getElementById("tl").oninput=function(){ playing=false; document.getElementById("bPlay").textContent="▶ 播放"; setT(t0()+(+this.value/1000)*(NOW-t0()),false); };
+document.getElementById("bPlay").onclick=function(){
+  playing=!playing; this.textContent=playing?"⏸ 暫停":"▶ 播放";
+  if(playing&&T>=NOW) setT(t0(),false);
+};
+Array.prototype.forEach.call(document.querySelectorAll("button[data-w]"),function(b){ b.onclick=function(){
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-w]"),function(x){x.classList.remove("on");}); b.classList.add("on");
+  WIN=+b.getAttribute("data-w"); setT(NOW,false); }; });
+Array.prototype.forEach.call(document.querySelectorAll("button[data-s]"),function(b){ b.onclick=function(){
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-s]"),function(x){x.classList.remove("on");}); b.classList.add("on");
+  SPEED=+b.getAttribute("data-s"); }; });
+// ── 迴圈：1× 約 12 秒走完所選期間；速度只改播放快慢，不改資料 ──
+var lastF=0;
+function frame(now){
+  if(playing&&lastF){ var step=(NOW-t0())*(now-lastF)/(12000/SPEED); setT(T+step,true); if(T>=NOW){ playing=false; document.getElementById("bPlay").textContent="▶ 播放"; } }
+  lastF=now; render(now); requestAnimationFrame(frame);
+}
+// ── EPIC 面板（彈出，一次一個）：軌道同主星系＝看板欄位；箭頭＝blockedBy（擋住的 → 被擋的）──
+//   ● by:swarm　◆ by:human　紅色閃爍＝swarm:stuck　最內圈＝已完成
+//   單擊＝選取（Shift／⌘＝加減選）· 空白處拖曳＝圈選 · 雙擊＝開 GitHub · Esc 或點面板外＝關閉
+//   面板裡不能拖曳改狀態：sub-issue 由 swarm／runner 推進，避免和它們衝突
+var NEB=null, NB=document.getElementById("neb"), NC=document.getElementById("nebC"), nctx=NC.getContext("2d");
+function openNeb(e){ NEB={e:e,lasso:null,hov:null,down:null}; NB.style.display="flex"; document.getElementById("hov").style.display="none"; paintNebH(); paintSel(); if(window.paintHint) window.paintHint(); }
+function closeNeb(){ NEB=null; NB.style.display="none"; paintSel(); }
+function paintNebH(){ if(!NEB) return; var e=NEB.e, K=kidsOf(e), dn=K.filter(function(k){ return !isOpenAt(k,T); }).length, ch=longestChain(e,T);
+  var tg=e.target?(function(){ var d=Math.ceil((Date.parse(e.target)-NOW)/DAY); return ' · <span style="color:'+(d<0?'#ff9b8f':d<=14?'#ffd27a':'#c9d4d8')+'">期限 '+esc(e.target)+'（'+(d<0?'已過 '+(-d):'剩 '+d)+' 天）</span>'; })():' · <span class="dim">無硬期限</span>';
+  document.getElementById("nebH").innerHTML='<span class="x">✕</span><b>#'+e.n+' '+esc(e.t.replace(/^\[EPIC\]\s*/i,""))+'</b>'+(hasL(e,"epic:review")?' <span style="color:#8fe3a8">● 待你驗收</span>':'')+
+    (hasL(e,AUTO)?' <span class="amk" style="color:#ffd27a" title="swarm:auto-merge：判準全過、只改範圍內檔案時自動合併總 PR">⚡</span>':'')+
+    (hasL(e,"swarm:go")?' <span style="color:#8fe3a8">🚦 已放行</span>'+(needRego(e)?' <button class="rego" title="放行後有新增或修改的 sub-issue" style="margin-left:8px;background:#3a331f;color:#ffd27a;border:1px solid #6b5d3d;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">↻ 重新放行</button>':'')+(e.closed?'':' <button class="am" title="swarm:auto-merge：判準全過、只改範圍內檔案時自動合併總 PR" style="margin-left:6px;background:#2a2410;color:#ffd27a;border:1px solid #6b5a2d;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">⚡ 自動合併：'+(hasL(e,AUTO)?'開':'關')+'</button>'):(e.closed?'':' <button class="go" style="margin-left:8px;background:#1f3a2a;color:#8fe3a8;border:1px solid #3d6b4f;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">🚦 放行</button>'))+
+    (runningN(e)?' <span class="bees" style="color:#ffd27a">🐝 '+runningN(e)+' 隻工作中</span>':'')+
+    '<br>完成 '+dn+' / '+K.length+tg+' · 最長未完成鏈 '+ch.n+' 張'+(ch.n?'，其中 <span style="color:'+(ch.h?'#ffd27a':'#c9d4d8')+'">by:human '+ch.h+' 張</span>':'')+
+    '<br><span class="dim">● swarm　◆ 人　<span style="color:#ff8a7e">●</span> 閃＝swarm:stuck　→＝擋住　最內圈＝已完成 · 點＝選取 · 圈選＝多選（拿去問 Copilot）· 雙擊＝開 GitHub · Esc＝關閉</span>';
+  document.querySelector("#nebH .x").onclick=closeNeb;
+  var G=document.querySelector("#nebH .go"); if(G) G.onclick=function(){ goEpic(e); };
+  var A=document.querySelector("#nebH .am"); if(A) A.onclick=function(){ autoMerge(e,!hasL(e,AUTO)); };
+  var RG=document.querySelector("#nebH .rego"); if(RG) RG.onclick=function(){ regoEpic(e); }; }
+// 放行 EPIC：加 swarm:go（/api/epic/go 驗 Access＋允許名單、只收 epic label，並記下是誰按的）
+// 放行前用自訂對話框確認，可以一起勾「自動合併」（swarm:auto-merge，預設不勾）
+function goEpic(e){ var D=document.getElementById("goDlg");
+  D.innerHTML='<div class="box"><b>🚦 放行 EPIC #'+e.n+'？</b><br>會在 GitHub 加上 swarm:go，swarm 就會開始動工（記錄是你按的）。'+
+    '<label><input type="checkbox" id="goAM"><span>⚡ 低風險：判準全過、只改範圍內檔案時，自動合併總 PR（swarm:auto-merge）<br><span class="dim">不勾＝總 PR 等人合併。放行後也可以在標題列切換。</span></span></label>'+
+    '<div class="bt"><button id="goNo">取消</button><button id="goOk">放行</button></div></div>';
+  D.style.display="flex";
+  document.getElementById("goNo").onclick=closeGoDlg;
+  document.getElementById("goOk").onclick=function(){ var am=!!document.getElementById("goAM").checked; closeGoDlg(); sendGo(e,am); }; }
+function closeGoDlg(){ var D=document.getElementById("goDlg"); D.style.display="none"; D.innerHTML=""; }
+function goDlgOpen(){ return document.getElementById("goDlg").style.display==="flex"; }
+function sendGo(e,am){
+  if(PJ.demo){ toast('#'+e.n+'：示範資料，不會寫入 GitHub。',"err"); return; }
+  toast('#'+e.n+'：放行中…',"busy");
+  var x=new XMLHttpRequest(); x.open("POST","api/epic/go"); x.setRequestHeader("Content-Type","application/json");
+  x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(err){}
+    if(x.status===200&&r.ok){ if(e.labels.indexOf("swarm:go")<0) { e.labels.push("swarm:go"); e.goAt=Date.now(); } if(am&&e.labels.indexOf(AUTO)<0) e.labels.push(AUTO); paintNebH();
+      toast('#'+e.n+(r.already?' 早就放行過了':' 已放行 ✓')+'<br><span class="dim">swarm:go'+(am?'＋'+AUTO:'')+'（'+esc(r.by)+'）</span>'); return; }
+    toast('#'+e.n+' 沒有放行成功<br><span class="dim">'+esc(r.error||("HTTP "+x.status))+'</span>',"err"); };
+  x.onerror=function(){ toast('#'+e.n+' 沒有放行成功<br><span class="dim">連不到伺服器</span>',"err"); };
+  x.send(JSON.stringify(am?{url:e.u,auto_merge:true}:{url:e.u}));
+}
+// 已放行 EPIC 的自動合併開關：加／移除 swarm:auto-merge（/api/epic/automerge 同樣驗 Access＋允許名單、記 log）
+function autoMerge(e,on){
+  if(!confirm((on?"開啟":"關閉")+" EPIC #"+e.n+" 的自動合併？\n"+(on?"會加上 "+AUTO+"：判準全過、只改範圍內檔案時，自動合併總 PR。":"會移除 "+AUTO+"：總 PR 改回等人合併。")+"（記錄是你按的）")) return;
+  if(PJ.demo){ toast('#'+e.n+'：示範資料，不會寫入 GitHub。',"err"); return; }
+  toast('#'+e.n+'：'+(on?'開啟':'關閉')+'自動合併中…',"busy");
+  var x=new XMLHttpRequest(); x.open("POST","api/epic/automerge"); x.setRequestHeader("Content-Type","application/json");
+  x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(err){}
+    if(x.status===200&&r.ok){ var i=e.labels.indexOf(AUTO); if(on&&i<0) e.labels.push(AUTO); if(!on&&i>=0) e.labels.splice(i,1); paintNebH();
+      toast('#'+e.n+' 自動合併已'+(on?'開啟 ⚡':'關閉')+'<br><span class="dim">'+(on?'+':'-')+AUTO+'（'+esc(r.by)+'）</span>'); return; }
+    toast('#'+e.n+' 沒有改成功<br><span class="dim">'+esc(r.error||("HTTP "+x.status))+'</span>',"err"); };
+  x.onerror=function(){ toast('#'+e.n+' 沒有改成功<br><span class="dim">連不到伺服器</span>',"err"); };
+  x.send(JSON.stringify({url:e.u,on:on}));
+}
+// 重新放行：放行後 sub-issue 有新增／修改時，移除再加回 swarm:go（/api/epic/rego，同樣的檢查、記下是誰按的）
+function regoEpic(e){
+  if(!confirm("重新放行 EPIC #"+e.n+"？\n放行後有新增或修改的 sub-issue。會在 GitHub 移除再加回 swarm:go（新的放行時間），swarm 會重新看過一遍（記錄是你按的）。")) return;
+  if(PJ.demo){ toast('#'+e.n+'：示範資料，不會寫入 GitHub。',"err"); return; }
+  toast('#'+e.n+'：重新放行中…',"busy");
+  var x=new XMLHttpRequest(); x.open("POST","api/epic/rego"); x.setRequestHeader("Content-Type","application/json");
+  x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(err){}
+    if(x.status===200&&r.ok){ e.goAt=Date.now(); paintNebH();
+      toast('#'+e.n+' 已重新放行 ✓<br><span class="dim">swarm:go（'+esc(r.by)+'）</span>'); return; }
+    toast('#'+e.n+' 沒有重新放行成功<br><span class="dim">'+esc(r.error||("HTTP "+x.status))+'</span>',"err"); };
+  x.onerror=function(){ toast('#'+e.n+' 沒有重新放行成功<br><span class="dim">連不到伺服器</span>',"err"); };
+  x.send(JSON.stringify({url:e.u}));
+}
+var NG={cx:0,cy:0,R:{},Rd:0,sx:1.45};
+function nebLayout(w,h){ var e=NEB.e, K=kidsOf(e), maxR=Math.max(60,Math.min((w-60)/(2*NG.sx),(h-80)/2));
+  NG.cx=w/2; NG.cy=h/2+6; var r0=Math.min.apply(null,COLS.map(function(c){ return RING[c]; })), r1=Math.max.apply(null,COLS.map(function(c){ return RING[c]; }));
+  COLS.forEach(function(c){ NG.R[c]=maxR*(r1===r0?1:.42+.58*(RING[c]-r0)/(r1-r0)); }); NG.Rd=maxR*.2;
+  var by={}; K.forEach(function(k){ var st=stateAt(k,T), c=!st||st.col==="closed"?"done":st.col; k.nst=st; (by[c]=by[c]||[]).push(k); });
+  Object.keys(by).forEach(function(c,ci){ var L=by[c].sort(function(a,b){ return a.n-b.n; }), r=c==="done"?NG.Rd:NG.R[c], off=-1.5708+(COLS.indexOf(c)+1)*.7;
+    L.forEach(function(k,i){ var a=off+i*6.2832/L.length; k.nx=NG.cx+Math.cos(a)*r*NG.sx; k.ny=NG.cy+Math.sin(a)*r; k.ncol=c; }); }); }
+function nshape(x,y,r,human){ nctx.beginPath(); if(human){ nctx.moveTo(x,y-r*1.25); nctx.lineTo(x+r*1.1,y); nctx.lineTo(x,y+r*1.25); nctx.lineTo(x-r*1.1,y); nctx.closePath(); } else nctx.arc(x,y,r,0,6.2832); }
+function renderNeb(now){
+  var w=NC.clientWidth, h=NC.clientHeight, dpi=Math.min(window.devicePixelRatio||1,2); if(!w||!h) return;
+  if(NC.width!==Math.round(w*dpi)||NC.height!==Math.round(h*dpi)){ NC.width=Math.round(w*dpi); NC.height=Math.round(h*dpi); }
+  var c=nctx; c.setTransform(dpi,0,0,dpi,0,0); c.clearRect(0,0,w,h); nebLayout(w,h);
+  var e=NEB.e, K=kidsOf(e), S=pickStar(T), fn="-apple-system,'PingFang TC','Noto Sans TC',sans-serif";
+  function tx(s,x,y,col,size,al,wt,align){ c.globalAlpha=al; c.fillStyle=col; c.font=(wt||400)+" "+size+"px "+fn; c.textAlign=align||"center"; c.fillText(s,x,y); }
+  function hl(x,y,r,rgb,a){ var g=c.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,"rgba("+rgb+",.55)"); g.addColorStop(1,"rgba("+rgb+",0)"); c.globalAlpha=a; c.fillStyle=g; c.beginPath(); c.arc(x,y,r,0,6.2832); c.fill(); }
+  // 軌道：和主星系一樣，一欄一圈；最內圈＝完成
+  var Dg=NEB.drag&&NEB.drag.moved?NEB.drag:null;
+  if(Dg){ Dg.k.nx=Dg.p.x; Dg.k.ny=Dg.p.y; }
+  K.forEach(function(k){ var sl=slideAt(k,now,"n",NG.cx,NG.cy,NG.sx,k.nx,k.ny); if(sl){ k.nx=sl.x; k.ny=sl.y; } });   // 剛完成：沿軌道滑進最內圈
+  COLS.concat(["done"]).forEach(function(col){ var r=col==="done"?NG.Rd:NG.R[col], tg=Dg&&Dg.to&&(Dg.to===col||(col==="done"&&Dg.to===DONE))&&Dg.to!==Dg.k.st.col;
+    c.globalAlpha=tg?.7:.1; c.strokeStyle=tg?"#ffd27a":"#dce8ea"; c.lineWidth=tg?2:1; c.beginPath(); c.ellipse(NG.cx,NG.cy,r*NG.sx,r,0,0,6.2832); c.stroke();
+    tx(tg?(col==="done"?"放開＝完成（關閉 issue）":"放開＝移到「"+col+"」"):(col==="done"?"完成":col),NG.cx,NG.cy-r-6,tg?"#ffd27a":"#6d7f88",tg?12:10.5,tg?1:.85,tg?600:400); });
+  // 中央恆星＝EPIC（顏色＝停留天數）
+  var est=stateAt(e,T), er=est&&est.col!=="closed"?blockRatio(est,T):0; hl(NG.cx,NG.cy,30,blockRGB(er),.85);
+  CL.forEach(function(p){ c.globalAlpha=p.b*.8; c.fillStyle="rgb("+blockRGB(er)+")"; c.beginPath(); c.arc(NG.cx+p.x*15,NG.cy+p.y*15,p.s*.8,0,6.2832); c.fill(); });
+  // 箭頭：擋住的 → 被擋的；還在擋＝黃，已解除（擋住的已完成）＝淡
+  K.forEach(function(k){ k.bl.forEach(function(u){ var b=BYU[u]; if(!b||b.nx===undefined||K.indexOf(b)<0) return;
+    var active=isOpenAt(b,T), dx=k.nx-b.nx, dy=k.ny-b.ny, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L, x0=b.nx+ux*14, y0=b.ny+uy*14, x1=k.nx-ux*16, y1=k.ny-uy*16;
+    c.globalAlpha=active?.75:.22; c.strokeStyle=active?"#ffcf70":"#8aa3ad"; c.fillStyle=c.strokeStyle; c.lineWidth=active?1.6:1;
+    var mx=(x0+x1)/2-uy*L*.08, my=(y0+y1)/2+ux*L*.08; c.beginPath(); c.moveTo(x0,y0); c.quadraticCurveTo(mx,my,x1,y1); c.stroke();
+    var ax=x1-mx, ay=y1-my, al=Math.hypot(ax,ay)||1; ax/=al; ay/=al; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x1-ax*8-ay*4,y1-ay*8+ax*4); c.lineTo(x1-ax*8+ay*4,y1-ay*8-ax*4); c.closePath(); c.fill(); }); });
+  // 子 issue
+  K.forEach(function(k){ var st=k.nst, open=st&&st.col!=="closed", r=open?blockRatio(st,T):0, hu=hasL(k,"by:human"), stk=open&&hasL(k,"swarm:stuck"), R0=9, x=k.nx, y=k.ny;
+    if(S&&S.tgt===k) hl(x,y,40,"255,200,87",.75+.2*Math.sin(now/500));
+    if(open&&r>=1) hl(x,y,26+Math.min(14,(r-1)*6),"255,77,77",.35+.4*Math.min(1,(r-1)/2));
+    if(stk){ c.globalAlpha=.5+.45*Math.sin(now/220); c.strokeStyle="#ff6b5e"; c.lineWidth=2.2; nshape(x,y,R0+6,hu); c.stroke(); }
+    c.globalAlpha=open?.95:.45; c.fillStyle=open?"rgb("+blockRGB(r)+")":"#5d6f78"; nshape(x,y,R0,hu); c.fill();
+    if(!open) tx("✓",x,y+4,"#0b1116",10,.9,700);
+    if(RUN[k.u]) bee(c,x,y,R0+10,now,k.n,13,1);
+    if(SEL[k.u]||ISNH===k){ c.globalAlpha=.9; c.strokeStyle="#7fd8ff"; c.lineWidth=1.8; c.setLineDash([4,3]); c.lineDashOffset=-now/60; nshape(x,y,R0+9,hu); c.stroke(); c.setLineDash([]); }
+    if(NEB.hov===k){ c.globalAlpha=.8; c.strokeStyle="#ffffff"; c.lineWidth=1; nshape(x,y,R0+3,hu); c.stroke(); }
+    var m=k.labels.filter(function(l){ return /^model:/.test(l); })[0], sub=(hu?"人":(m?m.slice(6):"swarm"))+(open?" · "+Math.floor(dwell(st,T))+" 天":"");
+    tx("#"+k.n+" "+short(k.t,12),x,y+R0+15,open?"#c9d4d8":"#6d7f88",11.5,open?1:.7);
+    tx(stk?"stuck · "+sub:sub,x,y+R0+28,stk?"#ff9b8f":(r>=1?"#ff9b8f":"#62737c"),10,open?.95:.6);
+    if(RUN[k.u]) tx(runLabel(k.u),x,y+R0+41,"#ffd27a",10,1); });
+  // 圈選路徑
+  var Lz=NEB.lasso; if(Lz&&Lz.moved){ c.globalAlpha=.85; c.strokeStyle="#7fd8ff"; c.fillStyle="rgba(127,216,255,.06)"; c.lineWidth=1.5; c.setLineDash([4,4]);
+    c.beginPath(); Lz.pts.forEach(function(q,i){ if(i) c.lineTo(q.x,q.y); else c.moveTo(q.x,q.y); }); c.closePath(); c.fill(); c.stroke(); c.setLineDash([]); }
+  c.globalAlpha=1;
+}
+function npos(ev){ var b=NC.getBoundingClientRect(); return {x:ev.clientX-b.left,y:ev.clientY-b.top}; }
+function nhit(p){ var best=null,bd=20; kidsOf(NEB.e).forEach(function(k){ if(k.nx===undefined) return; var d=Math.hypot(k.nx-p.x,k.ny-p.y); if(d<bd){ bd=d; best=k; } }); return best; }
+var nJust=false;
+function ncol(p){ var r=Math.hypot((p.x-NG.cx)/NG.sx,p.y-NG.cy); if(r<NG.Rd*.9) return DONE;
+  var best=null,bd=1e9; COLS.forEach(function(c){ var x=Math.abs(r-NG.R[c]); if(x<bd){ bd=x; best=c; } }); return bd<30?best:null; }
+NC.addEventListener("mousedown",function(ev){ if(!NEB) return; ev.preventDefault(); nJust=false; var p=npos(ev), k0=nhit(p);
+  if(k0&&k0.nst&&k0.nst.col!=="closed") NEB.drag={k:k0,x:ev.clientX,y:ev.clientY,p:p,moved:false,to:null};
+  if(!k0) NEB.lasso={pts:[p],x:ev.clientX,y:ev.clientY,add:ev.shiftKey||ev.metaKey||ev.ctrlKey,moved:false}; });
+NC.addEventListener("mousemove",function(ev){ if(!NEB) return; var p=npos(ev), Lz=NEB.lasso, Dg=NEB.drag;
+  if(Dg){ if(!Dg.moved&&Math.hypot(ev.clientX-Dg.x,ev.clientY-Dg.y)<5) return; Dg.moved=true; Dg.p=p; Dg.to=T>=NOW?ncol(p):null; NC.style.cursor="grabbing"; return; }
+  if(Lz){ if(!Lz.moved&&Math.hypot(ev.clientX-Lz.x,ev.clientY-Lz.y)<5) return; Lz.moved=true; Lz.pts.push(p); NC.style.cursor="crosshair"; return; }
+  var k=nhit(p), T2=document.getElementById("nebTip"); NEB.hov=k; NC.style.cursor=k?"pointer":"default";
+  if(!k){ T2.innerHTML=""; return; }
+  var st=k.nst, open=st&&st.col!=="closed", bl=k.bl.map(function(u){ return BYU[u]; }).filter(Boolean), bk=kidsOf(NEB.e).filter(function(y){ return y.bl.indexOf(k.u)>=0; });
+  T2.innerHTML='<b style="color:#eaf0f0">#'+k.n+'</b> '+esc(k.t)+' · '+(open?esc(st.col)+' '+Math.floor(dwell(st,T))+' 天':'已完成')+' · '+esc(k.labels.join(" "))+
+    (bl.length?' · 被 '+bl.map(function(b){ return '#'+b.n+(isOpenAt(b,T)?'':'✓'); }).join(' ')+' 擋住':'')+(bk.length?' · 擋住 '+bk.map(function(b){ return '#'+b.n; }).join(' '):'')+
+    ' · 負責：'+(k.who.length?esc(k.who.join("、")):'未指派'); });
+NC.addEventListener("mouseleave",function(){ if(NEB){ NEB.hov=null; document.getElementById("nebTip").innerHTML=""; } });
+window.addEventListener("mouseup",function(){ if(!NEB||!NEB.drag) return; var Dg=NEB.drag; NEB.drag=null; NC.style.cursor="default";
+  if(!Dg.moved) return; nJust=true; var k=Dg.k;
+  if(T<NOW){ toast("只有在「現在」可以改狀態"); return; }
+  if(Dg.to&&k.st&&Dg.to!==k.st.col&&(Dg.to!==DONE||closeOk(k))) setStatus(k,Dg.to); });
+window.addEventListener("mouseup",function(){ if(!NEB||!NEB.lasso) return; var Lz=NEB.lasso; NEB.lasso=null; NC.style.cursor="default";
+  if(Lz.moved&&Lz.pts.length>2){ nJust=true; setSel(kidsOf(NEB.e).filter(function(k){ return k.nst&&k.nst.col!=="closed"&&inPoly(k.nx,k.ny,Lz.pts); }),Lz.add?"add":"set"); } });
+NC.addEventListener("click",function(ev){ if(!NEB||nJust){ nJust=false; return; } var k=nhit(npos(ev)), mod=ev.shiftKey||ev.metaKey||ev.ctrlKey;
+  if(!k){ if(!mod) setSel([],"set"); return; }
+  if(!(k.nst&&k.nst.col!=="closed")){ toast('#'+k.n+' 已完成（雙擊可開 GitHub）'); return; }
+  setSel([k],mod?"toggle":"set"); });
+NC.addEventListener("dblclick",function(ev){ if(!NEB) return; var p=npos(ev), k=nhit(p);
+  if(!k&&Math.hypot(p.x-NG.cx,p.y-NG.cy)<20) k=NEB.e; if(!k) return;
+  var w=null; try{ w=window.open(k.u,"_blank"); }catch(e){} if(w){ try{ w.opener=null; }catch(e){} } });
+// ── Copilot（luna）：只提議，動作由人按確認 ──
+var CHAT=[];
+(function(){
+  var W=document.getElementById("wrap"), PI=document.getElementById("pInfo"), PC=document.getElementById("pChat"), M=document.getElementById("msgs");
+  Array.prototype.forEach.call(document.querySelectorAll("#tabs button"),function(b){ b.onclick=function(){
+    Array.prototype.forEach.call(document.querySelectorAll("#tabs button"),function(x){ x.classList.remove("on"); }); b.classList.add("on");
+    var c=b.getAttribute("data-tab")==="chat"; PI.style.display=c?"none":""; PC.style.display=c?"flex":"none";
+    if(c){ W.classList.add("chat"); window.paintHint(); if(window.loadEngines) window.loadEngines(); document.getElementById("chatIn").focus(); } else W.classList.remove("chat"); }; });
+  function bubble(cls,html){ var d=document.createElement("div"); d.className="m "+cls; d.innerHTML=html; M.appendChild(d); M.scrollTop=M.scrollHeight; return d; }
+  window.paintHint=function(){ var L=selList(); document.getElementById("selHint").textContent=L.length?"目前選取："+L.map(function(it){return "#"+it.n;}).join(" "):"（目前沒有選取）"; };
+  function context(){
+    var open=ITEMS.filter(function(it){ return (it.vis||it.sub)&&it.st&&it.st.col!=="closed"; });
+    var num=function(u){ return BYU[u]?BYU[u].n:u; };
+    return {project:{num:PJ.num,title:PJ.title},today:new Date(NOW).toISOString().slice(0,10),columns:COLS,limits:LIMIT,
+      issues:open.map(function(it){ return {n:it.n,url:it.u,title:it.t,status:it.st.col,days:Math.floor(dwell(it.st,T)),over_limit:blockRatio(it.st,T)>=1,who:it.who,labels:it.labels||[],
+        epic:it.epic&&!it.sub?{children:kidsOf(it).map(function(k){ return k.n; }),done:kidsOf(it).filter(function(k){ return !isOpenAt(k,T); }).length,target:it.target}:undefined,
+        parent:it.sub?it.par.n:undefined,blocked_by:it.bl.length?it.bl.map(num):undefined}; }),
+      recently_closed:ITEMS.filter(function(it){ return it.closed&&it.closed>NOW-30*DAY; }).map(function(it){ return {n:it.n,url:it.u,title:it.t}; }),
+      star:(function(){ var S=pickStar(T); return S?{n:S.tgt.n,title:S.tgt.t,status:S.st.col,days:Math.floor(dwell(S.st,T)),limit:limitOf(S.st.col),why:STAR_WHY[S.tier],epic:S.sub?S.it.n:undefined}:null; })(),
+      open_epic:NEB?NEB.e.n:undefined,
+      selection:selList().map(function(it){ return it.n; }),
+      projects:(window.PROJECT_INDEX||{projects:[]}).projects.map(function(x){ return {num:x.num,key:window.rowKey(x),title:x.title,open:x.open}; })};
+  }
+  function note(box,html){ var e=document.createElement("div"); e.className="dim"; e.innerHTML=html; box.appendChild(e); return e; }
+  function byNum(ns){ return ITEMS.filter(function(it){ return (it.vis||(it.sub&&it.st&&it.st.col!=="closed"))&&ns.indexOf(it.n)>=0; }); }
+  window.__act=action;
+  function action(a,box){
+    var A=a.args||{};
+    if(a.name==="select_issues"){ setSel(byNum(A.numbers||[]),A.mode==="add"?"add":"set"); window.paintHint();
+      var nf=note(box,'↳ 已在星系上選取 '+byNum(A.numbers||[]).length+' 張 <a href="#" class="foc">⌖ 對焦</a>');
+      nf.querySelector(".foc").onclick=function(e){ e.preventDefault(); fitSel(); }; return; }
+    if(a.name==="move_issues"){
+      var L=byNum(A.numbers||[]).filter(function(it){ return it.st&&it.st.col!==A.status; });
+      if(COLS.indexOf(A.status)<0&&A.status!==DONE){ note(box,'↳ 沒有「'+esc(A.status)+'」這欄，未執行'); return; }
+      if(!L.length){ note(box,'↳ 這些 issue 已經在「'+esc(A.status)+'」'); return; }
+      setSel(L,"set"); window.paintHint();
+      var d=document.createElement("div"); d.className="act";
+      d.innerHTML='要把這 '+L.length+' 張移到「<b>'+esc(A.status)+'</b>」'+(A.status===DONE?'並<b>關閉 issue</b>':'')+'，寫回 GitHub 嗎？<br><span class="dim">'+L.map(function(it){ return '#'+it.n+' '+esc(short(it.t))+'（'+esc(it.st.col)+'）'; }).join('<br>')+'</span><br><button class="go">確認移動</button><button class="no">取消</button>';
+      box.appendChild(d);
+      d.querySelector(".go").onclick=function(){ d.className="act done"; L.forEach(function(it){ setStatus(it,A.status); }); note(d,'↳ 已送出 '+L.length+' 張（結果看上方通知）'); };
+      d.querySelector(".no").onclick=function(){ d.className="act done"; note(d,'↳ 已取消'); };
+      return; }
+    if(a.name==="switch_project"){
+      var PL=(window.PROJECT_INDEX||{projects:[]}).projects, ok=PL.filter(function(x){ return window.rowKey(x)===A.project; })[0]||PL.filter(function(x){ return x.num===A.project; })[0];
+      if(!ok){ note(box,'↳ 找不到 project '+esc(A.project)+''); return; }
+      var d2=document.createElement("div"); d2.className="act"; d2.innerHTML='切換到「'+esc(ok.title)+'」？<br><button class="go">切換</button><button class="no">取消</button>'; box.appendChild(d2);
+      d2.querySelector(".go").onclick=function(){ location.search="?p="+window.rowKey(ok); };
+      d2.querySelector(".no").onclick=function(){ d2.className="act done"; }; }
+  }
+  // 引擎：後端依登入帳號決定能用哪些（/api/whoami），選單只列出允許的；記在這個瀏覽器
+  var EN={codex:"Codex 訂閱",api:"API key"}, ES=document.getElementById("eng"), EK="wolffia.engine";
+  function engLabel(e){ return EN[e]||e; }
+  var engLoaded=false;
+  // Codex 額度：5 小時窗／週窗已用 %，和 DSH GUI 那張卡同一個來源
+  function hrs(t){ var h=Math.max(0,(t*1000-Date.now())/3600000); return h>=24?Math.round(h/24)+"天":(h>=1?Math.round(h)+"時":Math.round(h*60)+"分"); }
+  function paintUse(u){ var E=document.getElementById("engUse"); if(!u){ E.textContent=""; return; }
+    var p=function(w,n){ return w?n+" "+w.pct+"%"+(w.reset?"（"+hrs(w.reset)+"後重置）":""):""; };
+    E.textContent="Codex "+[p(u.five_hour,"5h"),p(u.weekly,"週")].filter(Boolean).join("・");
+    E.style.color=u.limited||(u.five_hour&&u.five_hour.pct>=90)||(u.weekly&&u.weekly.pct>=90)?"#ff9b8f":""; E.title="Codex 訂閱額度（"+(u.plan||"")+"）"; }
+  window.refreshUsage=function(){ if(typeof XMLHttpRequest==="undefined") return; var x=new XMLHttpRequest(); x.open("GET","api/whoami");
+    x.onload=function(){ try{ paintUse(JSON.parse(x.responseText).codex_usage); }catch(e){} }; x.send(); };
+  window.loadEngines=function(){ if(engLoaded||typeof XMLHttpRequest==="undefined") return; engLoaded=true; var x=new XMLHttpRequest(); x.open("GET","api/whoami");
+    x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(e){} paintUse(r.codex_usage); var L=r.engines||[]; if(!L.length) return;
+      var keep=""; try{ keep=localStorage.getItem(EK)||""; }catch(e){}
+      ES.innerHTML=L.map(function(e,i){ return '<option value="'+e+'">'+esc(engLabel(e))+(i===0?'（預設）':'')+'</option>'; }).join("");
+      ES.value=L.indexOf(keep)>=0?keep:L[0]; };
+    x.onerror=function(){ engLoaded=false; };
+    x.send(); };
+  ES.onchange=function(){ try{ localStorage.setItem(EK,ES.value); }catch(e){} };
+  var busy=false, I=document.getElementById("chatIn");
+  I.addEventListener("keydown",function(ev){ if(ev.key==="Enter"&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); send(); } ev.stopPropagation(); });
+  document.getElementById("chatF").onsubmit=function(ev){ ev.preventDefault(); send(); };
+  // 站台的 /board/ 沒有 Copilot 後端（api/chat）：Enter／送出 一律改走「🧠 想」，送進站台 harness。
+  function send(){ if(/^\/board\//.test(location.pathname||"")&&window.boardThink){ window.boardThink(); return; }
+    var q=I.value.trim(); if(!q||busy) return; I.value=""; busy=true;
+    bubble("u",esc(q)); CHAT.push({role:"user",content:q});
+    var wait=bubble("a",'<span class="dim">思考中…</span>');
+    var x=new XMLHttpRequest(); x.open("POST","api/chat"); x.setRequestHeader("Content-Type","application/json");
+    x.onload=function(){ busy=false; var r={}; try{ r=JSON.parse(x.responseText); }catch(e){}
+      if(x.status!==200){ wait.innerHTML='<span style="color:#ff9b8f">'+esc(r.error||("HTTP "+x.status))+'</span>'; CHAT.pop(); return; }
+      var txt=r.text||(r.actions&&r.actions.length?"":"（沒有回應）");
+      wait.innerHTML=esc(txt).replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>"); CHAT.push({role:"assistant",content:txt||("[動作] "+JSON.stringify(r.actions))});
+      document.getElementById("engNow").textContent=r.engine?"・這則用 "+engLabel(r.engine):"";
+      if(r.engine==="codex"||r.note) window.refreshUsage();
+      if(r.note) note(wait,'<span style="color:#ffd27a">⚠ '+esc(r.note)+'</span>');
+      if(r.read&&r.read.length) note(wait,'↳ 讀了 GitHub 上的 '+r.read.map(function(n){return "#"+n;}).join("、")+'');
+      (r.actions||[]).forEach(function(a){ action(a,wait); }); M.scrollTop=M.scrollHeight; };
+    x.onerror=function(){ busy=false; wait.innerHTML='<span style="color:#ff9b8f">連不到伺服器</span>'; CHAT.pop(); };
+    var body={context:context(),messages:CHAT}; if(ES.value) body.engine=ES.value;
+    x.send(JSON.stringify(body)); }
+  // 🧠 想：只在站台 DSH 的 /board/ 底下出現。問題＋選取的卡＋看板脈絡 POST api/think，
+  // 送進站台自己的 DSH session（每個 project 一個；「全部 project」＝一個跨 project 的全局 session，project:"*"）
+  var TR=document.getElementById("thinkRow"), TS=document.getElementById("thinkScope"), thinking=false;
+  if(/^\/board\//.test(location.pathname||"")) TR.style.display="flex";
+  function bytes(s){ return unescape(encodeURIComponent(s)).length; }
+  function thinkBody(q,all){ var c=context(), b={project:all?"*":String(PJ.num),question:q,selection:c.selection,context:c}, s=JSON.stringify(b);
+    if(bytes(s)>60000){ c.recently_closed=undefined; s=JSON.stringify(b); }   // 伺服器上限 64KB：太大就先丟最近關閉的、再砍 issue 清單
+    while(bytes(s)>60000&&c.issues.length){ c.issues=c.issues.slice(0,Math.floor(c.issues.length/2)); c.issues_cut=true; s=JSON.stringify(b); }
+    return s; }
+  function think(){ var q=I.value.trim(); if(thinking) return;
+    if(!q){ bubble("a",'<span style="color:#ff9b8f">先在下面寫下要分析的問題，再按「📊 分析」</span>'); return; }
+    if(PJ.demo){ bubble("a",'<span class="dim">示範資料不送進站台 harness</span>'); return; }
+    var all=TS.value==="all"; I.value=""; thinking=true;
+    bubble("u","📊 "+esc(q)+'<br><span class="dim">'+(all?"全部 project":esc(PJ.title))+'</span>');
+    var wait=bubble("a",'<span class="dim">送進站台 harness…</span>');
+    var x=new XMLHttpRequest(); x.open("POST","api/think"); x.setRequestHeader("Content-Type","application/json");
+    x.onload=function(){ thinking=false; var r={}; try{ r=JSON.parse(x.responseText); }catch(e){}
+      if(x.status!==200||!r.sessionId){ wait.innerHTML='<span style="color:#ff9b8f">'+esc(r.message||r.error||("HTTP "+x.status))+'</span>'; return; }
+      wait.innerHTML='<span class="dim">正在分析…（'+(all?'全部 project':esc(PJ.title))+'的'+(r.created?'新':'')+'對話）</span>';
+      M.scrollTop=M.scrollHeight; awaitReply(wait,r.sessionId,typeof r.after==="number"?r.after:-1,q,all,0); };
+    x.onerror=function(){ thinking=false; wait.innerHTML='<span style="color:#ff9b8f">連不到伺服器</span>'; };
+    x.send(thinkBody(q,all)); }
+  // 回覆：每 4 秒問一次 api/think/reply，turn 結束就把 harness 的回答顯示在這裡（最多等 15 分鐘）。
+  function awaitReply(el,sid,after,q,all,n){
+    if(n>225){ el.innerHTML='<span class="dim">分析還沒結束，請到站台對話看：</span> <a href="/?swarm-session='+encodeURIComponent(sid)+'" target="_blank" rel="noopener">↗ 打開這個對話</a>'; return; }
+    var x=new XMLHttpRequest();
+    x.open("GET","api/think/reply?session="+encodeURIComponent(sid)+"&after="+after+"&q="+encodeURIComponent(q.split("\n")[0]));
+    x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(e){}
+      if(x.status===200&&r.done){ showAnswer(el,q,isnLink(r.text?mdRender(r.text):'<span class="dim">（沒有文字回覆）</span>')+
+        '<br><a class="dim" href="/?swarm-session='+encodeURIComponent(sid)+'" target="_blank" rel="noopener">↗ 在站台對話接著聊（'+(all?'全部 project':esc(PJ.title))+'）</a>'); M.scrollTop=M.scrollHeight; return; }
+      if(x.status!==200){ el.innerHTML='<span style="color:#ff9b8f">'+esc(r.message||r.error||("HTTP "+x.status))+'</span>'; return; }
+      setTimeout(function(){ awaitReply(el,sid,after,q,all,n+1); },4000); };
+    x.onerror=function(){ setTimeout(function(){ awaitReply(el,sid,after,q,all,n+1); },4000); };
+    x.send(); }
+  // 舊回答收合：新的分析回答出現時，之前的收成一行（問題前 40 字＋▸ 展開），點一下展開／再點收合；最新一則保持展開。
+  // 每則右上角「⤢」用蓋在畫面上的大視窗顯示同一則回答（Esc 或點背景關閉）。
+  var ANS=[], BIG=document.getElementById("mdBig");
+  function showAnswer(el,q,html){
+    var t=String(q||"").replace(/\s+/g," ").trim(), c=Array.from?Array.from(t):t.split(""), head=c.slice(0,40).join("")+(c.length>40?"…":"");
+    el.innerHTML='<button class="mdExpand" type="button" title="放大">⤢</button><div class="foldBar" title="'+esc(t)+'">📊 '+esc(head)+' <span class="fl">▸ 展開</span></div><div class="mdBody">'+html+'</div>';
+    el.classList.add("ans");
+    var bar=el.querySelector(".foldBar");
+    bar.onclick=function(){ var f=el.classList.contains("fold"); if(f) el.classList.remove("fold"); else el.classList.add("fold");
+      var s=bar.querySelector(".fl"); if(s) s.textContent=f?"▾ 收合":"▸ 展開"; };
+    el.querySelector(".mdExpand").onclick=function(){ openMdBig(html); };
+    ANS.forEach(function(a){ if(a===el) return; a.classList.add("old"); a.classList.add("fold"); var s=a.querySelector(".fl"); if(s) s.textContent="▸ 展開"; });
+    if(ANS.indexOf(el)<0) ANS.push(el); }
+  function openMdBig(html){ BIG.innerHTML='<div id="mdBigBox"><span class="x" title="關閉（Esc）">✕</span>'+html+'</div>'; BIG.style.display="flex";
+    var x=BIG.querySelector(".x"); if(x) x.onclick=window.closeMdBig; }
+  BIG.onclick=function(ev){ if(ev&&ev.target===BIG) window.closeMdBig(); };
+  window.mdBigOpen=function(){ return BIG.style.display==="flex"; };
+  window.closeMdBig=function(){ BIG.style.display="none"; BIG.innerHTML=""; };
+  document.getElementById("thinkB").onclick=think;
+  if(/^\/board\//.test(location.pathname||"")){ window.boardThink=think;
+    I.placeholder="問這個畫面，例如：哪些 issue 可以合併成 EPIC？（Enter 送出，Shift+Enter 換行）"; }
+})();
+// 💡 建議：只在 /board/ 底下。GET api/suggestions（站台每日聚合：全局「想」session 找出該合成 EPIC 的 issue，
+// 縱向＝同一個 project、橫向＝跨 project）；沒有建議就整區不顯示。只是建議，不會開卡。
+(function(){ var S=document.getElementById("sugSec"), B=document.getElementById("sug");
+  S.style.display="none";
+  if(!/^\/board\//.test(location.pathname||"")) return;
+  function link(ref){ var m=/^([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(ref); if(!m) return "";
+    return '<a href="https://github.com/'+m[1]+'/'+m[2]+'/issues/'+m[3]+'" target="_blank" rel="noopener">'+esc(ref)+'</a>'; }
+  function when(t){ var d=new Date(t); if(isNaN(d)) return "";
+    function p(n){ return (n<10?"0":"")+n; }
+    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+  function show(r){ var L=(r&&Array.isArray(r.suggestions)?r.suggestions:[]).filter(function(s){ return s&&s.title&&Array.isArray(s.issues); });
+    if(!L.length){ S.style.display="none"; B.innerHTML=""; return; }
+    B.innerHTML=L.map(function(s){ var h=s.kind==="horizontal";
+      return '<div class="sg"><b>'+esc(s.title)+'</b><span class="k'+(h?' h':'')+'">'+(h?'橫向・跨 project':'縱向・同 project')+'</span><br>'+
+        s.issues.map(link).join("")+(s.why?'<div class="why">'+esc(s.why)+'</div>':'')+'</div>'; }).join("")+
+      '<div class="when">'+(when(r.generatedAt)?'產生於 '+when(r.generatedAt)+'・':'')+'只是建議，要開 EPIC 請自己決定</div>';
+    S.style.display="block"; }
+  var x=new XMLHttpRequest(); x.open("GET","api/suggestions");
+  x.onload=function(){ var r=null; if(x.status===200){ try{ r=JSON.parse(x.responseText); }catch(e){} } show(r); };
+  x.onerror=function(){ show(null); };
+  x.send(); })();
+// 右側面板收合：記在這個瀏覽器
+(function(){ var W=document.getElementById("wrap"), B=document.getElementById("bSide"), K="wolffia.sideFolded";
+  function set(f){ if(f) W.classList.add("fold"); else W.classList.remove("fold"); B.textContent=f?"⟨ 側欄":"側欄 ⟩"; try{ localStorage.setItem(K,f?"1":""); }catch(e){} }
+  var f=false; try{ f=localStorage.getItem(K)==="1"; }catch(e){} set(f);
+  B.onclick=function(){ set(!W.classList.contains("fold")); }; })();
+// 側欄寬度：拖曳分隔線調整（260px～視窗寬 70%），放開時記在這個瀏覽器；雙擊回預設
+(function(){ var W=document.getElementById("wrap"), S=document.getElementById("side"), D=document.getElementById("sideDrag"), K="wolffia.sideW", on=false;
+  function clamp(w){ return Math.max(260,Math.min(Math.round(w),Math.floor((window.innerWidth||1200)*0.7))); }
+  function apply(w){ S.style.width=w?w+"px":""; }
+  var w0=0; try{ w0=parseInt(localStorage.getItem(K),10)||0; }catch(e){} if(w0) apply(clamp(w0));
+  D.onmousedown=function(ev){ if(ev.button) return; ev.preventDefault(); on=true; W.classList.add("drag"); };
+  document.addEventListener("mousemove",function(ev){ if(!on) return; apply(clamp((window.innerWidth||1200)-ev.clientX)); });
+  document.addEventListener("mouseup",function(){ if(!on) return; on=false; W.classList.remove("drag");
+    var w=parseInt(S.style.width,10); if(w){ try{ localStorage.setItem(K,String(w)); }catch(e){} } });
+  D.ondblclick=function(){ apply(0); try{ localStorage.removeItem(K); }catch(e){} }; })();
+// 站台 /board/ 沒有引擎可選：藏起「引擎」選單
+if(/^\/board\//.test(location.pathname||"")) document.getElementById("engRow").style.display="none";
+// project 選單：切換＝帶著 ?p=N（或 ?p=組織/N）重新載入
+// 「＋ 加入 project…」打開清單（GET api/projects/available：站台 gh 看得到的、開著的 project，卡片多的在前）；
+// 上方搜尋框篩名稱或組織；已加入的打勾、不能點。點列＝勾選（可多選），按「加入 N 個」逐一 POST api/projects/add {owner, number}，
+// 全部完成後用回來的 index 重畫選單並切到第一個。
+(function(){ var S=document.getElementById("pSel"), sel=window.PROJECT_NUM;
+  function opts(){ var IX=window.PROJECT_INDEX||{projects:[]};
+    S.innerHTML=IX.projects.map(function(x){ var k=window.rowKey(x); return '<option value="'+esc(String(k))+'"'+(k===sel&&!PJ.demo?' selected':'')+'>'+esc(x.title)+(typeof k==="string"?'（'+esc(k.split("/")[0])+'）':'')+'（未完成 '+x.open+'）</option>'; }).join("")+
+      '<option value="demo"'+(PJ.demo?' selected':'')+'>◆ 示範：EPIC 星雲（假資料）</option>'+
+      '<option value="+">＋ 加入 project…</option>'; }
+  opts();
+  var B=document.getElementById("apBox"), Q=document.getElementById("apQ"), L=document.getElementById("apList"), M=document.getElementById("apMsg");
+  // 多選：點一列＝勾選／取消（立刻打勾），按「加入 N 個」才送出；一個一個加（每個都要抓資料），顯示進度。
+  var AV=[], busy=false, PICK={}, G=document.getElementById("apGo");
+  function msg(t){ M.textContent=t||""; }
+  function idOf(p){ return p.owner+"/"+p.number; }
+  function picked(){ return AV.filter(function(p){ return PICK[idOf(p)]&&!p.added; }); }
+  function foot(){ var n=picked().length; G.disabled=busy||!n; G.textContent=busy?"加入中…":(n?"加入 "+n+" 個":"加入"); }
+  function shown(){ var q=String(Q.value||"").trim().toLowerCase();
+    return AV.filter(function(p){ return !q||String(p.title).toLowerCase().indexOf(q)>=0||String(p.owner).toLowerCase().indexOf(q)>=0||(p.owner+"/"+p.number).toLowerCase().indexOf(q)>=0; }); }
+  function draw(){ var V=shown();
+    L.innerHTML=V.map(function(p){ var i=AV.indexOf(p), on=!p.added&&PICK[idOf(p)];
+      return '<button type="button" class="apRow'+(on?' on':'')+'" data-i="'+i+'"'+(p.added?' disabled title="已在看板上"':'')+' aria-pressed="'+(on||p.added?'true':'false')+'"><span class="ck">'+(p.added||on?'✓':'')+'</span><span>'+esc(p.title)+' <span class="o">'+esc(p.owner)+' #'+p.number+(p.added?'　已在看板上':'')+'</span></span><span class="n">'+p.items+' 張</span></button>'; }).join("")||
+      '<div class="apRow" style="cursor:default;color:#7d8d96">'+(AV.length?'沒有符合的 project':'沒有可加入的 project')+'</div>';
+    foot(); }
+  function close(){ if(busy) return; B.style.display="none"; }
+  function open(){ B.style.display="flex"; Q.value=""; AV=[]; PICK={}; L.innerHTML=""; foot(); msg("讀取 project 清單…"); try{ Q.focus(); }catch(e){}
+    var x=new XMLHttpRequest(); x.open("GET","api/projects/available");
+    x.onload=function(){ var d=null; try{ d=JSON.parse(x.responseText); }catch(e){}
+      if(x.status!==200||!d){ msg((d&&d.error)||"讀不到 project 清單（HTTP "+x.status+"）"); return; }
+      if(d.github===false){ msg("尚未連接 GitHub：請在站台的 AI 對話說「幫我連接 GitHub」"); return; }
+      AV=d.projects||[]; msg("點選要加入的 project（可以多選），再按「加入」"); draw(); };
+    x.onerror=function(){ msg("讀不到 project 清單（連線失敗）"); };
+    x.send(); }
+  function toggle(p){ if(!p||p.added||busy) return; var k=idOf(p); if(PICK[k]) delete PICK[k]; else PICK[k]=true; draw(); }
+  // 送出勾選的：一個加完再加下一個；全部完成後切到第一個抓好的，沒抓好的說下一輪會出現。
+  function submit(){ var list=picked(); if(!list.length||busy) return; busy=true; foot();
+    var done=0, first=null, late=[], fail=[];
+    (function next(){
+      if(done>=list.length){ busy=false; PICK={}; draw();
+        var parts=[]; if(fail.length) parts.push("加入失敗："+fail.join("、")); if(late.length) parts.push("已加入，資料還在抓："+late.join("、")+"（下一輪約 10 分鐘會出現在選單）");
+        if(first&&!fail.length&&!late.length){ sel=first; opts(); close(); location.search="?p="+first; return; }
+        opts(); msg(parts.join("；")||"完成");
+        if(first) msg((parts.length?parts.join("；")+"；":"")+"重新整理或從選單切換就能看到");
+        return; }
+      var p=list[done]; msg("加入「"+p.title+"」（"+(done+1)+"/"+list.length+"），正在抓資料…");
+      var x=new XMLHttpRequest(); x.open("POST","api/projects/add"); x.setRequestHeader("Content-Type","application/json");
+      x.onload=function(){ var d=null; try{ d=JSON.parse(x.responseText); }catch(e){}
+        if(x.status!==200||!d||!d.ok){ fail.push(p.title+"（"+((d&&d.error)||"HTTP "+x.status)+"）"); done++; next(); return; }
+        p.added=true; if(d.index&&d.index.projects) window.PROJECT_INDEX=d.index;
+        var k=window.pKey(String(d.key));
+        if((window.PROJECT_INDEX.projects||[]).some(function(r){ return window.rowKey(r)===k; })){ if(first===null) first=k; } else late.push(p.title);
+        done++; draw(); next(); };
+      x.onerror=function(){ fail.push(p.title+"（連線失敗）"); done++; next(); };
+      x.send(JSON.stringify({owner:p.owner,number:p.number})); })(); }
+  function pick(p){ if(!p||p.added||busy) return; PICK={}; PICK[idOf(p)]=true; submit(); }
+  Q.oninput=draw;
+  G.onclick=submit;
+  L.onclick=function(ev){ var t=ev&&ev.target;
+    while(t&&t!==L&&!(t.getAttribute&&t.getAttribute("data-i")!=null)) t=t.parentNode;
+    if(!t||t===L||t.disabled||(t.getAttribute&&t.getAttribute("disabled")!=null)) return;
+    toggle(AV[+t.getAttribute("data-i")]); };
+  document.getElementById("apX").onclick=close;
+  B.onclick=function(ev){ if(ev&&ev.target===B) close(); };
+  window.addEventListener("keydown",function(ev){ if(ev&&ev.key==="Escape"&&B.style.display==="flex") close(); });
+  S.onchange=function(){
+    if(this.value==="+"){ this.value=String(window.PROJECT_NUM); open(); return; }
+    location.search=this.value==="demo"?"?demo=1":"?p="+this.value; };
+  window.__addProj={open:open,pick:pick,toggle:toggle,submit:submit};
+})();
+// ── 運行中（GET api/running）：每 15 秒問一次，頁面隱藏時暫停 ──
+// RUN[u]＝{engine,since}：正在跑的 issue；PEND[u]＝剛離開 running、等資料更新確認是否已 closed；FIN[u]＝沿軌道滑到另一圈的動畫
+// 新出現的工作中 issue 還不在「進行中」→ 移過去並重抓資料（RUNF_MS 內只一次）
+// EPW[EPIC u]＝重試次數：底下有蜂消失的 EPIC；sub-issue 全關後等它變成「審核後請關閉」，還沒變就 EP_MS 後再重抓，最多 EP_TRIES 次
+var RUN={}, PEND={}, FIN={}, RUN_MS=15000, FIN_MS=1000, PEND_MS=30*60e3, runTimer=null, runBusy=false;
+var DOING="進行中 (7 天一輪)", REVIEW="審核後請關閉", RUNF_MS=30e3, runFetchAt=-Infinity, EPW={}, EP_MS=30e3, EP_TRIES=4, epTimer=null;
+// DATA_AT＝頁面資料的 fetched（ms）；api/running 的 data_at 說後端這個 project 的資料比較新 → 重抓一次
+var DATA_AT=Date.parse(PJ.fetched)||0;
+var RMQ=window.matchMedia?window.matchMedia("(prefers-reduced-motion: reduce)"):null;
+function reduced(){ return !!(RMQ&&RMQ.matches); }   // prefers-reduced-motion：不繞行、不滑動，只顯示標示
+function runKey(repo,n){ return "https://github.com/"+repo+"/issues/"+n; }
+// PEND 與上次看到的 running 清單存在這個瀏覽器（localStorage），每個 project 一份：重新整理後仍會確認、滑進最內圈
+// localStorage 不能用（隱私模式）時讀寫都靜靜失敗，退回只記在記憶體
+var PEND_KEY="wolffia.pend."+window.PROJECT_NUM, RUNS_KEY="wolffia.running."+window.PROJECT_NUM;
+function lsGet(k){ try{ var v=JSON.parse(localStorage.getItem(k)||"{}"); return v&&typeof v==="object"?v:{}; }catch(e){ return {}; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+function savePend(){ lsSet(PEND_KEY,PEND); }
+// 載入時：上次等待中的＋上次還在 running 的（這次還在跑的，api/running 回來就會移除）；超過 30 分鐘的丟掉
+function loadPend(){ var t=Date.now(), p=lsGet(PEND_KEY), r=lsGet(RUNS_KEY);
+  Object.keys(r).forEach(function(u){ if(!(u in p)) p[u]=r[u]; });
+  Object.keys(p).forEach(function(u){ var v=+p[u]; if(v>0&&t-v<=PEND_MS&&BYU[u]&&isOpenAt(BYU[u],NOW)){ PEND[u]=v; watchEpic(u); } });
+  savePend(); return Object.keys(PEND).length>0; }
+function runningN(e){ return kidsOf(e).filter(function(k){ return RUN[k.u]; }).length; }
+function runLabel(u){ var r=RUN[u], m=r.since?Math.max(0,Math.floor((Date.now()-r.since)/6e4)):null;
+  return (r.engine||"工作中")+(m===null?"":" · 已 "+m+" 分"); }
+// 小蜂：沿外圈繞行＋呼吸光；reduced-motion 時停在右上方、光不呼吸
+function bee(c,x,y,r,now,ph,size,al){ var rm=reduced(), a=rm?-.785:now/1400+ph, b=(rm?.4:.4+.25*Math.sin(now/650+ph))*al;
+  var g=c.createRadialGradient(x,y,r*.5,x,y,r*1.5); g.addColorStop(0,"rgba(255,210,122,"+b.toFixed(3)+")"); g.addColorStop(1,"rgba(255,210,122,0)");
+  c.globalAlpha=1; c.fillStyle=g; c.beginPath(); c.arc(x,y,r*1.5,0,6.2832); c.fill();
+  c.globalAlpha=.3*al; c.strokeStyle="#ffd27a"; c.lineWidth=size/13; c.setLineDash([size/6,size/3]); c.beginPath(); c.arc(x,y,r,0,6.2832); c.stroke(); c.setLineDash([]);
+  c.globalAlpha=al; c.font=size+"px sans-serif"; c.textAlign="center"; c.fillText("🐝",x+Math.cos(a)*r,y+Math.sin(a)*r+size*.35); }
+// 滑進最內圈：從原位置沿軌道（極座標，角度順著繞、半徑往內縮）滑到新位置；回傳 null＝沒有在滑
+function slideAt(it,now,key,cx,cy,sx,tx,ty){ var f=FIN[it.u]; if(!f||f[key]===undefined) return null;
+  var p=Math.min(1,(now-f.t0)/FIN_MS), e=p*p*(3-2*p), fx=f[key].x, fy=f[key].y;
+  var a0=Math.atan2(fy-cy,(fx-cx)/sx), r0=Math.hypot((fx-cx)/sx,fy-cy), a1=Math.atan2(ty-cy,(tx-cx)/sx), r1=Math.hypot((tx-cx)/sx,ty-cy);
+  if(r1<1) a1=a0+1.2; while(a1<a0) a1+=6.2832; if(r1>=1&&a1-a0>Math.PI) a1-=6.2832;   // 換圈：走近的那一邊
+  var a=a0+(a1-a0)*e, r=r0+(r1-r0)*e;
+  return {x:cx+Math.cos(a)*r*sx,y:cy+Math.sin(a)*r,p:p}; }
+function pollRunning(){
+  runTimer=null; if(runBusy||document.hidden||typeof XMLHttpRequest==="undefined") return; runBusy=true;
+  var x=new XMLHttpRequest(); x.open("GET","api/running");
+  x.onload=function(){ runBusy=false; var r=null; try{ r=JSON.parse(x.responseText); }catch(err){} if(x.status===200&&r&&r.items) applyRunning(r.items,newer(r.data_at)); nextPoll(); };
+  x.onerror=function(){ runBusy=false; nextPoll(); };
+  x.send(); }
+function nextPoll(){ if(runTimer===null&&!document.hidden) runTimer=setTimeout(pollRunning,RUN_MS); }
+if(document.addEventListener) document.addEventListener("visibilitychange",function(){
+  if(runTimer!==null){ clearTimeout(runTimer); runTimer=null; } if(!document.hidden) pollRunning(); });
+// data_at 裡這個 project 的時間晚於頁面資料 → true（並先記下，同一份資料只重抓一次）
+function newer(da){ var t=da&&typeof da==="object"?Date.parse(da[window.PROJECT_NUM]):NaN;
+  if(!(t>DATA_AT)) return false; DATA_AT=t; return true; }
+function applyRunning(items,stale){
+  var nr={}, t=Date.now(), moved=false;
+  items.forEach(function(r){ var u=runKey(r.repo,r.number); nr[u]={engine:r.engine||null,since:r.since?Date.parse(r.since):null}; delete PEND[u];
+    var it=BYU[u], st=it&&stateAt(it,NOW);
+    if(!RUN[u]&&st&&st.col!=="closed"&&st.col!==DOING&&RING[DOING]!==undefined){ slideTo(it,DOING); moved=true; } });
+  Object.keys(RUN).forEach(function(u){ if(!nr[u]&&BYU[u]&&isOpenAt(BYU[u],NOW)){ PEND[u]=t; watchEpic(u); } });
+  Object.keys(PEND).forEach(function(u){ if(t-PEND[u]>PEND_MS) delete PEND[u]; });
+  RUN=nr; var rs={}; Object.keys(nr).forEach(function(u){ rs[u]=t; }); lsSet(RUNS_KEY,rs); savePend();
+  if(moved){ layout(T); paintSide(); }
+  if(NEB) paintNebH();
+  var again=moved&&t-runFetchAt>=RUNF_MS; if(again) runFetchAt=t;
+  if(again||stale||Object.keys(PEND).length) refreshData(); }
+// 移到另一圈：沿軌道滑過去（reduced-motion 時直接移）；呼叫的人負責 layout
+function slideTo(it,col){
+  if(!reduced()) FIN[it.u]={t0:performance.now(),m:it.vis?{x:it.px,y:it.py}:undefined,n:NEB&&it.nx!==undefined&&NEB.e===it.par?{x:it.nx,y:it.ny}:undefined};
+  it.status=col; it.sinceU=NOW; if(col===DONE) it.closed=NOW; }
+function watchEpic(u){ var it=BYU[u]; if(it&&it.par&&!(it.par.u in EPW)) EPW[it.par.u]=0; }
+// 離開 running 的那幾張：重抓這個 project 的資料，確認 closed 了才滑進最內圈（swarm:stuck 之類沒關的不動）
+// EPIC 在 GitHub 上被關閉（例如驗收後結案）：資料裡已關閉、畫面上還沒 → 也滑進最內圈
+function refreshData(){
+  if(typeof XMLHttpRequest==="undefined") return; var x=new XMLHttpRequest(), src=PJ.demo?"data/demo-epic.js":"data/"+window.pFile(window.PROJECT_NUM)+".js"; x.open("GET",src+"?t="+Date.now());
+  x.onload=function(){ if(x.status!==200) return; var W={}; try{ new Function("window",x.responseText)(W); }catch(err){ return; }
+    var p=W.PROJECTS&&W.PROJECTS[window.PROJECT_NUM]; if(!p||!p.items) return;
+    var f=Date.parse(p.fetched); if(f>DATA_AT) DATA_AT=f;
+    var hit=closedNow(p.items); if(epicsNow(p.items,f)) hit=true; caughtUp(p);
+    if(hit){ layout(T); paintSide(); if(NEB) paintNebH(); } };
+  x.send(); }
+function closedNow(items){ var hit=false;
+  items.forEach(function(x){ var it=BYU[x.u]; if(!it||!x.closed||!(PEND[x.u]||it.epic)) return; delete PEND[x.u]; if(!isOpenAt(it,NOW)) return;
+    slideTo(it,DONE); hit=true; });
+  savePend(); return hit; }
+// 蜂消失後的 EPIC：sub-issue 全部已關閉時，資料裡 EPIC 已是「審核後請關閉」（或帶 epic:review）→ 沿軌道移過去；
+// 還沒改（orchestrator 稍晚才改）→ EP_MS 後再重抓，最多 EP_TRIES 次
+// 重試用完之後才來的資料（例如 cron 或 data_at 觸發的重抓）也要算：#490 時後端在 sub 關閉後立刻重抓，那份資料
+// sub 已關、EPIC 還沒加 epic:review；之後 2 分鐘的重試都拿到同一份，EPW 被丟掉，下一份資料來了也不再看 → EPIC 停在原位。
+// 所以資料裡已是「審核後請關閉」（或帶 epic:review）、sub-issue 全關、畫面上還沒移的 EPIC，不在 EPW 裡也移過去。
+// 剛拖曳改過、資料還沒追上的（MOVES，比這份資料新）以拖曳為準，不拉回去。
+function epicsNow(items,f){ var by={}, kids={}, wait=[], hit=false, cand={}, mv=lsGet(MOVES_KEY), t=Date.now();
+  items.forEach(function(x){ by[x.u]=x; if(x.parent) (kids[x.parent]=kids[x.parent]||[]).push(x);
+    var e=BYU[x.u]; if(e&&e.epic&&!x.closed&&((x.labels||[]).indexOf("epic:review")>=0||colOf(x)===REVIEW)) cand[x.u]=1; });
+  Object.keys(EPW).forEach(function(u){ cand[u]=1; });
+  Object.keys(cand).forEach(function(u){ var e=BYU[u], x=by[u], K=kids[u]||[], st=e&&stateAt(e,NOW), w=u in EPW;
+    if(!x||x.closed||!st||st.col==="closed"){ delete EPW[u]; return; }
+    if(!K.length||K.some(function(k){ return !k.closed; })) return;   // 還有沒關的：等下一隻蜂
+    if(moveOk(mv[u],t)&&!(f>=mv[u].t)&&mv[u].s!==REVIEW){ delete EPW[u]; return; }
+    var rv=(x.labels||[]).indexOf("epic:review")>=0;
+    if(!rv&&colOf(x)!==REVIEW){ if(w) wait.push(u); return; }
+    delete EPW[u]; if(rv&&!hasL(e,"epic:review")) e.labels.push("epic:review");
+    if(st.col!==REVIEW&&RING[REVIEW]!==undefined){ slideTo(e,REVIEW); hit=true; } });
+  if(wait.length&&epTimer===null){ var more=false;
+    wait.forEach(function(u){ if(EPW[u]<EP_TRIES){ EPW[u]++; more=true; } else delete EPW[u]; });
+    if(more) epTimer=setTimeout(function(){ epTimer=null; refreshData(); },EP_MS); }
+  return hit; }
+paintArr(); applyMoves(); setT(NOW,false); requestAnimationFrame(frame);
+var hadPend=loadPend(); pollRunning(); if(hadPend) refreshData();   // 有等待中的：不等 15 秒，立刻問 running 並重抓資料
+</script>
+</body>
+</html>

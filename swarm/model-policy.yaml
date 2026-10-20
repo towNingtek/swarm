@@ -1,0 +1,9 @@
+# 無人值守執行可以用哪些引擎／模型。
+# - Claude 訂閱只能透過官方 claude CLI（或 Routines）使用，由站台主人自己登入；
+#   禁止任何程式直接使用 Claude OAuth token。
+# - Codex 訂閱：沒有明文禁止，注意限流。
+# - opencode：免費模型與 API key（NVIDIA 等）。
+automation:
+  engines: [claude, codex, opencode]
+  deny_models:
+    - "claude-code/"       # 舊排程器的 claude-code/* 路徑（第三方用訂閱 token）

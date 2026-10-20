@@ -98,6 +98,46 @@ class TeardownTests(unittest.TestCase):
             # ...but the tenant is disabled so the customer cannot keep using it.
             self.assertEqual(conn.execute('SELECT enabled FROM tenants').fetchone()[0], 0)
 
+    def test_retry_after_site_already_purged_finishes_the_records(self):
+        """First attempt removed the site then failed on rows: a retry must complete."""
+        tenant = self.tenant(); self.provision(tenant)
+        with patch('dsh_sitectl.cmd_delete', side_effect=RuntimeError('site.yaml missing')), \
+                patch.object(SiteTeardown, '_already_purged', return_value=True):
+            result = self.teardown.delete_tenant(self.admin, tenant.id, expected_host=tenant.site_host)
+        self.assertEqual(result['site_removed'], 'acme')
+        with self.core._connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM tenants').fetchone()[0], 0)
+        # A real failure with the site still present is reported, not hidden.
+        other = self.tenant('beta.example'); self.provision(other, 'beta')
+        with patch('dsh_sitectl.cmd_delete', side_effect=RuntimeError('docker down')), \
+                patch.object(SiteTeardown, '_already_purged', return_value=False):
+            with self.assertRaises(TeardownError):
+                self.teardown.delete_tenant(self.admin, other.id, expected_host=other.site_host)
+
+    def test_already_purged_needs_missing_state_folder_and_container(self):
+        import subprocess
+
+        import common
+        import dsh_sitectl
+
+        gone = subprocess.CompletedProcess([], 1, '', 'Error: No such object: site-acme')
+        alive = subprocess.CompletedProcess([], 0, '[]', '')
+        missing = common.SiteError("site 'acme' does not exist (x/site.yaml not found)")
+        with tempfile.TemporaryDirectory() as root, \
+                patch.object(common, 'SITES_ROOT', Path(root)):
+            with patch('subprocess.run', return_value=gone) as run:
+                self.assertTrue(SiteTeardown._already_purged(dsh_sitectl, 'acme', missing))
+                self.assertEqual(run.call_args[0][0], ['docker', 'inspect', 'site-acme'])
+                # Any other error is a real failure, whatever the disk says.
+                self.assertFalse(SiteTeardown._already_purged(
+                    dsh_sitectl, 'acme', common.SiteError('Delete incomplete (proxy: x)')))
+                self.assertFalse(SiteTeardown._already_purged(dsh_sitectl, 'acme', RuntimeError('x')))
+            with patch('subprocess.run', return_value=alive):
+                self.assertFalse(SiteTeardown._already_purged(dsh_sitectl, 'acme', missing))
+            (Path(root) / 'acme').mkdir()
+            with patch('subprocess.run', return_value=gone):
+                self.assertFalse(SiteTeardown._already_purged(dsh_sitectl, 'acme', missing))
+
     def test_only_an_administrator_may_delete(self):
         tenant = self.tenant()
         actor = self.activate(tenant)

@@ -71,9 +71,15 @@ All POST, session required, no query string.
 
 | Method | Path | Session | Body | Mounted when | Notes |
 |---|---|---|---|---|---|
-| POST | `/customer/site-entry` | yes | `{}` | `SWARM_ENTRY_SECRET` is set | Returns `{"url": "https://<site>/auth/enter?ticket=..."}`. 409 if the site is not provisioned or the tenant is disabled |
+| POST | `/customer/site-entry` | yes | `{}` or `{"next": "/board/"}` | `SWARM_ENTRY_SECRET` is set | Returns `{"url": "https://<site>/auth/enter?ticket=..."}`; with `next` the ticket continues to that path inside the site (allow-list: `/`, `/board/`; anything else is 400). 409 if the site is not provisioned or the tenant is disabled |
 | GET | `/customer/site-password` | yes | | `PLATFORM_SITE_PASSWORD=1` | `{"available": true}` |
 | POST | `/customer/site-password` | yes | exactly one of `password`, `platform_password` | `PLATFORM_SITE_PASSWORD=1` | Sets the site login password (12+ characters, or reuse the platform password after it verifies). Recreates the container. 429 while another change runs or during a 30 s cooldown |
+
+### Overview
+
+| Method | Path | Session | Notes |
+|---|---|---|---|
+| GET | `/customer/overview` | yes | The customer's own site host, this month's platform-model tokens, the last 10 scheduled runs (name, status, time; never the output) and attention items. `GET /customer/onboarding/status` also carries `board: true` when the site has the board plugin (`dsh-swarm-board`) installed |
 
 ### Support rooms
 
@@ -86,7 +92,7 @@ All POST, session required, no query string.
 
 ## Admin console (`admin_service.py`, `127.0.0.1:8211`, under `/admin`)
 
-Session: the `platform_admin_session` cookie (`Path=/admin`). Without it, every path except the login page redirects to `/admin/login`.
+Session: the `platform_admin_session` cookie (`Path=/admin`). Without it, every path except the login page redirects to the sign-in page: `/` when the console shares the platform origin (`ADMIN_ORIGIN` = `PLATFORM_ORIGIN`, the default), otherwise `/admin/login`. On the shared origin there is one sign-in form for everyone: the username `admin` signs in to this console, any other name is a customer (customers cannot take the name `admin`).
 
 `/admin/*` is served by a support app mounted inside the admin service (`platform/support_swarm_admin.py`). The paths below are the public ones.
 
@@ -94,16 +100,17 @@ Session: the `platform_admin_session` cookie (`Path=/admin`). Without it, every 
 
 | Method | Path | Session | Notes |
 |---|---|---|---|
-| GET | `/admin/login` | no | Login form |
+| GET | `/admin/login` | no | Login form; on the shared origin it redirects to `/` |
 | POST | `/admin/login` | no | Form field `password`. Sets the cookie and redirects to `/admin/customers` |
 | GET | `/admin/customers` | yes | Customer management page |
-| GET | `/admin/customers/assets/*` | yes | `management.js`, `tasks.js`, `chat.js`, `style.css` |
+| GET | `/admin/customers/assets/*` | yes | `shell.js`, `management.js`, `tasks.js`, `chat.js`, `style.css` |
 | GET | `/admin/support` | yes | Redirects to `customers#chat-section` |
 
 ### Tenants
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
+| GET | `/admin/overview` | | Dashboard: per site its state, whether it answers on its port, `board` (plugin installed), accounts, open invites, this month's and per-month usage, quota policy, last run, unanswered customer messages; an attention list; 30 days of daily usage per site; the 12 latest scheduled runs (never their output). No secrets |
 | GET | `/admin/tenants` | | All tenants: host, template, enabled, site job status, quota policy. No secrets |
 | POST | `/admin/tenants` | `client_request_id`, `host`, optional `room_mode` (`ai`, `coassist`, `human`), optional `policy` | Create a tenant and its support room. Replaying the same request returns the original result; a different payload with the same ID is 409 |
 | GET | `/admin/tenants/{id}` | | One tenant |
@@ -112,6 +119,8 @@ Session: the `platform_admin_session` cookie (`Path=/admin`). Without it, every 
 | GET | `/admin/site-templates` | | Available workspace templates and the default |
 | POST | `/admin/tenants/{id}/template` | `template` (an ID or `none`) | Template for the next site build; never rewrites an existing workspace |
 | POST | `/admin/tenants/{id}/site-jobs` | `client_request_id` | Queue the site build. Records intent; the platform service builds it |
+| GET | `/admin/tenants/{id}/packages` | | Extra Debian packages of a provisioned site. Only when `ADMIN_SITE_PACKAGES=1` |
+| POST | `/admin/tenants/{id}/packages` | `packages` (list of Debian package names, at most 40) | Build a derived image with these packages and recreate the container (old one kept until the new one passes the self-test). An empty list returns to the shared image. 429 while another change runs, 502 `package_change_failed` if the build or self-test failed (the old container is back). Only when `ADMIN_SITE_PACKAGES=1` |
 | POST | `/admin/tenants/{id}/delete` | `expected_host` | Delete the tenant and its site. Only when `ADMIN_ALLOW_DELETE=1`. 409 `teardown_incomplete` if external resources remain |
 
 ### Task library
