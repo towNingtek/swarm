@@ -14,7 +14,8 @@
         "@summersec/dsh-web-auth",
         "dsh-plugin-subscriptions",
         "swarm-brand",
-        "dsh-share-room"
+        "dsh-share-room",
+        "dsh-swarm-board"
       ],
       "patchReload": "live"
     }

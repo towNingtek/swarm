@@ -41,6 +41,11 @@ COPY site/dsh-profile/vendor/dsh-web-auth/ /opt/dsh-web-profile/node_modules/@su
 # Swarm 去識別化：自家品牌（側欄/新對話 logo）＋關閉 DeepSeek 帳號登入、DeepSeek 模型供應商、
 # DeepSeek 搜尋與內測聲明（見 plugins/swarm-brand/cordis.patch.yml）。profile bundles 已列入。
 COPY plugins/swarm-brand/ /opt/dsh-web-profile/node_modules/swarm-brand/
+# 看板（Wolffia）與 epic skill：/board/ 在站台登入後面。整個外掛目錄放在 profile 內，
+# 以相對連結當作套件（profile 封存不允許連到 profile 外）。看板只在站台登入 GitHub 後抓資料。
+COPY plugins/swarm-board/ /opt/dsh-web-profile/node_modules/.swarm-board/
+RUN ln -s .swarm-board/wolffia/site-plugin /opt/dsh-web-profile/node_modules/dsh-swarm-board \
+    && rm -rf /opt/dsh-web-profile/node_modules/.swarm-board/wolffia/tests /opt/dsh-web-profile/node_modules/.swarm-board/wolffia/site-plugin/test
 # 對話分享 dsh-share-room 由 npm 安裝（見 package.json）：站主把對話分享給沒有帳號的訪客。
 # 訪客頁在 /share/，由外掛自己驗證訪客；web-auth 只對 /share/ 放行（cordis.patch.yml 的 publicPrefixes）。
 
