@@ -12,14 +12,18 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <script defer src="/customer/ui/onboarding.js"></script></head><body class="app">
 <header class="nav"><a class="brand" href="/customer/onboarding"><svg class="mark" width="28" height="28" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><polygon points="20.0,2.0 35.6,11.0 35.6,29.0 20.0,38.0 4.4,29.0 4.4,11.0" class="mark-outer"/><polygon points="20.0,12.0 26.9,16.0 26.9,24.0 20.0,28.0 13.1,24.0 13.1,16.0" class="mark-inner"/></svg><span>SWARM</span></a>
 <nav class="nav-links"><a href="/customer/chat">完整客服對話</a><a class="nav-login" href="/customer/welcome">重新登入</a></nav></header>
+<div class="console">
+<aside class="cside" aria-label="選單"><nav id="cnav"><button type="button" data-view="overview" aria-current="page">總覽</button><button type="button" data-view="schedules">排程</button><button type="button" data-view="usage">用量</button><button type="button" data-view="settings">設定</button></nav></aside>
 <main>
 <section class="hero compact">
 <h1>你的 <span class="glow">AI 辦公室</span></h1>
 <p class="lede">這裡是你的設定總覽：站台、辦公室裡的公司與角色、正在用的模型。內容都直接讀自你的站台，不是勾選出來的。</p>
 </section>
+<div class="view" id="view-overview">
 <section id="site-card" class="panel site-card">
 <div class="site-head"><div><h2>我的站台</h2><p id="site-job" class="site-state"></p><p id="site-link" class="site-link"></p></div>
 <div id="site-ready" class="site-actions" hidden><button id="site-enter" type="button" class="btn primary">進入我的站台 →</button>
+<a id="site-board" class="btn board-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>📊 看板</a>
 <p class="hint">不需要另外的帳號密碼。</p></div></div>
 <p id="site-secret" class="hint"></p>
 <details id="site-password" class="sitepw" hidden><summary>設定站台密碼（選用）</summary>
@@ -41,7 +45,12 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <button id="site-password-save" type="submit" class="btn primary">儲存站台密碼</button>
 <p id="site-password-status" role="status" aria-live="polite"></p></form></details>
 </section>
+<section id="ov" class="panel" hidden><div class="ov-stats"><div class="ov-stat"><span class="k">本月平台模型用量</span><strong id="ov-tokens">—</strong><span class="u">token</span></div><div class="ov-stat"><span class="k">排程</span><strong id="ov-sched">—</strong><span class="u" id="ov-sched-u"></span></div></div><div id="ov-attn" class="ov-attn" hidden><h3>等你處理</h3><ul id="ov-attn-list"></ul></div><h3>最近排程</h3><ul id="ov-runs" class="run-list"></ul></section>
+</div>
+<div class="view" id="view-settings" hidden>
 <section class="panel slim" aria-labelledby="steps-title"><h2 id="steps-title" class="small-title">設定進度</h2><ol id="steps" class="progress"></ol></section>
+</div>
+<div class="view" id="view-schedules" hidden>
 <section id="office" class="panel"><div class="section-head"><h2>你的辦公室</h2><span id="office-meta" class="meta"></span></div>
 <p id="office-note" class="hint"></p>
 <div id="offers" class="offers" hidden><div class="offers-head"><h3>平台為你準備的任務</h3><span id="offers-meta" class="meta"></span></div>
@@ -77,16 +86,22 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <details id="runs-box" class="runs" hidden><summary>執行紀錄 <span id="runs-meta" class="meta"></span></summary><ul id="run-list" class="run-list"></ul></details>
 <p class="schedule-note"><span class="note-icon" aria-hidden="true">i</span><span id="schedule-note-text">排程會照經典 swarm 格式寫進站台設定，但<strong>這個站台還沒有排程執行器</strong>，目前只是記錄、不會自動執行。執行器上線後，標示「會執行」的排程就會照時間跑。</span></p>
 </section>
+</div>
+<div class="view" id="view-usage" hidden>
 <section id="model" class="panel"><div class="section-head"><h2>模型</h2><span id="model-meta" class="meta"></span></div>
 <p id="model-current" class="model-current"></p>
 <div id="starter-box" class="starter" hidden><div class="meter"><span id="starter-bar"></span></div><p id="starter-usage" class="hint"></p></div>
 <ol id="model-howto" class="howto" hidden><li>進入站台，打開 <strong>Settings → Models</strong>。</li><li>新增你的供應商（例如 OpenRouter、OpenAI）並貼上自己的金鑰。</li><li>把它設為預設模型。金鑰只存在你的站台，不要貼到聊天。</li></ol>
 </section>
+</div>
+<div class="view" id="view-settings-2" data-part-of="settings" hidden>
 <details id="rules-box" class="panel rules-box"><summary><h2>使用與支援說明</h2><span id="rules-state" class="meta"></span></summary>
 <ul id="rules" class="rules"></ul>
 <button id="acknowledge" class="btn primary" disabled>我已閱讀上述說明</button></details>
+</div>
 <div class="toolbar"><button id="reload" class="btn ghost">重新載入</button><span id="auto-note"></span></div>
 <p id="status" role="status" aria-live="polite"></p></main>
+</div>
 <button id="copilot-launcher" type="button" aria-expanded="false" aria-controls="copilot">
 <svg width="18" height="18" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><polygon points="20.0,2.0 35.6,11.0 35.6,29.0 20.0,38.0 4.4,29.0 4.4,11.0"/></svg>
 <span>設定助手</span></button>
@@ -107,6 +122,62 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 請勿貼上密碼或 API 金鑰。</p></aside></body></html>'''
 
 JS = r"""'use strict';
+(() => {
+  // 客戶後台的頁面切換（#555）：側欄按鈕切換 view，網址 #hash 記住目前頁面。
+  const VIEWS = ['overview', 'schedules', 'usage', 'settings'];
+  function show(view) {
+    if (!VIEWS.includes(view)) view = 'overview';
+    if (typeof document.querySelectorAll !== 'function') return;
+    for (const el of document.querySelectorAll('.view')) {
+      const part = el.getAttribute('data-part-of') || el.id.replace(/^view-/, '');
+      el.hidden = part !== view;
+    }
+    for (const b of document.querySelectorAll('#cnav [data-view]')) {
+      if (b.getAttribute('data-view') === view) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    }
+  }
+  function boot() {
+    if (typeof document.querySelectorAll !== 'function') return;  // test harnesses without a full DOM
+    for (const b of document.querySelectorAll('#cnav button[data-view]')) {
+      b.addEventListener('click', () => { const v = b.getAttribute('data-view');
+        try { history.replaceState(null, '', '#' + v); } catch (e) {}
+        show(v); });
+    }
+    show((location.hash || '').slice(1));
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+(() => {
+  // 客戶總覽：GET /customer/overview（本月用量、最近排程、等你處理）；租戶由登入 session 決定。
+  if (typeof document === 'undefined' || typeof fetch !== 'function') return;
+  const $ = (id) => document.getElementById(id);
+  const mk = (tag, text, cls) => { const n = document.createElement(tag); if (text != null) n.textContent = text; if (cls) n.className = cls; return n; };
+  const RUN = {succeeded: '成功', failed: '失敗', running: '執行中', skipped: '略過'};
+  async function loadOverview() {
+    try {
+      const r = await fetch('/customer/overview', {credentials: 'same-origin', cache: 'no-store', redirect: 'error'});
+      if (!r.ok) return;
+      const d = await r.json(), box = $('ov'); if (!box) return;
+      box.hidden = false;
+      $('ov-tokens').textContent = Number(d.usage_month && d.usage_month.tokens || 0).toLocaleString('zh-TW');
+      const al = $('ov-attn-list'); al.replaceChildren();
+      for (const a of d.attention || []) {
+        const li = mk('li'); const link = mk('a', a.text); link.href = '#' + (a.view || 'schedules');
+        link.addEventListener('click', () => { const b = document.querySelector('#cnav [data-view="' + (a.view || 'schedules') + '"]'); if (b) b.click(); });
+        li.append(link); al.append(li);
+      }
+      $('ov-attn').hidden = !(d.attention || []).length;
+      const rl = $('ov-runs'); rl.replaceChildren();
+      for (const x of (d.recent_runs || []).slice(0, 8)) {
+        const at = x.at ? new Date(x.at * 1000).toLocaleString('zh-TW', {hour12: false}) : '';
+        rl.append(mk('li', at + '　' + x.hive + ' / ' + x.name + '　' + (RUN[x.status] || x.status)));
+      }
+      if (!(d.recent_runs || []).length) rl.append(mk('li', '還沒有執行紀錄。'));
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadOverview); else loadOverview();
+})();
 (() => {
   const byId = id => document.getElementById(id);
   const labels = {activation:'啟用帳號', rules:'確認使用說明', site_preparation:'建立站台',
@@ -446,7 +517,8 @@ JS = r"""'use strict';
       byId('office-note').textContent = ready ? '目前讀不到站台的辦公室資料，請稍後重新載入。' : '站台建立後，這裡會顯示你辦公室裡的公司與角色。';
       return;
     }
-    const list = Array.isArray(office.hives) ? office.hives : [];
+    const list = (Array.isArray(office.hives) ? office.hives : []).slice()
+      .sort((a, b) => ((b.schedules || []).length > 0) - ((a.schedules || []).length > 0));
     byId('office-meta').textContent = list.length ? list.length + ' 間公司' : '';
     byId('office-note').textContent = office.registry === 'unreadable'
       ? '.swarm/registry.yaml 格式有誤，請在站台裡請 AI 用 hive-list 檢查。'
@@ -536,11 +608,13 @@ JS = r"""'use strict';
       byId('site-card').className = 'panel site-card' + (job.provisioned === true ? ' ready' : '');
       const live = ['queued','running'].includes(job.status);
       byId('auto-note').textContent = live ? '（建站期間會自動更新）' : '';
+      boardOn = data.board === true;
       renderSite(job);
       renderSteps(data.steps);
       office = data.office && typeof data.office === 'object' ? data.office : null;
       executor = !!(data.tasks && data.tasks.executor === true);
       renderOffice(data.office, job);
+      renderScheduleCount(office);
       renderTasks(data.tasks, office);
       renderModel(data.office, job, data.starter);
       byId('rules').replaceChildren();
@@ -559,10 +633,39 @@ JS = r"""'use strict';
       schedule(data);
     }
   }
+  // 總覽的「排程」數字：辦公室裡的排程，以及其中會照時間執行的（公司啟用且設定完整）。
+  function renderScheduleCount(office) {
+    const total = byId('ov-sched'), unit = byId('ov-sched-u');
+    if (!total || !unit) return;
+    const hives = office && Array.isArray(office.hives) ? office.hives : [];
+    let all = 0, on = 0;
+    for (const h of hives) for (const j of (Array.isArray(h.schedules) ? h.schedules : [])) {
+      all++; if (h.enabled && j.state === 'ready') on++;
+    }
+    total.textContent = String(all ? on : 0);
+    unit.textContent = all ? '／' + all + ' 個會執行' : '還沒有排程';
+  }
+  let boardOn = false;
   function renderSite(job) {
     const ready = job && job.provisioned === true && typeof job.site_host === 'string';
     byId('site-ready').hidden = !ready;
     byId('site-link').textContent = ready ? 'https://' + job.site_host + '/' : '';
+    // 看板在站台的 /board/（站台登入後）；平台回報站台裝好看板才顯示。
+    const board = byId('site-board');
+    if (board) { const on = ready && boardOn === true; board.hidden = !on; board.href = on ? 'https://' + job.site_host + '/board/' : '#'; }
+    if (board && !board.dataset.oneClick) {
+      board.dataset.oneClick = '1';
+      board.addEventListener('click', (ev) => {
+        // 一鍵進看板：用一次性票登入站台，直接跳到 /board/（不用先進一次站台）。
+        ev.preventDefault();
+        const w = window.open('about:blank', '_blank');
+        fetch('/customer/site-entry', {method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+          headers: {'Content-Type': 'application/json'}, body: JSON.stringify({next: '/board/'})})
+          .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+          .then(d => { if (w) { try { w.opener = null; } catch (e) {} w.location.href = d.url; } else location.href = d.url; })
+          .catch(() => { if (w) w.location.href = board.href; else location.href = board.href; });
+      });
+    }
     if (!ready) { byId('site-password').hidden = true; return; }
     // Offer the site password form only where the platform really wires it.
     fetch('/customer/site-password', {credentials:'same-origin', cache:'no-store', redirect:'error'})
@@ -887,6 +990,24 @@ JS = r"""'use strict';
 
 CSS = """
 body.app main { max-width: 60rem; padding-bottom: 7rem; }
+.console { display: grid; grid-template-columns: 13rem 1fr; gap: 1.5rem; max-width: 76rem; margin: 0 auto; padding: 0 1.2rem; }
+.console > main { min-width: 0; margin: 0; }
+.cside { position: sticky; top: 1rem; align-self: start; padding-top: 1.2rem; }
+.cside nav { display: flex; flex-direction: column; gap: .25rem; }
+.cside nav button, .cside nav a { all: unset; cursor: pointer; display: block; padding: .6rem .9rem; border-radius: .6rem;
+  color: var(--muted); font-size: .98rem; }
+.cside nav button:hover, .cside nav a:hover { color: var(--text); background: #ffffff0a; }
+.cside nav [aria-current="page"] { color: var(--honey); background: #f5b30114; font-weight: 600; }
+.cside nav :focus-visible { outline: 2px solid var(--honey); outline-offset: 1px; }
+.view[hidden] { display: none !important; }
+.ov-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .8rem; margin-bottom: 1rem; }
+.ov-stat { border: 1px solid var(--line); border-radius: .9rem; padding: .9rem 1rem; display: grid; gap: .1rem; }
+.ov-stat .k, .ov-stat .u { color: var(--muted); font-size: .85rem; } .ov-stat strong { font-size: 1.6rem; }
+.ov-attn { border: 1px solid #f0be5555; border-radius: .9rem; padding: .7rem 1rem; margin-bottom: 1rem; }
+.ov-attn h3 { margin: 0 0 .3rem; font-size: 1rem; } .ov-attn ul { margin: 0; padding-left: 1.1rem; }
+.ov-attn a { color: var(--honey); cursor: pointer; }
+@media (max-width: 760px) { .console { grid-template-columns: 1fr; } .cside { position: static; padding-top: .4rem; }
+  .cside nav { flex-direction: row; flex-wrap: wrap; } }
 .nav-links { display: flex; align-items: center; gap: 1.2rem; }
 .nav-links a:not(.nav-login) { color: var(--muted); text-decoration: none; font-size: .92rem; }
 .nav-links a:not(.nav-login):hover { color: var(--text); }
@@ -910,6 +1031,13 @@ body.app main { max-width: 60rem; padding-bottom: 7rem; }
 .site-actions { text-align: right; }
 .site-actions .hint { margin-top: .5rem; }
 #site-enter { font-size: 1.05rem; padding: 1rem 1.7rem; }
+.board-btn { display: inline-flex; align-items: center; justify-content: center; padding: .75rem 1.4rem;
+  font-weight: 600; text-decoration: none; border-radius: .8rem; border: 1px solid var(--honey);
+  color: var(--honey); background: #f5b30112; }
+.board-btn:hover { background: #f5b30126; color: var(--honey-2); }
+.site-actions { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: flex-end; align-items: center; }
+.site-actions .hint { flex-basis: 100%; text-align: right; }
+.board-btn[hidden] { display: none; }
 /* Progress */
 .panel.slim { padding: 1.1rem 1.4rem; }
 .small-title { font-size: .95rem !important; color: var(--muted); font-weight: 600; margin-bottom: .7rem !important; }

@@ -40,7 +40,7 @@ def install_swarm_admin_support(app, core, rooms, public_origin, *, prefix=UPSTR
                                 public_prefix=PUBLIC_PREFIX,
                                 allow_loopback_http_test_origin=False, session_auth=None,
                                 enable_site_job_queue=False, platform_host=None, live=False,
-                                site_domain='', teardown=None, model=None):
+                                site_domain='', teardown=None, model=None, site_packages=None):
     # Trusted composition dependency, never a request-selectable auth provider.
     session_auth = swarm_auth if session_auth is None else session_auth
     if getattr(app.state, 'swarm_admin_support_installed', False):
@@ -70,7 +70,8 @@ def install_swarm_admin_support(app, core, rooms, public_origin, *, prefix=UPSTR
         boundaries[0].kwargs['policy'] = edge_policy
     quota = SupportQuota(core)
     install_management(support, core, rooms, quota, enable_site_job_queue=enable_site_job_queue,
-                       platform_host=platform_host, teardown=teardown)
+                       platform_host=platform_host, teardown=teardown,
+                       site_packages=site_packages)
     # The old standalone support console is retired: conversations live in
     # 客戶管理. Relative Location so it resolves under any public prefix.
     async def retired_support_page(request: Request):

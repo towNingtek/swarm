@@ -60,7 +60,9 @@ class SiteEntry:
         import base64
         return base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')
 
-    def entry_url(self, actor):
+    ALLOWED_NEXT = ('/', '/board/')
+
+    def entry_url(self, actor, next_path='/'):
         """Return the one-time URL for this customer's provisioned site."""
         with self.core._connect() as conn:
             conn.execute('BEGIN')
@@ -83,4 +85,7 @@ class SiteEntry:
         expiry_ms = int((time.time() + self.ttl) * 1000)
         nonce = secrets.token_urlsafe(24)
         ticket = f'{expiry_ms}.{nonce}.{self._sign(expiry_ms, nonce, host)}'
-        return f'https://{host}/auth/enter?ticket={ticket}'
+        if next_path not in self.ALLOWED_NEXT:
+            raise ValueError('next not allowed')
+        suffix = '' if next_path == '/' else '&next=' + next_path.replace('/', '%2F')
+        return f'https://{host}/auth/enter?ticket={ticket}{suffix}'

@@ -31,8 +31,17 @@ def install_site_entry(app, entry):
             actor = await app.state.support_actor_for(request)
             if request.scope.get('query_string'):
                 raise InvalidInput('query not accepted')
-            await strict_body(request, {})
-            url = await run_in_threadpool(entry.entry_url, actor)
+            # {} = the site home; {"next": "/board/"} = straight to the board (swarm#556).
+            raw = await request.body()
+            if len(raw) > 256:
+                raise OverflowError
+            if request.headers.getlist('content-type') != ['application/json']:
+                raise InvalidInput('JSON required')
+            import json as _json
+            body = _json.loads(raw.decode('utf-8') or '{}')
+            if not isinstance(body, dict) or set(body) - {'next'} or not isinstance(body.get('next', '/'), str):
+                raise InvalidInput('invalid body')
+            url = await run_in_threadpool(entry.entry_url, actor, body.get('next', '/'))
             return JSONResponse({'url': url})
         except Conflict:
             return _error(409)

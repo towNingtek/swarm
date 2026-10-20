@@ -40,6 +40,21 @@ def starter_allowance(core, conn, tenant_id):
             'limit': policy['monthly_limit'] if policy and mode == 'capped' else None}
 
 
+def _board_installed(core, actor, site_status):
+    """True when this provisioned site has the board plugin (same check as the operator overview)."""
+    if not (isinstance(site_status, dict) and site_status.get('provisioned')):
+        return False
+    try:
+        from support_admin_overview import _board_installed as installed
+        with core._connect() as conn:
+            principal = core._customer(conn, actor)
+            row = conn.execute("SELECT site_name FROM support_site_jobs WHERE tenant_id=? "
+                               "AND status='succeeded_provisioned'", (principal.tenant_id,)).fetchone()
+        return bool(row and installed(row['site_name']))
+    except Exception:
+        return False
+
+
 class SupportOnboarding:
     def __init__(self, core, *, model_settings=None, office=None, tasks=None, scheduler=None):
         from support_model_settings import CustomerModelSettings
@@ -145,6 +160,7 @@ class SupportOnboarding:
                 # once it is provisioned, but the platform cannot prove work.
                 'ready_for_work': False,
                 'site_job': site_status,
+                'board': _board_installed(self.core, actor, site_status),
                 'model_settings': model_status,
                 'office': office,
                 'starter': starter,

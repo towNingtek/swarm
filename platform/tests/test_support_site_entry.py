@@ -104,6 +104,45 @@ class SiteEntryTests(unittest.TestCase):
             self.entry.entry_url(bob)            # bob's site is not provisioned
         self.assertIn('acme.example', self.entry.entry_url(self.actor))
 
+    # One-click 看板: a ticket may continue to an allow-listed path inside the site.
+
+    def test_next_is_allow_listed(self):
+        self.provision()
+        home = self.entry.entry_url(self.actor)
+        self.assertNotIn('next=', home)
+        board = self.entry.entry_url(self.actor, '/board/')
+        self.assertTrue(board.startswith('https://acme.example/auth/enter?ticket='))
+        self.assertTrue(board.endswith('&next=%2Fboard%2F'))
+        for bad in ('/admin', 'https://evil.example/', '//evil.example', '/board/../x', '/board', ''):
+            with self.assertRaises(ValueError):
+                self.entry.entry_url(self.actor, bad)
+
+    def test_http_body_is_empty_or_next_only(self):
+        from fastapi.testclient import TestClient
+        from support_chat_app import create_customer_chat_app
+        from support_rooms import SupportRooms
+
+        app = create_customer_chat_app(self.core, SupportRooms(self.core), 'https://' + PLATFORM,
+                                       site_entry=self.entry)
+        client = TestClient(app, base_url='https://' + PLATFORM)
+        self.addCleanup(client.close)
+        origin = {'origin': 'https://' + PLATFORM}
+        token = self.core.issue_invite(self.admin, self.tenant.id)
+        self.assertEqual(client.post('/customer/activate', headers=origin, json={
+            'invite': token, 'username': 'bob', 'password': 'customer-password-1'}).status_code, 201)
+        self.provision()
+        home = client.post('/customer/site-entry', headers=origin, json={})
+        self.assertEqual(home.status_code, 200)
+        self.assertNotIn('next=', home.json()['url'])
+        board = client.post('/customer/site-entry', headers=origin, json={'next': '/board/'})
+        self.assertEqual(board.status_code, 200)
+        self.assertTrue(board.json()['url'].endswith('&next=%2Fboard%2F'))
+        for body in ({'next': '/admin'}, {'next': 1}, {'other': 'x'}, {'next': '/board/', 'x': 1}, []):
+            self.assertEqual(client.post('/customer/site-entry', headers=origin, json=body).status_code,
+                             400, body)
+        self.assertEqual(client.post('/customer/site-entry', headers=origin,
+                                     json={'next': '/' + 'a' * 300}).status_code, 413)
+
 
 if __name__ == '__main__':
     unittest.main()

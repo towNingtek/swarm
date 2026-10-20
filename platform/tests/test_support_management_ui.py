@@ -1,4 +1,5 @@
 """Offline TestClient and executable Node fakeDOM checks, not browser acceptance."""
+import json
 import os
 import subprocess
 import tempfile
@@ -51,7 +52,7 @@ class ManagementUITests(unittest.TestCase):
         self.headers = {'x-test-admin': 'test', 'origin': 'https://mother.example'}
         self.paths = ['/admin/customers', '/admin/customers/assets/management.js',
                       '/admin/customers/assets/style.css', '/admin/customers/assets/tasks.js',
-                      '/admin/customers/assets/chat.js']
+                      '/admin/customers/assets/chat.js', '/admin/customers/assets/shell.js']
 
     def test_install_dependencies_opt_in_and_isolation(self):
         self.assertEqual(self.client.get(self.paths[0], headers=self.headers).status_code, 404)
@@ -95,7 +96,8 @@ class ManagementUITests(unittest.TestCase):
             self.assertFalse(any(k.startswith('on') for k in attrs))
             if tag == 'script':
                 self.assertIn(attrs['src'], (self.paths[1], '/admin/customers/assets/tasks.js',
-                                             '/admin/customers/assets/chat.js'))
+                                             '/admin/customers/assets/chat.js',
+                                             '/admin/customers/assets/shell.js'))
             if attrs.get('id') == 'invite-link':
                 self.assertIn('readonly', attrs)
         self.assertFalse(any(tag == 'a' for tag, _ in parser.tags))
@@ -103,6 +105,50 @@ class ManagementUITests(unittest.TestCase):
         self.assertIn('不會建立 Docker 站台', page)
         self.assertIn('不限額仍受系統安全速率', page)
         self.assertIn('客戶清單', page)
+
+    def test_overview_is_admin_only_and_never_leaks_secrets(self):
+        import support_admin_overview
+        self.core.issue_invite(self.actor, self.tenant.id)
+        self.assertEqual(self.client.get('/admin/overview').status_code, 401)
+        self.assertEqual(self.client.get('/admin/overview?x=1', headers=self.headers).status_code, 400)
+        response = self.client.get('/admin/overview', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['totals']['sites'], 1)
+        site = data['sites'][0]
+        self.assertEqual(site['host'], 'customer.example')
+        self.assertEqual(site['open_invites'], 1)
+        self.assertIsNone(site['online'])  # no site built: nothing to probe
+        self.assertIs(site['board'], False)  # no site, no board link
+        self.assertIs(self.client.get('/admin/tenants', headers=self.headers).json()[0]['board'], False)
+        for word in ('token', 'password', 'digest', 'hash', 'body'):
+            self.assertNotIn(word, json.dumps(data).replace('"tokens"', '').replace('tokens_month', ''))
+        # A customer message left unanswered shows up as work for the operator.
+        customer = self.core.redeem_invite(self.core.issue_invite(self.actor, self.tenant.id),
+                                           'customer.example', 'alice', 'test-password-long').actor
+        room = self.rooms.create_room(self.actor, self.tenant.id)
+        self.rooms.post_message(customer, room['id'], 'c-1', 'secret-question')
+        data = self.client.get('/admin/overview', headers=self.headers).json()
+        self.assertEqual(data['sites'][0]['waiting'], 1)
+        self.assertEqual(data['attention'][0]['kind'], 'chat')
+        self.assertNotIn('secret-question', json.dumps(data))
+        self.assertIn('daily', data)
+        self.assertEqual(data['recent_runs'], [])
+        # The liveness probe treats any HTTP answer as up, a refused port as down.
+        self.assertFalse(support_admin_overview._probe(1))
+        self.assertIsNone(support_admin_overview._probe(None))
+        # Board: read from the site's profile on disk, by the recorded site name.
+        import common
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root, patch.object(common, 'SITES_ROOT', Path(root)):
+            self.assertFalse(support_admin_overview._board_installed('acme'))
+            lib = os.path.join(root, 'acme', 'dsh-home', 'profiles', 'web', 'node_modules', 'dsh-swarm-board', 'lib')
+            os.makedirs(lib)
+            open(os.path.join(lib, 'index.js'), 'w').close()
+            self.assertTrue(support_admin_overview._board_installed('acme'))
+            for bad in ('../acme', 'acme/../acme', '', None, 'Acme', '-acme'):
+                self.assertFalse(support_admin_overview._board_installed(bad), bad)
 
     def test_customer_forged_and_broken_adapter_rejected(self):
         install_management_ui(self.app, self.core)
@@ -154,7 +200,7 @@ function element() { return {value:'', textContent:'', children:[], disabled:fal
  addEventListener(k, fn) { this[k] = fn; }, replaceChildren() { this.children = []; },
  append(c) { this.children.push(c); }, set innerHTML(_) { throw Error('unsafe DOM'); },
  set outerHTML(_) { throw Error('unsafe DOM'); }}; }
-for (const id of ['status','invite-link','invite-submit','quota-submit','refresh','limit','policy','tenant-list','tenants','tenant-detail','ttl','invite-form','quota-form','bootstrap-form','bootstrap-host','bootstrap-submit','bootstrap-note','bootstrap-domain','bootstrap-preview','invite-copy','invite-copy-status','site-job-section','site-job-submit','site-job-result','site-job-note','danger-section','delete-confirm','delete-submit','delete-result','template','template-form','template-submit','template-desc','page-note']) nodes[id] = element();
+for (const id of ['site-links','status','invite-link','invite-submit','quota-submit','refresh','limit','policy','tenant-list','tenants','tenant-detail','ttl','invite-form','quota-form','bootstrap-form','bootstrap-host','bootstrap-submit','bootstrap-note','bootstrap-domain','bootstrap-preview','invite-copy','invite-copy-status','site-job-section','site-job-submit','site-job-result','site-job-note','danger-section','delete-confirm','delete-submit','delete-result','template','template-form','template-submit','template-desc','page-note','packages-section','packages-form','packages-input','packages-submit','packages-result']) nodes[id] = element();
 global.document = {getElementById:id=>nodes[id], createElement:element, body:{dataset:{}}};
 global.confirm = () => true;
 let copied = null;
@@ -168,7 +214,7 @@ global.console = new Proxy({}, {get(){throw Error('logging forbidden');}});
 let failInvite = false, failQuota = false, holdInvite = false, release;
 const rows = [
  {id:'a/x<img onerror=bad>',host:'customer.example',enabled:true,quota_mode:'metered',metadata_only:true,policy:{mode:'disabled',monthly_limit:null},template:'swarm'},
- {id:'b',host:'other.example',enabled:true,quota_mode:'metered',metadata_only:true,policy:{mode:'capped',monthly_limit:5},template:'none'}
+ {id:'b',host:'other.example',enabled:true,quota_mode:'metered',metadata_only:true,policy:{mode:'capped',monthly_limit:5},template:'none',site_job:'succeeded_provisioned',board:true}
 ];
 global.fetch = async (path, options) => {
  calls.push({path, options});
@@ -241,6 +287,14 @@ const submit=()=>({preventDefault(){}});
  // Host leads the summary; the full id stays available but out of the way.
  assert.ok(nodes['tenant-detail'].textContent.startsWith('other.example'));
  assert.ok(nodes['tenant-detail'].textContent.includes('完整 id：b'));
+ // 進入站台／看板：已建好的站台才有，開新分頁、noopener，網址對。
+ const links = nodes['site-links'].children;
+ assert.equal(links.length, 2);
+ assert.equal(links[0].href, 'https://other.example/'); assert.equal(links[1].href, 'https://other.example/board/');
+ for (const a of links) { assert.equal(a.target, '_blank'); assert.ok(a.rel.includes('noopener')); }
+ nodes.tenants.value=rows[0].id; nodes.tenants.change();
+ assert.equal(nodes['site-links'].children.length, 0, 'no links for a site that is not provisioned');
+ nodes.tenants.value='b'; nodes.tenants.change();
  failQuota=false;
  failInvite=true; const before=calls.length;
  await nodes['invite-form'].submit(submit()); await tick();
@@ -279,7 +333,7 @@ const nodes = {}, calls = [];
 function element() { return {value:'', textContent:'', children:[], disabled:false, hidden:false,
  focus() {}, select() {}, addEventListener(k, fn) { this[k] = fn; },
  replaceChildren() { this.children = []; }, append(c) { this.children.push(c); }}; }
-for (const id of ['status','invite-link','invite-submit','quota-submit','refresh','limit','policy','tenant-list','tenants','tenant-detail','ttl','invite-form','quota-form','bootstrap-form','bootstrap-host','bootstrap-submit','bootstrap-note','bootstrap-domain','bootstrap-preview','invite-copy','invite-copy-status','site-job-section','site-job-submit','site-job-result','site-job-note','danger-section','delete-confirm','delete-submit','delete-result','template','template-form','template-submit','template-desc','page-note']) nodes[id] = element();
+for (const id of ['site-links','status','invite-link','invite-submit','quota-submit','refresh','limit','policy','tenant-list','tenants','tenant-detail','ttl','invite-form','quota-form','bootstrap-form','bootstrap-host','bootstrap-submit','bootstrap-note','bootstrap-domain','bootstrap-preview','invite-copy','invite-copy-status','site-job-section','site-job-submit','site-job-result','site-job-note','danger-section','delete-confirm','delete-submit','delete-result','template','template-form','template-submit','template-desc','page-note','packages-section','packages-form','packages-input','packages-submit','packages-result']) nodes[id] = element();
 global.document = {getElementById:id=>nodes[id], createElement:element,
   body:{dataset:{mode:'live', siteDomain:'example.com'}}};
 global.confirm = () => true;
@@ -335,6 +389,65 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class OverviewSiteLinksTests(unittest.TestCase):
+    """總覽的站台卡片下方要有「進入站台」「看板」連結（只給已建好、網域合法的站台）。"""
+
+    def test_overview_cards_have_site_and_board_links(self):
+        import shutil
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('node not available')
+        harness = r"""
+const assert = require('node:assert/strict');
+const nodes = {};
+function element(tag) { return {tag, value:'', textContent:'', children:[], hidden:false, dataset:{}, style:{},
+  className:'', classList:{add(){},remove(){},toggle(){}}, setAttribute(){}, focus(){},
+  addEventListener(k, fn) { this[k] = fn; }, replaceChildren() { this.children = []; },
+  append(...c) { this.children.push(...c); }}; }
+const ids = new Proxy({}, {get(_, id) { return nodes[id] || (nodes[id] = element('div')); }});
+global.document = {getElementById: (id) => ids[id], createElement: element, querySelectorAll: () => [],
+  documentElement: {dataset:{}}, body: {dataset:{}}, addEventListener(){}};
+global.localStorage = {getItem(){ return null; }, setItem(){}};
+global.matchMedia = () => ({matches:false, addEventListener(){}});
+global.addEventListener = () => {}; global.location = {hash:''};
+global.MutationObserver = class { observe(){} disconnect(){} };
+global.setInterval = () => 0;
+nodes['view-overview'] = element('div');
+const data = {totals:{sites:2,online:2,attention:0,tokens_month:0}, attention:[], usage_30d:[], runs:[],
+  sites:[{id:'a',host:'ok.example.com',site_job:'succeeded_provisioned',online:true,board:true,usage_month:{tokens:0},policy:{mode:'unlimited'},accounts:1},
+         {id:'c',host:'noboard.example.com',site_job:'succeeded_provisioned',online:true,board:false,usage_month:{tokens:0},policy:{mode:'unlimited'},accounts:1},
+         {id:'b',host:'new.example.com',site_job:'queued',online:false,usage_month:{tokens:0},policy:{mode:'unlimited'},accounts:0}]};
+global.fetch = async () => ({ok:true, json: async () => structuredClone(data)});
+eval(SHELL_JS);
+setTimeout(() => {
+  const cards = nodes['site-cards'].children;
+  assert.equal(cards.length, 3);
+  const linksOf = (wrap) => wrap.children.filter((c) => c.className === 'site-card-actions');
+  const ok = linksOf(cards[0]);
+  assert.equal(ok.length, 1, 'provisioned site has links');
+  const [board, enter] = ok[0].children;
+  assert.equal(board.href, 'https://ok.example.com/board/'); assert.equal(enter.href, 'https://ok.example.com/');
+  assert.equal(board.className, 'act primary', 'board is the primary button');
+  assert.equal(enter.className, 'act', 'enter is secondary when the board exists');
+  assert.ok(board.textContent.includes('看板') && board.title);
+  for (const a of [enter, board]) { assert.equal(a.target, '_blank'); assert.ok(a.rel.includes('noopener')); }
+  // 沒裝看板的站台：只有「進入站台」，沒有「看板」。
+  const nb = linksOf(cards[1]);
+  assert.equal(nb.length, 1); assert.equal(nb[0].children.length, 1);
+  assert.equal(nb[0].children[0].href, 'https://noboard.example.com/');
+  assert.equal(nb[0].children[0].className, 'act primary', 'without a board, enter is the primary button');
+  assert.equal(linksOf(cards[2]).length, 0, 'not-yet-built site has no links');
+  console.log('ok');
+}, 50);
+"""
+        import support_management_ui as m
+        import subprocess
+        r = subprocess.run([node, '-e', 'const SHELL_JS = ' + __import__('json').dumps(m.SHELL_JS) + ';\n' + harness],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertIn('ok', r.stdout)
 
 
 class ChatPanelScriptTests(unittest.TestCase):

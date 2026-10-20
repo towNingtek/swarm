@@ -78,6 +78,25 @@ class SiteTeardown:
             return None
         return row['site_name']
 
+    @staticmethod
+    def _already_purged(dsh_sitectl, site_name, error):
+        """True when an earlier attempt already removed this site completely.
+
+        Only the "state file not found" refusal qualifies; docker or DNS errors
+        are real failures even if the folder happens to be absent.
+        """
+        import subprocess
+
+        import common
+
+        if not isinstance(error, common.SiteError) or 'does not exist' not in str(error):
+            return False
+        if common.site_root(site_name).exists():
+            return False
+        probe = subprocess.run(['docker', 'inspect', common.container_name(site_name)],
+                               capture_output=True, text=True)
+        return probe.returncode != 0 and 'No such' in (probe.stderr or '')
+
     def delete_tenant(self, admin_actor, tenant_id, *, expected_host):
         """Remove the site (if any) and then the tenant's records.
 
@@ -109,8 +128,16 @@ class SiteTeardown:
             import dsh_sitectl
 
             try:
-                dsh_sitectl.cmd_delete(argparse.Namespace(name=site_name,
-                                                          purge_data=self.purge_data))
+                try:
+                    dsh_sitectl.cmd_delete(argparse.Namespace(name=site_name,
+                                                              purge_data=self.purge_data))
+                except Exception as first:
+                    # An earlier attempt removed the site and then failed on the
+                    # records. cmd_delete purges the folder only after container,
+                    # proxy and DNS are all gone, so folder + container missing
+                    # means that part is done; anything else is a real failure.
+                    if not self._already_purged(dsh_sitectl, site_name, first):
+                        raise
                 removed_site = site_name
             except Exception as exc:
                 # Keep the tenant rows: they are the only record of what exists.

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (0.2)
+
+Operator and customer consoles, ported from the private deployment (generic parts only; nothing that depends on the old opencode scheduler).
+
+- Operator console (`/admin/customers`): a sidebar shell (總覽 / 站台管理 / 任務庫 / 用量 / 設定) with a dark and light theme that follows the system and can be switched. The overview (`GET /admin/overview`, `platform/support_admin_overview.py`) shows, per site, whether it answers, this month's platform-model usage against its quota, accounts and open invites, the last scheduled run and unanswered customer messages; an attention list; 30 days of daily usage per site; the latest scheduled runs (never their output). Each built site card has 📊 看板 and 進入站台 buttons in its footer (看板 only where the optional `dsh-swarm-board` plugin is installed, read from the site's web profile on disk). The site page is split into tabs (邀請 / 額度 / 樣板 / 建站 / 套件 / 刪除); tabs whose feature is not enabled are hidden.
+- One sign-in page: when the console shares the platform origin, the landing page's username `admin` signs in to the operator console, and `/admin/login` (GET) and unauthenticated console requests go to `/`. Customers can no longer take the name `admin`.
+- Operator sessions survive restarts: the session key is a 0600 file next to the database (`admin-session.key`) mixed with the admin password, so a redeploy keeps the operator signed in and a password change still signs everyone out.
+- Customer console (`/customer/onboarding`): a sidebar (總覽 / 排程 / 用量 / 設定) with the view kept in the URL hash. The overview (`GET /customer/overview`, `platform/support_customer_overview.py`) shows the customer's own usage this month, schedule count, recent runs and what needs attention. A one-click 📊 看板 button opens the site's `/board/` through a single-use entry ticket (`POST /customer/site-entry {"next": "/board/"}`; `SiteEntry.ALLOWED_NEXT` allows only `/` and `/board/`); it appears only when `GET /customer/onboarding/status` reports `board: true`.
+- Per-site extra packages (`ADMIN_SITE_PACKAGES=1`, `platform/support_site_packages.py`, `site/dsh_sitectl.py set_site_packages`): the operator lists Debian packages for a site; the platform builds a derived image on the site's base image and recreates the container with the same safety as a password change (built before anything stops, old container kept until the new one passes the self-test). An empty list returns the site to the shared image; password and isolation changes keep a package site on its own image.
+- Teardown: a retry after an earlier attempt removed the site but failed on the records now finishes (state folder and container both gone counts as removed; any other error is still reported).
+
 ## 0.1.0 — 2026-10-02
 
 First public release.
