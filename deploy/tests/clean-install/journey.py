@@ -61,6 +61,17 @@ r = step("site app with session", site.get(S + "/"), (200,))
 assert "__DSH_BOOT__" in r.text, "not the DSH app"
 step("the site refuses anonymous visitors", httpx.Client(follow_redirects=False, timeout=180).get(S + "/"), (401,))
 
+# The board plugin ships in the image: /board/ answers behind the site login, and without a
+# GitHub login it says so instead of failing.
+r = step("board page with session", site.get(S + "/board/"), (200,))
+assert "WOLFFIA" in r.text, "not the board page"
+st = step("board status", site.get(S + "/board/data/status.json"), (200,)).json()
+assert st == {"github": False}, st
+print("    board status:", st)
+step("board refuses anonymous visitors", httpx.Client(follow_redirects=False, timeout=180).get(S + "/board/"), (302, 303, 401))
+step("one-click board entry ticket", cust.post("/customer/site-entry", json={"next": "/board/"}), (200,))
+step("board entry refuses other paths", cust.post("/customer/site-entry", json={"next": "/admin"}), (400,))
+
 # Inside the site: what its AI can and cannot reach.
 probe = subprocess.run(["docker", "exec", "-i", "site-acme", "node", "-"], input=open("/root/clean-install/in_site.mjs").read(),
                        capture_output=True, text=True, timeout=300)
