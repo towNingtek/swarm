@@ -1,0 +1,6 @@
+# dsh-swarm-board: the swarm board at /board/, behind the site login.
+# /board stays private: do not add it to any login gate's public list.
+# Optional config: dataDir (default $DSH_HOME/swarm-board/data), html (path of the board page).
+- insert:
+    - id: swarm-board
+      name: 'dsh-swarm-board'
