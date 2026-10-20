@@ -1,0 +1,11 @@
+flowchart LR
+  browser([瀏覽器]) -->|"HTTPS"| nginx["nginx"]
+  nginx -->|"platform.example.com"| platform["平台 :8210<br/>邀請、登入、平台首頁、建站"]
+  nginx -->|"platform.example.com/admin"| admin["管理後台 :8211"]
+  nginx -->|"acme.example.com"| site["站台容器<br/>DSH + 登入 + 辦公室"]
+  platform --- db[(SQLite)]
+  admin --- db
+  platform -->|"docker"| site
+  site -->|"站台金鑰"| relay["站台模型 relay :8212<br/>核對金鑰與額度"]
+  relay --- db
+  relay -->|"平台金鑰"| gateway["你的 OpenAI 相容<br/>模型 gateway"]

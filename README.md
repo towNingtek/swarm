@@ -17,30 +17,12 @@ Full video with captions: [docs/media/demo.mp4](docs/media/demo.mp4). The demo r
 
 Swarm turns a goal into **an EPIC of small issues**, hands each issue to an AI agent, and lets the agents work **in parallel**. A result is accepted only when the issue's **executable acceptance criteria** pass, run by a separate judge. People define the goal, release the work and accept the result; they do not need to watch it.
 
-```mermaid
-flowchart LR
-  subgraph P1["① Define"]
-    direction TB
-    A(["Person: goal"]) --> B["epic skill<br/>done-criteria · split"]
-    B --> C["criteria tested first<br/>+ lint"]
-  end
-  subgraph P2["② Release"]
-    direction TB
-    G(["Person: swarm:go"])
-  end
-  subgraph P3["③ Build and judge"]
-    direction TB
-    I["🐝🐝🐝 Agents<br/>own worktrees"] --> J{"⚖️ Criteria<br/>all pass?"}
-    J -- no · retry --> I
-    J -- 3 tries --> M["swarm:stuck<br/>back to a person"]
-  end
-  subgraph P4["④ Accept"]
-    direction TB
-    Q["EPIC pull request"] --> U(["Person: accept"])
-  end
-  C --> G --> I
-  J -- yes --> Q
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/swarm-flow.en.dark.png">
+  <img alt="How the swarm works: define, release, build and judge in parallel, accept" src="docs/diagrams/swarm-flow.en.light.png" width="100%">
+</picture>
+
+<sub>Source: [`docs/diagrams/swarm-flow.en.mmd`](docs/diagrams/swarm-flow.en.mmd)</sub>
 
 | Stage | Who | Gate |
 |-------|-----|------|
@@ -78,19 +60,12 @@ Inside the customer's own site: the reply comes through the platform relay, and 
 
 ## How it fits together
 
-```mermaid
-flowchart LR
-  browser([Browser]) -->|"HTTPS"| nginx["nginx"]
-  nginx -->|"platform.example.com"| platform["Platform :8210<br/>invites, login, onboarding, site builds"]
-  nginx -->|"platform.example.com/admin"| admin["Admin console :8211"]
-  nginx -->|"acme.example.com"| site["Site container<br/>DSH + login + office"]
-  platform --- db[(SQLite)]
-  admin --- db
-  platform -->|"docker"| site
-  site -->|"site key"| relay["Site model relay :8212<br/>key + budget check"]
-  relay --- db
-  relay -->|"platform key"| gateway["Your OpenAI-compatible<br/>model gateway"]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture.en.dark.png">
+  <img alt="Architecture: browser, nginx, platform, admin console, site containers, model relay, gateway" src="docs/diagrams/architecture.en.light.png" width="100%">
+</picture>
+
+<sub>Source: [`docs/diagrams/architecture.en.mmd`](docs/diagrams/architecture.en.mmd)</sub>
 
 Each site sits on an isolated Docker network. The relay is the only host port it can reach: no other host ports, private networks or cloud metadata. The platform never runs `sudo`. Two small root units do the privileged work, one for the firewall and one that applies nginx configs. Details: [docs/architecture.md](docs/architecture.md) and [docs/security.md](docs/security.md).
 

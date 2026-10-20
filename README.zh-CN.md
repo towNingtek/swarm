@@ -17,30 +17,12 @@
 
 Swarm 把一个目标拆成 **一个 EPIC 和几张小 issue**，每张交给一个 AI agent，**并行**实现。成果要等 issue 上的**可执行验收判据**全部通过才算数，判据由独立的裁判执行。人负责定目标、放行、验收，不需要盯进度。
 
-```mermaid
-flowchart LR
-  subgraph P1["① 定义"]
-    direction TB
-    A(["人：目标"]) --> B["epic skill<br/>完成条件・拆卡"]
-    B --> C["判据先实测<br/>＋ lint"]
-  end
-  subgraph P2["② 放行"]
-    direction TB
-    G(["人：swarm:go"])
-  end
-  subgraph P3["③ 并行实现与裁定"]
-    direction TB
-    I["🐝🐝🐝 Agents<br/>各自 worktree"] --> J{"⚖️ 判据<br/>全过？"}
-    J -- 否・重试 --> I
-    J -- 3 次未过 --> M["swarm:stuck<br/>交给人"]
-  end
-  subgraph P4["④ 验收"]
-    direction TB
-    Q["EPIC 总 PR"] --> U(["人：验收结案"])
-  end
-  C --> G --> I
-  J -- 是 --> Q
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/swarm-flow.zh-CN.dark.png">
+  <img alt="群体智能流程：定义、放行、并行实现与裁定、验收" src="docs/diagrams/swarm-flow.zh-CN.light.png" width="100%">
+</picture>
+
+<sub>源文件：[`docs/diagrams/swarm-flow.zh-CN.mmd`](docs/diagrams/swarm-flow.zh-CN.mmd)</sub>
 
 | 阶段 | 参与者 | 关卡 |
 |------|--------|------|
@@ -78,19 +60,12 @@ flowchart LR
 
 ## 架构
 
-```mermaid
-flowchart LR
-  browser([浏览器]) -->|"HTTPS"| nginx["nginx"]
-  nginx -->|"platform.example.com"| platform["平台 :8210<br/>邀请、登录、平台首页、建站"]
-  nginx -->|"platform.example.com/admin"| admin["管理后台 :8211"]
-  nginx -->|"acme.example.com"| site["站点容器<br/>DSH + 登录 + 办公室"]
-  platform --- db[(SQLite)]
-  admin --- db
-  platform -->|"docker"| site
-  site -->|"站点密钥"| relay["站点模型 relay :8212<br/>核对密钥与额度"]
-  relay --- db
-  relay -->|"平台密钥"| gateway["你的 OpenAI 兼容<br/>模型 gateway"]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture.zh-CN.dark.png">
+  <img alt="架构：浏览器、nginx、平台、管理后台、站点容器、模型 relay、gateway" src="docs/diagrams/architecture.zh-CN.light.png" width="100%">
+</picture>
+
+<sub>源文件：[`docs/diagrams/architecture.zh-CN.mmd`](docs/diagrams/architecture.zh-CN.mmd)</sub>
 
 每个站点都在隔离的 Docker 网络里，主机上唯一能连到的是 relay，其他主机端口、内网和云 metadata 都连不到。平台本身从不执行 `sudo`，需要 root 的事交给两个小单元：一个管防火墙，一个应用 nginx 配置。细节见 [docs/architecture.md](docs/architecture.md) 和 [docs/security.md](docs/security.md)（英文）。
 
