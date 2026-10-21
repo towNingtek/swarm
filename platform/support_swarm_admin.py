@@ -159,4 +159,6 @@ def install_swarm_admin_support(app, core, rooms, public_origin, *, prefix=UPSTR
     app.state.support_rooms = rooms
     app.state.support_quota = quota
     app.state.support_public_prefix = public_prefix
+    # The console app itself, so optional plugins can add operator routes to it.
+    app.state.support_admin_app = support
     return app

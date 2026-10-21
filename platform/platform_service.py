@@ -22,6 +22,8 @@ Configuration (all required unless noted):
   PLATFORM_SITE_LINE   "1" to push scheduled results to LINE / HackMD when a
                     site's report asks for it (default off; needs
                     PLATFORM_SITE_SCHEDULER=1). See support_site_line.py.
+  PLATFORM_PLUGINS  comma-separated plugin directories (optional; see
+                    support_plugins.py)
 """
 from __future__ import annotations
 
@@ -172,6 +174,7 @@ def build():
     # values are required together; the token is read from the environment
     # (a 0600 file via platform-run.sh) and never logged.
     notifier = None
+    line_delivery = alerts = None
     discord_channel = os.environ.get('PLATFORM_NOTIFY_DISCORD_CHANNEL', '').strip()
     if discord_channel:
         from support_notify import DiscordNotifier
@@ -191,6 +194,7 @@ def build():
         line = LineDelivery(core, common.SITES_ROOT, alerts=alerts,
                             quota_file=_database().parent / 'line-quota.yaml')
         site_scheduler.delivery = ScheduleDelivery(common.SITES_ROOT, line, alerts)
+        line_delivery = line
         print('[platform] site LINE delivery: on', flush=True)
 
     app = create_customer_chat_app(core, rooms, origin, model=copilot_model, notifier=notifier,
@@ -232,6 +236,14 @@ def build():
     app.state.platform_host = host
     app.state.platform_core = core
     app.state.site_scheduler = site_scheduler
+    # Optional plugins (PLATFORM_PLUGINS). Last, so a plugin's middleware wraps
+    # everything above. A failing plugin is logged and skipped.
+    from support_plugins import install_plugins
+
+    install_plugins('platform', app=app, core=core, origin=origin, db_path=_database(),
+                    sites_root=common.SITES_ROOT, domain=common.DOMAIN, office=office,
+                    task_library=task_library, scheduler=site_scheduler, notifier=notifier,
+                    line_delivery=line_delivery, alerts=alerts, provisioner=provisioner)
     return app, provisioner
 
 

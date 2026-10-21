@@ -30,8 +30,15 @@ Each entry point documents its variables at the top of the file. The essentials:
 
 | `PLATFORM_SITE_SCHEDULER` | platform | `1` to run customer schedules inside their sites |
 | `PLATFORM_SITE_LINE` | platform | `1` to let reports push results to LINE / HackMD (needs the scheduler; off by default) |
+| `PLATFORM_PLUGINS` | platform, admin | Comma-separated plugin directories, each with `plugin.py` exposing `install(context)` (optional; see below) |
 
 `platform_admin_cli.py` is a small command line for the same database (add a customer, mint an invite, set up a site's starter model).
+
+## Plugins (optional)
+
+`PLATFORM_PLUGINS=/opt/plugins/a,/opt/plugins/b` names plugin directories. Each has a `plugin.py` with `install(context)`, called once by `platform_service.build()` (`context.service == 'platform'`) and once by `admin_service.build()` (`'admin'`). `context` carries the objects the service built: the app (and for admin, `admin_app`, the console app serving `/admin/...` behind the operator login), `core`, `sites_root`, the scheduler and, with `PLATFORM_SITE_LINE=1`, `line_delivery` and `alerts`. Code: `support_plugins.py`.
+
+A plugin can add routes or middleware and set the scheduler's hooks: `site_office(site, host)` (a different view of a site's schedules), `site_runner(site, settings)` (a per-site runner used instead of the built-in one), `run_check(...)` (refuse a manual run) and `tick_hooks`. A plugin that is missing, does not import or raises is logged and skipped; the platform always starts.
 
 ## LINE delivery (optional)
 

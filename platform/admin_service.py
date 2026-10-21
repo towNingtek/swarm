@@ -25,6 +25,8 @@ Configuration:
   PLATFORM_ORIGIN   customer platform origin, used to build invite links
   ADMIN_PORT        loopback port (default 8211)
   ADMIN_PATH_PREFIX public path prefix (default /admin)
+  PLATFORM_PLUGINS  comma-separated plugin directories (optional; see
+                    support_plugins.py)
 """
 from __future__ import annotations
 
@@ -250,6 +252,15 @@ def build():
                                 platform_host=urlsplit(platform_origin).hostname,
                                 site_domain=site_domain, teardown=teardown, model=model,
                                 site_packages=site_packages)
+    # Optional plugins (PLATFORM_PLUGINS). ``admin_app`` is the console app that
+    # serves /admin/tenants/... (routes added there sit behind the operator
+    # login); ``app`` is the outer service. A failing plugin is logged and skipped.
+    from support_plugins import install_plugins
+    import common
+
+    install_plugins('admin', app=app, admin_app=app.state.support_admin_app, core=core,
+                    rooms=rooms, origin=origin, platform_origin=platform_origin, db_path=db,
+                    sites_root=common.SITES_ROOT, domain=site_domain, scheduler=None)
     return app
 
 
