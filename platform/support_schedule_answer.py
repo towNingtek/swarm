@@ -115,6 +115,28 @@ def strip_narration(text):
     return "\n".join(kept).strip()
 
 
+# An answer that only reports that the work was done ("Both required tasks have been
+# successfully completed: 1. **AI News Digest Output** - Produced with 7 articles …")
+# is not the deliverable: the report itself is missing. Seen 2026-10-21 with a fast
+# model; such an answer counts as failed so the next model is tried.
+_COMPLETION_ONLY = re.compile(
+    r"^\s*(?:(?:both|all)\s+(?:required\s+)?tasks?\s+(?:have\s+been|are|were)\s+(?:successfully\s+)?completed|"
+    r"(?:the\s+)?tasks?\s+(?:is|are|has\s+been|have\s+been)\s+(?:successfully\s+)?completed|"
+    r"已完成.{0,30}(?:任務|排程|工作)|(?:兩|所有|全部)項(?:完成條件|任務).{0,10}(?:均|都)?(?:已)?(?:達成|完成)|任務完成)",
+    re.IGNORECASE)
+
+
+def _completion_report_only(text):
+    """True when the text opens as a completion report and has no list or heading
+    of its own content beyond descriptions of what was produced."""
+    head = text.strip().split("\n", 1)[0]
+    if not _COMPLETION_ONLY.search(head):
+        return False
+    body = [l.strip() for l in text.strip().splitlines()[1:] if l.strip()]
+    described = sum(1 for l in body if re.match(r"^(?:\d+\.|-|\*)\s+\*\*[^*]{2,60}\*\*\s*[-：:—]", l))
+    return described >= 1 and described >= len([l for l in body if re.match(r"^(?:\d+\.|-|\*)\s", l)])
+
+
 def deliverable(text):
     """(answer, reject_reason). An empty reason means the answer is usable."""
     if text and THINK_END in text:
@@ -123,6 +145,8 @@ def deliverable(text):
         return "", "輸出為空"
     text = _REPORT_AFTER_RULE.sub("", text)
     cleaned = strip_narration(text)
+    if cleaned and _completion_report_only(cleaned):
+        return "", "只有「已完成」的報告，沒有實際內容"
     if not cleaned:
         return "", "全部都是過程敘述，沒有實質內容"
     if len(cleaned) < MIN_DELIVERABLE_CHARS:

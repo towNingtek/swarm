@@ -44,6 +44,28 @@ class Answer(unittest.TestCase):
         self.assertTrue(deliverable('好的，')[1])
         self.assertIn('太短', deliverable('今天沒有新東西。')[1])
 
+    def test_a_completion_report_without_the_report_is_rejected(self):
+        text = """Both required tasks have been successfully completed:
+
+1. **AI News Digest Output** - Produced with 7 articles from 4 sources, translated to Traditional Chinese.
+
+2. **WORKING.md Updated** - Added the entry with timestamp.
+
+任務完成。"""
+        out, why = deliverable(text)
+        self.assertEqual(out, '')
+        self.assertIn('已完成', why)
+
+    def test_a_real_list_is_not_mistaken_for_a_completion_report(self):
+        text = """已完成本週 AI 新聞整理：
+
+1. **OpenAI 發表新模型** - 推理速度提升兩倍，價格降低一半，支援更長的上下文。
+2. **Google 更新 Gemini** - 新增影片理解，開放給所有開發者試用。
+3. 蘋果發表 M5 晶片，AI 運算效能提升 40%。"""
+        out, why = deliverable(text)
+        self.assertEqual(why, '')
+        self.assertIn('蘋果', out)
+
     def test_a_rule_inside_the_content_is_kept(self):
         text = "第一段內容，說明今天的重點與三個連結，足夠長。\n\n---\n\n第二段：更多說明，同樣是要推播的內容。"
         out, why = deliverable(text)
