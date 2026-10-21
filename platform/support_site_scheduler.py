@@ -23,6 +23,21 @@ on only with ``PLATFORM_SITE_LINE=1``): after a run the report's own
 to LINE or published to HackMD, and a ``[LINE：…]`` / ``[HackMD：…]`` note is
 added to the run log. Scheduled runs deliver; a manual run delivers only when
 started with ``deliver=True`` (``run_now(..., deliver=False)`` never sends).
+
+Plugin hooks (see support_plugins.py). All default to None / empty, and then
+nothing changes:
+
+* ``site_office(site, host) -> (office, settings) | None``: a different view of
+  the site's hives and schedules (same shape as ``SiteOffice.for_host``) used by
+  ticks and ``run_now``; ``settings`` is passed on to the two hooks below.
+* ``site_runner(site, settings) -> runner | None``: a runner for that site,
+  ``runner(prompt, meta) -> (ok, output)``, used instead of ``_chain_run``.
+  ``meta`` has tenant_id, hive_id, role, report_name, run_id and deliver. A
+  site runner delivers its own results: ``delivery.after_run`` is not called.
+* ``run_check(site, settings, job, *, deliver, operator)``: may raise
+  ``OfficeError`` to refuse a manual run before it starts.
+* ``tick_hooks``: callables ``hook(scheduler)`` run on every tick (errors are
+  logged and ignored).
 """
 from __future__ import annotations
 
@@ -137,6 +152,12 @@ class SiteScheduler:
         self._last_minute = None
         # Optional SiteStatusWriter: refreshed on ticks and right after a run.
         self.status = None
+        # Plugin hooks (module docstring). None/empty = the behaviour above.
+        self.site_office = None
+        self.site_runner = None
+        self.run_check = None
+        self.tick_hooks = []
+        self.last_tick_at = clock()   # for health checks
         with core._connect() as conn:
             conn.execute('''CREATE TABLE IF NOT EXISTS support_schedule_runs (
                 id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -216,7 +237,34 @@ class SiteScheduler:
         except Exception as exc:
             print(f'[scheduler] quota check: {type(exc).__name__}', flush=True)
 
+    def _office_for(self, host, site):
+        """(office, settings) for one site: a plugin's view when it has one."""
+        if self.site_office is not None and site is not None:
+            try:
+                found = self.site_office(site, host)
+            except Exception as exc:  # a plugin problem falls back to the default view
+                print(f'[scheduler] site_office {site}: {type(exc).__name__}', flush=True)
+                found = None
+            if found is not None:
+                return found
+        return (self.office.for_host(host) if site is not None else None), None
+
+    def _site_run(self, site, settings):
+        if self.site_runner is None:
+            return None
+        try:
+            return self.site_runner(site, settings)
+        except Exception as exc:
+            print(f'[scheduler] site_runner {site}: {type(exc).__name__}', flush=True)
+            return None
+
     def tick(self):
+        self.last_tick_at = self.clock()
+        for hook in list(self.tick_hooks):
+            try:
+                hook(self)
+            except Exception as exc:  # a plugin hook never stops schedules
+                print(f'[scheduler] tick hook: {type(exc).__name__}', flush=True)
         self._delivery_upkeep()
         if self.library is not None:
             try:
@@ -244,7 +292,7 @@ class SiteScheduler:
         name = self._site_name(host)
         if name is None:
             return started
-        office = self.office.for_host(host)
+        office, settings = self._office_for(host, name)
         for hive in (office or {}).get('hives', []):
             if not hive['enabled'] or not hive['exists']:
                 continue
@@ -258,19 +306,20 @@ class SiteScheduler:
                         due = False
                     if due:
                         run = self._start(tenant_id, name, hive, job,
-                                          slot.strftime('%Y-%m-%dT%H:%M'), 'schedule')
+                                          slot.strftime('%Y-%m-%dT%H:%M'), 'schedule',
+                                          settings=settings)
                         if run:
                             started.append(run)
         return started
 
-    def run_now(self, tenant_id, host, hive_id, schedule_name, *, deliver=True):
+    def run_now(self, tenant_id, host, hive_id, schedule_name, *, deliver=True, operator=False):
         """Customer-initiated single run of one of their schedules.
 
         ``deliver=False`` is a dry run: nothing is pushed to LINE, relayed or
         published, whatever the report says. With delivery off (no
         ``PLATFORM_SITE_LINE``) the flag changes nothing."""
         name = self._site_name(host)
-        office = self.office.for_host(host) if name else None
+        office, settings = self._office_for(host, name)
         hive = next((h for h in (office or {}).get('hives', [])
                      if h['id'] == hive_id and h['exists']), None)
         if hive is None:
@@ -285,13 +334,15 @@ class SiteScheduler:
                                  (tenant_id, since)).fetchone()[0]
         if count >= MAX_MANUAL_PER_DAY:
             raise OfficeError(f'今天手動執行已達 {MAX_MANUAL_PER_DAY} 次上限')
+        if self.run_check is not None:
+            self.run_check(name, settings, job, deliver=deliver is True, operator=operator is True)
         run = self._start(tenant_id, name, hive, job, 'manual-' + secrets.token_hex(6), 'manual',
-                          deliver=deliver is True)
+                          deliver=deliver is True, settings=settings)
         if run is None:
             raise OfficeError('這個站台已經有一個排程在執行，請等它結束')
         return run
 
-    def _start(self, tenant_id, site, hive, job, slot, trigger, deliver=True):
+    def _start(self, tenant_id, site, hive, job, slot, trigger, deliver=True, settings=None):
         with self._lock:
             if site in self._busy or len(self._busy) >= MAX_GLOBAL:
                 busy = True
@@ -322,16 +373,24 @@ class SiteScheduler:
                               job['skill'], job['context'])
         meta = {'tenant_id': tenant_id, 'hive_id': hive['id'], 'report_name': job['name'],
                 'deliver': deliver}
-        thread = threading.Thread(target=self._run, args=(run_id, site, prompt, meta), daemon=True)
+        runner = self._site_run(site, settings)
+        if runner is not None:
+            meta = {**meta, 'role': job['role'], 'run_id': run_id}
+        thread = threading.Thread(target=self._run, args=(run_id, site, prompt, meta, runner),
+                                  daemon=True)
         thread.start()
         return {'id': run_id, 'hive': hive['id'], 'name': job['name'], 'trigger': trigger}
 
-    def _run(self, run_id, site, prompt, meta=None):
+    def _run(self, run_id, site, prompt, meta=None, runner=None):
         status, output = 'failed', ''
         try:
-            ok, output = self.runner(site, prompt)
+            if runner is not None:
+                # A plugin's site runner delivers its own results.
+                ok, output = runner(prompt, dict(meta or {}))
+            else:
+                ok, output = self.runner(site, prompt)
             status = 'succeeded' if ok else 'failed'
-            if self.delivery is not None and meta is not None:
+            if runner is None and self.delivery is not None and meta is not None:
                 # Only after the run itself finished; the hook never raises and
                 # never changes the run's status, it only appends a note.
                 output = (output or '') + self.delivery.after_run(
