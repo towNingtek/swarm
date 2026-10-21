@@ -25,6 +25,8 @@ import stat
 import sys
 from pathlib import Path
 
+import yaml
+
 import _site_path  # noqa: E402,F401  (site/ on sys.path)
 
 import safe_fs  # noqa: E402
@@ -208,10 +210,31 @@ def default_model(dsh_home: Path):
     return {**found, 'starter': found['provider'] == STARTER_PROVIDER}
 
 
+def office_dir(site_root: Path) -> str:
+    """The office's folder inside the site workspace: '' (the workspace itself) or a
+    sub-folder named by the PLATFORM's site.yaml (``scheduler: {office: <name>}``),
+    for sites whose office is a checkout under the workspace. The site cannot
+    change this: site.yaml is the platform's own state file."""
+    try:
+        text = (Path(site_root) / 'site.yaml').read_text(encoding='utf-8')
+        data = yaml.safe_load(text) if len(text) < MAX_BYTES else None
+    except (OSError, yaml.YAMLError, UnicodeError):
+        return ''
+    block = data.get('scheduler') if isinstance(data, dict) else None
+    office = block.get('office') if isinstance(block, dict) else None
+    return office if isinstance(office, str) and _ID.match(office) else ''
+
+
+def office_workspace(site_root: Path) -> Path:
+    site_root = Path(site_root)
+    sub = office_dir(site_root)
+    return site_root / 'workspace' / sub if sub else site_root / 'workspace'
+
+
 def read_office(site_root: Path) -> dict:
     """Summary of one site's office. Missing pieces are reported, not guessed."""
     site_root = Path(site_root)
-    workspace = site_root / 'workspace'
+    workspace = office_workspace(site_root)
     record = _read(workspace, '.dsh-template.json')
     template = None
     if record is not None:
@@ -425,7 +448,7 @@ class OfficeEditor:
         import time
 
         self.site_root = Path(site_root)
-        self.workspace = self.site_root / 'workspace'
+        self.workspace = office_workspace(self.site_root)
         self.clock = clock or time.time
 
     def _load(self, revision, hive_id):
