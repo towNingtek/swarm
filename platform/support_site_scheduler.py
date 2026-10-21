@@ -12,8 +12,8 @@ starter model, metered by the relay, until the customer connects their own).
 No key, token or platform credential is passed; nothing leaves the container
 except the final answer, which is stored as the run log for that customer.
 
-Semantics follow the classic APScheduler-based scheduler: day-of-month and
-day-of-week are ANDed; a minute that passed while the platform was down is not
+Semantics: standard cron numbering (day of week 0/7 = Sunday, 1 = Monday);
+day-of-month and day-of-week are ANDed; a minute that passed while the platform was down is not
 caught up. One run at a time per site, a small global cap, and each (site,
 hive, schedule, minute) runs at most once.
 """
@@ -60,14 +60,26 @@ def _values(field, low, high, names=None):
     return out
 
 
+# Day of week in standard cron numbering: 0 and 7 = Sunday, 1 = Monday ... 6 = Saturday
+# (names mon..sun as usual). The classic scheduler read numbers the APScheduler way
+# (0 = Monday), so "0 9 * * 1" written as "Monday 09:00" ran on Tuesday.
+_CRON_DOW = ('sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
+
+
+def _dow_values(field):
+    """Day-of-week field -> set of datetime.weekday() values (Monday = 0)."""
+    days = _values(field.lower(), 0, 7, _CRON_DOW)
+    return {(d - 1) % 7 for d in days}
+
+
 def cron_matches(expr, moment):
-    """APScheduler semantics (fields ANDed; day-of-week 0/mon = Monday)."""
+    """Standard cron (fields ANDed; day of week 0/7 = Sunday, 1 = Monday)."""
     minute, hour, dom, month, dow = expr.split()
     return (moment.minute in _values(minute, 0, 59)
             and moment.hour in _values(hour, 0, 23)
             and moment.day in _values(dom, 1, 31)
             and moment.month in _values(month, 1, 12)
-            and moment.weekday() in _values(dow, 0, 6, _DOW))
+            and moment.weekday() in _dow_values(dow))
 
 
 def build_prompt(hive_id, hive_name, role, name, skill, context):

@@ -210,8 +210,8 @@ JS = r"""'use strict';
   // registry.yaml plus a task under reports: in project.yaml. The server
   // writes both; this page only sends the customer's choices.
   const dowNames = {mon:'週一', tue:'週二', wed:'週三', thu:'週四', fri:'週五', sat:'週六', sun:'週日'};
-  // Numbers follow the classic scheduler (APScheduler): 0 = Monday.
-  const dowNumbers = ['mon','tue','wed','thu','fri','sat','sun'];
+  // Numbers follow standard cron: 0 and 7 = Sunday, 1 = Monday (same as the scheduler).
+  const dowNumbers = ['sun','mon','tue','wed','thu','fri','sat','sun'];
   const pad = n => String(n).padStart(2, '0');
   function describeCron(cron) {
     if (typeof cron !== 'string') return '未設定時間';
@@ -225,7 +225,7 @@ JS = r"""'use strict';
     if (!num(m) || !num(h)) return cron;
     const at = pad(h) + ':' + pad(m);
     if (w === '*') return '每天 ' + at;
-    if (w === 'mon-fri' || w === '0-4') return '平日 ' + at;
+    if (w === 'mon-fri' || w === '1-5') return '平日 ' + at;
     const days = w.split(',').map(day);
     if (days.every(x => dowNames[x])) return '每' + days.map(x => dowNames[x]).join('、') + ' ' + at;
     return cron;
