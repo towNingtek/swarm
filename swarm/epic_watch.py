@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """cron：觀察 EPIC，有需要人處理的事就發 Discord（docs/epic-contract.md 第 7 節）。只讀取、只通知。
 
-  */30 * * * *  python3 swarm/epic_watch.py --repo acme/swarm --channel <id>
+  */30 * * * *  SWARM_DISCORD_TOKEN_FILE=/path/to/bot.token python3 swarm/epic_watch.py --repo acme/swarm --channel <id>
 
 --dry-run：只印出要發的訊息，不發送、不寫狀態。
 """
@@ -34,11 +34,24 @@ def main(argv=None):
     if a.dry_run:
         send = lambda t: print("[dry-run]", t)
     else:
-        from reply_discord import send_discord_message
-        send = lambda t: send_discord_message(a.channel, t)
+        # Bot token from SWARM_DISCORD_TOKEN, or a file named by SWARM_DISCORD_TOKEN_FILE
+        # (same convention as epic_summary.py). No token: refuse rather than drop alerts silently.
+        from epiclib.summary import post_discord
+        token = os.environ.get("SWARM_DISCORD_TOKEN", "").strip()
+        if not token and os.environ.get("SWARM_DISCORD_TOKEN_FILE"):
+            with open(os.environ["SWARM_DISCORD_TOKEN_FILE"], encoding="utf-8") as fh:
+                token = fh.read().strip()
+        if not token:
+            ap.error("需要 SWARM_DISCORD_TOKEN 或 SWARM_DISCORD_TOKEN_FILE（或用 --dry-run）")
+        send = lambda t: post_discord(str(a.channel), t, token)
 
     for repo in a.repo:
-        path = a.state or os.path.join(STATE, repo.replace("/", "-") + ".json")
+        # One state file per repo: with several --repo, --state is a directory (or a file prefix).
+        if a.state and len(a.repo) > 1:
+            base = a.state[:-5] if a.state.endswith(".json") else a.state
+            path = base + "-" + repo.replace("/", "-") + ".json"
+        else:
+            path = a.state or os.path.join(STATE, repo.replace("/", "-") + ".json")
         try:
             state = json.load(open(path))
         except (OSError, ValueError):
