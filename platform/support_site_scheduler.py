@@ -98,12 +98,15 @@ def build_prompt(hive_id, hive_name, role, name, skill, context):
 
 
 class SiteScheduler:
-    def __init__(self, core, office, *, runner=None, clock=time.time, library=None):
+    def __init__(self, core, office, *, runner=None, clock=time.time, library=None, models=None):
+        # models: [(provider, model)] for unattended runs (SCHEDULE_MODELS); empty
+        # = the site's own default model, as before. See support_schedule_answer.
+        self.models = list(models or [])
         self.core = core
         self.office = office
         self.library = library
         self.clock = clock
-        self.runner = runner or self._docker_run
+        self.runner = runner or self._chain_run
         self._lock = threading.Lock()
         self._busy = set()          # site names with a run in flight
         self._last_minute = None
@@ -280,18 +283,53 @@ class SiteScheduler:
             if self.status is not None:
                 self.status._last = 0.0   # next tick rewrites the site's status
 
+    def _chain_run(self, site, prompt):
+        """Try each scheduled-run model in order (or the site default); keep only the
+        deliverable. The first model whose cleaned answer is usable wins."""
+        from support_schedule_answer import deliverable
+        tried, last = [], (False, '沒有可用的模型')
+        for model in (self.models or [None]):
+            ok, output = self._docker_run(site, prompt, model=model)
+            label = '/'.join(model) if model else '站台預設模型'
+            tried.append(label)
+            if ok:
+                answer, why = deliverable(output)
+                if not why:
+                    return True, f'[model={label}] [tried={",".join(tried)}]\n{answer}'
+                ok, output = False, f'{label}：{why}'
+            last = (False, output)
+        return False, f'全部模型都失敗（{"、".join(tried)}）。\n{last[1]}'
+
     @staticmethod
-    def _docker_run(site, prompt):
+    def _docker_run(site, prompt, model=None):
         if not _SITE.match(site):
             return False, '站台名稱不正確'
+        container = sitectl.container_name(site)
+        command = ['docker', 'exec', '-i', '-w', WORKSPACE, container,
+                   'timeout', str(RUN_TIMEOUT), 'dsh', '--profile', 'headless',
+                   '--patch', PROFILE_PATCH]
+        if model is not None:
+            # Scheduled-run model as an extra patch layer inside the container; the
+            # site's own profile (its chat default) is not changed.
+            from support_schedule_answer import model_overlay
+            overlay = '/tmp/swarm-schedule-model-%s.yml' % secrets.token_hex(4)
+            text = model_overlay(*model)
+            put = subprocess.run(['docker', 'exec', '-i', container, 'sh', '-c',
+                                  'umask 077; cat > "$1"', 'sh', overlay],
+                                 input=text, capture_output=True, text=True, timeout=30)
+            if put.returncode != 0:
+                return False, '無法設定排程模型'
+            command += ['--patch', overlay]
+        command.append('-')
         try:
-            done = subprocess.run(
-                ['docker', 'exec', '-i', '-w', WORKSPACE, sitectl.container_name(site),
-                 'timeout', str(RUN_TIMEOUT), 'dsh', '--profile', 'headless',
-                 '--patch', PROFILE_PATCH, '-'],
-                input=prompt, capture_output=True, text=True, timeout=RUN_TIMEOUT + 60)
+            done = subprocess.run(command, input=prompt, capture_output=True, text=True,
+                                  timeout=RUN_TIMEOUT + 60)
         except subprocess.TimeoutExpired:
             return False, f'超過 {RUN_TIMEOUT // 60} 分鐘沒有完成，已停止。'
+        finally:
+            if model is not None:
+                subprocess.run(['docker', 'exec', container, 'rm', '-f', overlay],
+                               capture_output=True, timeout=30)
         answer = (done.stdout or '').strip()
         if done.returncode == 0 and answer:
             return True, answer
