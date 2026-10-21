@@ -8,6 +8,7 @@
 #   - reach the model relay on the host (SWARM_MODEL_RELAY, default 172.17.0.1:8212).
 # It can NOT reach:
 #   - any other host port (ssh, the model gateway, databases, the platform, ...),
+#     except ssh from the operator-approved sites in SWARM_SSH_SITES (fixed addresses),
 #   - other containers or bridges, the VPC, Tailscale, link-local,
 #   - the cloud metadata service 169.254.169.254 (service-account credentials).
 # Nothing outside the site network may open new connections into it.
@@ -24,6 +25,8 @@ set -euo pipefail
 BRIDGE="$(env_get SWARM_SITE_BRIDGE br-swarm-sites)"
 SUBNET="$(env_get SWARM_SITE_SUBNET 172.29.10.0/24)"
 RELAY="$(env_get SWARM_MODEL_RELAY 172.17.0.1:8212)"
+# Sites pinned to a fixed address that may ssh to the host: "name=ip,..." (see dsh_sitectl.py).
+SSH_SITES="$(env_get SWARM_SSH_SITES '')"
 RELAY_IP="${RELAY%:*}"
 RELAY_PORT="${RELAY##*:}"
 IPT="${SWARM_IPTABLES:-iptables}"   # must be the same binary Docker uses
@@ -55,6 +58,14 @@ $IPT -N DOCKER-USER 2>/dev/null || true
 # Traffic from a site to the host itself (any host IP: bridge gateways, VPC IP).
 $IPT -A SWARM-SITES-IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 $IPT -A SWARM-SITES-IN -p tcp -d "$RELAY_IP" --dport "$RELAY_PORT" -j ACCEPT
+# Operator-approved sites only: host ssh from their fixed address (SWARM_SSH_SITES).
+IFS=',' read -r -a _ssh_items <<< "$SSH_SITES"
+for item in "${_ssh_items[@]}"; do
+  ip="${item#*=}"; ip="${ip// /}"
+  [ -n "$ip" ] || continue
+  [[ "$ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || { echo "bad SWARM_SSH_SITES entry: $item" >&2; exit 1; }
+  $IPT -A SWARM-SITES-IN -p tcp -s "$ip/32" -d "$RELAY_IP" --dport 22 -j ACCEPT
+done
 $IPT -A SWARM-SITES-IN -j DROP
 
 # Forwarded traffic (to other networks and the internet).
