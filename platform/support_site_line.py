@@ -68,6 +68,14 @@ LINE_SCRIPT = SCRIPTS / 'line_agent.js'
 HACKMD_SCRIPT = SCRIPTS / 'bd_hackmd.js'
 WORKSPACE = '/home/dsh/workspace'          # the office inside every site container
 KEYS_DIR = WORKSPACE + '/.swarm/keys'
+
+
+def keys_dir(sites_root, site):
+    """The office's key folder inside the container: under the office sub-folder
+    named by the platform's site.yaml (see support_site_office.office_dir)."""
+    from support_site_office import office_dir
+    sub = office_dir(Path(sites_root) / site)
+    return f'{WORKSPACE}/{sub}/.swarm/keys' if sub else KEYS_DIR
 EXEC_TIMEOUT = 40                          # docker exec around one 15 s provider call
 HACKMD_TIMEOUT = 90
 RETENTION_DAYS = 30
@@ -318,7 +326,7 @@ class LineDelivery:
         steps (default 80/95), ``remaining_below`` messages left, a month-end
         projection above ``projected_over`` %, and 100 % (sending stops).
         """
-        res = self.agent(site, {'op': 'quota', 'keys_dir': KEYS_DIR, 'token_file': token_file})
+        res = self.agent(site, {'op': 'quota', 'keys_dir': keys_dir(self.sites_root, site), 'token_file': token_file})
         if not res.get('ok'):
             return res
         limit, used = res.get('limit'), res.get('used')
@@ -412,7 +420,7 @@ class LineDelivery:
         if self._exhausted(dest, target):
             self._log(tenant_id, source, dest, run_id, kind, target, 'skipped', '本月額度已用完', text)
             return {'ok': False, 'error': 'monthly_limit', 'skipped': True}
-        res = self.agent(dest, {'op': 'push', 'keys_dir': KEYS_DIR,
+        res = self.agent(dest, {'op': 'push', 'keys_dir': keys_dir(self.sites_root, dest),
                                 'token_file': token_file, 'to': to, 'text': text})
         if res.get('ok'):
             self._log(tenant_id, source, dest, run_id, kind, target, 'sent', None, text)
@@ -478,7 +486,8 @@ class SiteAlerts:
 
     QUIET = 1800
 
-    def __init__(self, *, notifier=None, agent=None, clock=time.time):
+    def __init__(self, *, notifier=None, agent=None, clock=time.time, sites_root=None):
+        self.sites_root = sites_root
         self.notifier = notifier
         self.agent = agent or docker_agent
         self.clock = clock
@@ -507,7 +516,7 @@ class SiteAlerts:
         if not self._due('s:' + key):
             return False
         if notify:
-            res = self.agent(site, {'op': 'discord', 'keys_dir': KEYS_DIR,
+            res = self.agent(site, {'op': 'discord', 'keys_dir': keys_dir(self.sites_root, site) if self.sites_root else KEYS_DIR,
                                     'token_file': notify['token_file'],
                                     'channel_id': notify['channel_id'], 'text': text})
             if res.get('ok'):
@@ -552,7 +561,14 @@ class ScheduleDelivery:
         self.site_script = site_script
 
     def workspace(self, site):
-        return self.sites_root / site / 'workspace'
+        from support_site_office import office_workspace
+        return office_workspace(self.sites_root / site)
+
+    def container_workspace(self, site):
+        """The office folder as seen inside the site container."""
+        from support_site_office import office_dir
+        sub = office_dir(self.sites_root / site)
+        return f'{WORKSPACE}/{sub}' if sub else WORKSPACE
 
     def publish_hackmd(self, site, conf, answer):
         """Refresh the HackMD note; return (text to push, log note).
@@ -564,7 +580,7 @@ class ScheduleDelivery:
 
         changes, _ = deliverable(answer)
         res = self.site_script(site, HACKMD_SCRIPT, {
-            'workspace': WORKSPACE, 'repo': conf['repo'], 'keys_dir': KEYS_DIR,
+            'workspace': self.container_workspace(site), 'repo': conf['repo'], 'keys_dir': keys_dir(self.sites_root, site),
             'token_file': conf['token_file'], 'owner_label': conf['owner'], 'changes': changes},
             timeout=HACKMD_TIMEOUT)
         url = str(res.get('url', '')) if isinstance(res, dict) else ''

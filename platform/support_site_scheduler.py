@@ -354,7 +354,7 @@ class SiteScheduler:
         from support_schedule_answer import deliverable
         tried, last = [], (False, '沒有可用的模型')
         for model in (self.models or [None]):
-            ok, output = self._docker_run(site, prompt, model=model)
+            ok, output = self._docker_run(site, prompt, model=model, workdir=self._workdir(site))
             label = '/'.join(model) if model else '站台預設模型'
             tried.append(label)
             if ok:
@@ -365,12 +365,22 @@ class SiteScheduler:
             last = (False, output)
         return False, f'全部模型都失敗（{"、".join(tried)}）。\n{last[1]}'
 
+    def _workdir(self, site):
+        """Where the run starts inside the container: the office folder (a sub-folder
+        when the platform's site.yaml names one, see support_site_office.office_dir)."""
+        sites_root = getattr(self.office, 'sites_root', None)
+        if sites_root is None or not _SITE.match(site):
+            return WORKSPACE
+        from support_site_office import office_dir
+        sub = office_dir(sites_root / site)
+        return f'{WORKSPACE}/{sub}' if sub else WORKSPACE
+
     @staticmethod
-    def _docker_run(site, prompt, model=None):
+    def _docker_run(site, prompt, model=None, workdir=WORKSPACE):
         if not _SITE.match(site):
             return False, '站台名稱不正確'
         container = sitectl.container_name(site)
-        command = ['docker', 'exec', '-i', '-w', WORKSPACE, container,
+        command = ['docker', 'exec', '-i', '-w', workdir, container,
                    'timeout', str(RUN_TIMEOUT), 'dsh', '--profile', 'headless',
                    '--patch', PROFILE_PATCH]
         if model is not None:

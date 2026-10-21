@@ -187,7 +187,7 @@ def build():
     if site_scheduler is not None and os.environ.get('PLATFORM_SITE_LINE') == '1':
         from support_site_line import LineDelivery, ScheduleDelivery, SiteAlerts
 
-        alerts = SiteAlerts(notifier=notifier)
+        alerts = SiteAlerts(notifier=notifier, sites_root=common.SITES_ROOT)
         line = LineDelivery(core, common.SITES_ROOT, alerts=alerts,
                             quota_file=_database().parent / 'line-quota.yaml')
         site_scheduler.delivery = ScheduleDelivery(common.SITES_ROOT, line, alerts)

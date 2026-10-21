@@ -70,8 +70,9 @@ class Chain(unittest.TestCase):
         from support_site_scheduler import SiteScheduler
         s = SiteScheduler.__new__(SiteScheduler)
         s.models = models
+        s.office = None
         calls = []
-        def fake(site, prompt, model=None):
+        def fake(site, prompt, model=None, workdir=None):
             calls.append(model)
             return answers.pop(0)
         s._docker_run = fake
