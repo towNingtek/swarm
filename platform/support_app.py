@@ -151,7 +151,9 @@ class _Boundary:
             await _error(403)(scope, receive, safe_send)
             return
         scope.setdefault('state', {}).update(customer_host=host, customer_token=token)
-        if scope['method'] == 'POST' and scope['path'] in ('/customer/login', '/customer/activate'):
+        if scope['method'] == 'POST' and scope['path'] in ('/customer/login', '/customer/activate',
+                                                           '/customer/password-reset',
+                                                           '/customer/password-reset/preview'):
             if not self.limiter.allow((client_address(scope), host)):
                 await _error(429)(scope, receive, safe_send)
                 return
@@ -247,6 +249,42 @@ def create_app(core, public_origin, *, clock=time.monotonic, rate_limit=10,
     @app.post('/customer/activate')
     async def activate(request: Request):
         return await action(request, 'activate')
+
+    # Password reset (swarm#580): the link the operator issued. preview -> the
+    # account name; reset -> new password, every old session ends, signed in.
+    @app.post('/customer/password-reset/preview')
+    async def reset_preview(request: Request):
+        try:
+            body = await _body(request, ('reset',))
+            if not re.fullmatch(r'[A-Za-z0-9_-]{43}', body['reset']):
+                raise ValueError
+            name = await run_in_threadpool(core.preview_password_reset, body['reset'],
+                                           request.state.customer_host)
+            return JSONResponse({'username': name})
+        except OverflowError:
+            return _error(413)
+        except (ValueError, UnicodeError):
+            return _error(400)
+        except SupportError:
+            return _error(401)
+
+    @app.post('/customer/password-reset')
+    async def reset(request: Request):
+        try:
+            body = await _body(request, ('reset', 'password'))
+            if not re.fullmatch(r'[A-Za-z0-9_-]{43}', body['reset']):
+                raise ValueError
+            grant = await run_in_threadpool(core.redeem_password_reset, body['reset'],
+                                            request.state.customer_host, body['password'])
+            response = JSONResponse({'ok': True})
+            response.set_cookie(cookie_name, grant.token, path='/', secure=secure, httponly=True, samesite='strict')
+            return response
+        except OverflowError:
+            return _error(413)
+        except (ValueError, UnicodeError):
+            return _error(400)
+        except SupportError:
+            return _error(401)
 
     @app.post('/customer/login')
     async def login(request: Request):

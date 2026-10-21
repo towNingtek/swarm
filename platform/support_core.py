@@ -365,6 +365,82 @@ class SupportCore:
             self._count_conflict(token)
             raise Conflict('account unavailable') from None
 
+    # Password reset (swarm#580). The operator issues a single-use link for one
+    # customer account; the customer sets a new password with it. Only the digest
+    # is stored. Using it replaces the password, revokes every session of that
+    # account and every other unused reset link for it, then signs the customer in.
+    def _resets_table(self, conn):
+        conn.execute('CREATE TABLE IF NOT EXISTS password_resets (digest TEXT PRIMARY KEY, '
+                     'principal_id TEXT NOT NULL REFERENCES principals(id), expires_at REAL NOT NULL, '
+                     'created_at REAL NOT NULL, redeemed_at REAL, revoked_at REAL)')
+
+    def list_accounts(self, actor: AdminActor, tenant_id: str):
+        """Customer accounts of one tenant: id and username only (never hashes)."""
+        self._admin(actor)
+        with self._connect() as conn:
+            self._resets_table(conn)
+            rows = conn.execute('SELECT id, username FROM principals WHERE tenant_id=? ORDER BY username',
+                                (tenant_id,)).fetchall()
+            out = []
+            for r in rows:
+                last = conn.execute('SELECT MAX(redeemed_at) FROM password_resets WHERE principal_id=?',
+                                    (r['id'],)).fetchone()[0]
+                out.append({'id': r['id'], 'username': r['username'], 'last_reset_at': last})
+            return out
+
+    def issue_password_reset(self, actor: AdminActor, tenant_id: str, principal_id: str, *, ttl: float = 3600):
+        self._admin(actor)
+        ttl = self._ttl(ttl)
+        token = secrets.token_urlsafe(32)
+        with self._connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            self._resets_table(conn)
+            row = conn.execute('SELECT p.id FROM principals p JOIN tenants t ON t.id=p.tenant_id '
+                               'WHERE p.id=? AND p.tenant_id=? AND t.enabled=1', (principal_id, tenant_id)).fetchone()
+            if not row:
+                raise InvalidInput('account unavailable')
+            now = self.clock()
+            conn.execute('INSERT INTO password_resets VALUES (?, ?, ?, ?, NULL, NULL)',
+                         (_digest(token), principal_id, now + ttl, now))
+        return token
+
+    def _reset(self, conn, token, host):
+        try:
+            digest = _digest(token)
+        except Unauthorized:
+            raise InvalidInvite('reset unavailable') from None
+        self._resets_table(conn)
+        row = conn.execute('SELECT r.*, p.username, p.tenant_id, p.role, t.platform_host FROM password_resets r '
+                           'JOIN principals p ON p.id=r.principal_id JOIN tenants t ON t.id=p.tenant_id '
+                           'WHERE r.digest=? AND t.enabled=1', (digest,)).fetchone()
+        if (not row or row['platform_host'] != host or row['expires_at'] <= self.clock()
+                or row['redeemed_at'] is not None or row['revoked_at'] is not None):
+            raise InvalidInvite('reset unavailable')
+        return row
+
+    def preview_password_reset(self, token: str, host: str) -> str:
+        """The account name the link resets (shown read-only on the page)."""
+        host = normalize_host(host)
+        with self._connect() as conn:
+            return self._reset(conn, token, host)['username']
+
+    def redeem_password_reset(self, token: str, host: str, password: str) -> SessionGrant:
+        host = normalize_host(host)
+        self.preview_password_reset(token, host)
+        password_hash = _password_hash(password)  # expensive work before the write lock
+        with self._connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            row = self._reset(conn, token, host)  # race / expiry / revoke recheck
+            now = self.clock()
+            conn.execute('UPDATE principals SET password_hash=? WHERE id=?', (password_hash, row['principal_id']))
+            conn.execute('UPDATE sessions SET revoked_at=COALESCE(revoked_at, ?) WHERE principal_id=?',
+                         (now, row['principal_id']))
+            conn.execute('UPDATE password_resets SET redeemed_at=? WHERE digest=?', (now, row['digest']))
+            conn.execute('UPDATE password_resets SET revoked_at=? WHERE principal_id=? AND digest<>? '
+                         'AND redeemed_at IS NULL AND revoked_at IS NULL', (now, row['principal_id'], row['digest']))
+            principal = Principal(row['principal_id'], row['tenant_id'], row['username'], row['role'])
+            return self._new_session(conn, principal, host)
+
     MAX_INVITE_CONFLICTS = 5
 
     def _count_conflict(self, token):

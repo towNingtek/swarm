@@ -252,6 +252,9 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <section data-panel="invite"><h2>發送邀請</h2><p>邀請只顯示一次，請自行安全傳遞。此頁不自動開啟連結、不保存邀請。切換租戶或離頁會清除。送出失敗可能已發出邀請，請勿盲目重試；需由可信任管理員撤銷不需要的邀請。</p>
 <form id="invite-form" autocomplete="off"><label>有效秒數（60–86400）<input id="ttl" type="number" min="60" max="86400" step="1" value="3600" required></label>
 <button id="invite-submit" type="submit">產生邀請</button></form>
+<div id="accounts-box" hidden><h3>帳號與重設密碼</h3><p class="muted">客戶忘記密碼時，對他的帳號產生「重設密碼連結」（只能用一次，有效時間同上方的有效秒數）。客戶打開連結自己設新密碼；設定後他在其他地方的登入都會被登出。</p>
+<table class="tbl"><thead><tr><th>帳號</th><th>上次重設</th><th></th></tr></thead><tbody id="accounts-body"></tbody></table>
+<label>重設連結<input id="reset-link" type="text" readonly placeholder="按「產生重設連結」"></label><button id="reset-copy" type="button" disabled>複製</button></div>
 <label for="invite-link">一次性邀請連結</label>
 <span id="invite-row"><input id="invite-link" type="text" readonly autocomplete="off" spellcheck="false">
 <button id="invite-copy" type="button" disabled>複製</button></span>
@@ -686,6 +689,7 @@ MANAGEMENT_JS = r"""'use strict';
     templateDesc();
     byId('limit').value = current && current.policy.monthly_limit !== null ? String(current.policy.monthly_limit) : '';
     loadPackages();
+    loadAccounts();
     controls();
   }
   // Only provisioned sites have packages; the tab stays hidden otherwise
@@ -813,6 +817,40 @@ MANAGEMENT_JS = r"""'use strict';
     }, '樣板未確認成功，請重新載入確認。');
   });
   byId('refresh').addEventListener('click', () => task(list, '載入失敗。'));
+  // Accounts and password reset links (swarm#580). The link is shown once, like an invite.
+  async function loadAccounts() {
+    const box = byId('accounts-box'); const body = byId('accounts-body');
+    if (!box || !body || !current) { if (box) box.hidden = true; return; }
+    byId('reset-link').value = ''; byId('reset-copy').disabled = true;
+    let d; try { d = await api('/' + encodeURIComponent(current.id) + '/accounts'); } catch (e) { box.hidden = true; return; }
+    body.replaceChildren();
+    for (const a of (d.accounts || [])) {
+      const tr = document.createElement('tr');
+      const td = (t) => { const x = document.createElement('td'); x.textContent = t; return x; };
+      const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = '產生重設連結';
+      btn.addEventListener('click', () => task(async () => {
+        if (!confirm('為帳號「' + a.username + '」產生重設密碼連結？連結只顯示一次，請私訊給本人。')) return;
+        const ttl = integer('ttl', 60, 86400);
+        let r = await api('/' + encodeURIComponent(current.id) + '/password-resets', {account_id: a.id, ttl_seconds: ttl});
+        try {
+          if (typeof r.token !== 'string' || !r.token) throw new Error('missing token');
+          const base = inviteOrigin || ('https://' + hostForInvite(current.platform_host || current.host));
+          byId('reset-link').value = base + '/?reset=' + encodeURIComponent(r.token);
+          byId('reset-copy').disabled = false;
+          status.textContent = '已產生「' + a.username + '」的重設連結，請私訊給本人（不要貼在公開頻道）。';
+        } finally { if (r) r.token = ''; r = null; }
+      }, '重設連結未產生成功。'));
+      const last = a.last_reset_at ? new Date(a.last_reset_at * 1000).toLocaleString('zh-TW', {hour12: false}) : '—';
+      const act = document.createElement('td'); act.append(btn);
+      tr.append(td(a.username), td(last), act); body.append(tr);
+    }
+    box.hidden = !(d.accounts || []).length;
+  }
+  const resetCopy = byId('reset-copy');
+  if (resetCopy) resetCopy.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(byId('reset-link').value); status.textContent = '已複製重設連結。'; } catch (e) {}
+  });
+  addEventListener('pagehide', () => { const l = byId('reset-link'); if (l) l.value = ''; });
   byId('invite-form').addEventListener('submit', (event) => {
     event.preventDefault();
     if (busy || leaving) return;
