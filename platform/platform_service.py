@@ -19,6 +19,9 @@ Configuration (all required unless noted):
   PLATFORM_PORT     loopback port to bind (default 8210)
   PLATFORM_PROVISION   "1" to enable REAL site provisioning (default off)
   PLATFORM_MODELS   comma-separated model allowlist (optional)
+  PLATFORM_SITE_LINE   "1" to push scheduled results to LINE / HackMD when a
+                    site's report asks for it (default off; needs
+                    PLATFORM_SITE_SCHEDULER=1). See support_site_line.py.
 """
 from __future__ import annotations
 
@@ -176,6 +179,19 @@ def build():
         notifier = DiscordNotifier(os.environ.get('PLATFORM_NOTIFY_DISCORD_TOKEN', ''),
                                    discord_channel,
                                    origin.rstrip('/') + '/admin/customers#chat-section')
+
+    # Optional LINE push / HackMD publish after scheduled runs. Off unless
+    # PLATFORM_SITE_LINE=1; without it the scheduler behaves exactly as before.
+    # Tokens stay in each site: the platform pipes a small script into the
+    # site's container. Per-bot quota alert rules: line-quota.yaml next to the DB.
+    if site_scheduler is not None and os.environ.get('PLATFORM_SITE_LINE') == '1':
+        from support_site_line import LineDelivery, ScheduleDelivery, SiteAlerts
+
+        alerts = SiteAlerts(notifier=notifier)
+        line = LineDelivery(core, common.SITES_ROOT, alerts=alerts,
+                            quota_file=_database().parent / 'line-quota.yaml')
+        site_scheduler.delivery = ScheduleDelivery(common.SITES_ROOT, line, alerts)
+        print('[platform] site LINE delivery: on', flush=True)
 
     app = create_customer_chat_app(core, rooms, origin, model=copilot_model, notifier=notifier,
                                    site_office=office, task_library=task_library,

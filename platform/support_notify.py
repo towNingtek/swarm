@@ -3,7 +3,9 @@
 Sent when:
 * a customer writes in a room the operator took over ('coassist' or 'human');
 * a customer writes the FIRST message of a room (a new conversation);
-* the assistant failed to answer a customer.
+* the assistant failed to answer a customer;
+* (optional, ``PLATFORM_SITE_LINE=1``) a scheduled LINE delivery or quota
+  needs attention (``system_failure``; the caller throttles).
 
 At most one notice per room per ``quiet`` seconds, so a customer typing several
 lines produces one ping. Delivery is best effort on a background thread: a slow
@@ -75,6 +77,11 @@ class DiscordNotifier:
         if not self._due(context['room_id']):
             return False
         self._send(f"⚠️ AI 助手沒能回覆：**{context['site_host']}**，客戶在等。\n{self.admin_url}")
+        return True
+
+    def system_failure(self, text):
+        """Platform-level alert. The caller throttles; mentions stay disabled."""
+        self._send(f'🚨 {str(text)[:1800]}')
         return True
 
     def _post_async(self, content):
