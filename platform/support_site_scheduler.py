@@ -16,6 +16,13 @@ Semantics: standard cron numbering (day of week 0/7 = Sunday, 1 = Monday);
 day-of-month and day-of-week are ANDed; a minute that passed while the platform was down is not
 caught up. One run at a time per site, a small global cap, and each (site,
 hive, schedule, minute) runs at most once.
+
+Optional delivery (``delivery=``, a ``support_site_line.ScheduleDelivery``;
+on only with ``PLATFORM_SITE_LINE=1``): after a run the report's own
+``line_push`` / ``hackmd`` settings decide whether the cleaned answer is pushed
+to LINE or published to HackMD, and a ``[LINE：…]`` / ``[HackMD：…]`` note is
+added to the run log. Scheduled runs deliver; a manual run delivers only when
+started with ``deliver=True`` (``run_now(..., deliver=False)`` never sends).
 """
 from __future__ import annotations
 
@@ -38,6 +45,7 @@ RUN_TIMEOUT = 900
 MAX_OUTPUT = 6000
 MAX_GLOBAL = 2
 MAX_MANUAL_PER_DAY = 20
+QUOTA_CHECK_SECONDS = 3600     # LINE monthly quota, read hourly (sends nothing)
 _DOW = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
 _SITE = re.compile(r'^[a-z0-9][a-z0-9-]{0,62}$')
 
@@ -110,7 +118,8 @@ def build_prompt(hive_id, hive_name, role, name, skill, context):
 
 
 class SiteScheduler:
-    def __init__(self, core, office, *, runner=None, clock=time.time, library=None, models=None):
+    def __init__(self, core, office, *, runner=None, clock=time.time, library=None, models=None,
+                 delivery=None):
         # models: [(provider, model)] for unattended runs (SCHEDULE_MODELS); empty
         # = the site's own default model, as before. See support_schedule_answer.
         self.models = list(models or [])
@@ -119,6 +128,10 @@ class SiteScheduler:
         self.library = library
         self.clock = clock
         self.runner = runner or self._chain_run
+        # Optional ScheduleDelivery (LINE / HackMD). None = runs are only logged.
+        self.delivery = delivery
+        self._last_quota_check = None
+        self._last_purge_day = None
         self._lock = threading.Lock()
         self._busy = set()          # site names with a run in flight
         self._last_minute = None
@@ -176,7 +189,35 @@ class SiteScheduler:
             cursor += timedelta(minutes=1)
         return slots
 
+    def _delivery_upkeep(self):
+        """Hourly LINE quota reading (sends nothing) and a daily purge of the
+        30-day delivery log. Only when delivery is enabled; never raises."""
+        if self.delivery is None:
+            return
+        now = self.clock()
+        day = datetime.fromtimestamp(now, TZ).strftime('%Y-%m-%d')
+        if self._last_purge_day != day:
+            self._last_purge_day = day
+            try:
+                self.delivery.purge()
+            except Exception as exc:
+                print(f'[scheduler] delivery purge: {type(exc).__name__}', flush=True)
+        if self._last_quota_check is not None and now - self._last_quota_check < QUOTA_CHECK_SECONDS:
+            return
+        self._last_quota_check = now
+        try:
+            sites = []
+            for host in self.sites().values():
+                name = self._site_name(host)
+                office = self.office.for_host(host) if name else None
+                if office:
+                    sites.append((name, [h['id'] for h in office.get('hives', []) if h['exists']]))
+            self.delivery.check_quotas(sites)
+        except Exception as exc:
+            print(f'[scheduler] quota check: {type(exc).__name__}', flush=True)
+
     def tick(self):
+        self._delivery_upkeep()
         if self.library is not None:
             try:
                 self.library.apply_pending(self.sites())
@@ -222,8 +263,12 @@ class SiteScheduler:
                             started.append(run)
         return started
 
-    def run_now(self, tenant_id, host, hive_id, schedule_name):
-        """Customer-initiated single run of one of their schedules."""
+    def run_now(self, tenant_id, host, hive_id, schedule_name, *, deliver=True):
+        """Customer-initiated single run of one of their schedules.
+
+        ``deliver=False`` is a dry run: nothing is pushed to LINE, relayed or
+        published, whatever the report says. With delivery off (no
+        ``PLATFORM_SITE_LINE``) the flag changes nothing."""
         name = self._site_name(host)
         office = self.office.for_host(host) if name else None
         hive = next((h for h in (office or {}).get('hives', [])
@@ -240,12 +285,13 @@ class SiteScheduler:
                                  (tenant_id, since)).fetchone()[0]
         if count >= MAX_MANUAL_PER_DAY:
             raise OfficeError(f'今天手動執行已達 {MAX_MANUAL_PER_DAY} 次上限')
-        run = self._start(tenant_id, name, hive, job, 'manual-' + secrets.token_hex(6), 'manual')
+        run = self._start(tenant_id, name, hive, job, 'manual-' + secrets.token_hex(6), 'manual',
+                          deliver=deliver is True)
         if run is None:
             raise OfficeError('這個站台已經有一個排程在執行，請等它結束')
         return run
 
-    def _start(self, tenant_id, site, hive, job, slot, trigger):
+    def _start(self, tenant_id, site, hive, job, slot, trigger, deliver=True):
         with self._lock:
             if site in self._busy or len(self._busy) >= MAX_GLOBAL:
                 busy = True
@@ -274,15 +320,22 @@ class SiteScheduler:
                           'running', now, None, None))
         prompt = build_prompt(hive['id'], hive['name'], job['role'], job['name'],
                               job['skill'], job['context'])
-        thread = threading.Thread(target=self._run, args=(run_id, site, prompt), daemon=True)
+        meta = {'tenant_id': tenant_id, 'hive_id': hive['id'], 'report_name': job['name'],
+                'deliver': deliver}
+        thread = threading.Thread(target=self._run, args=(run_id, site, prompt, meta), daemon=True)
         thread.start()
         return {'id': run_id, 'hive': hive['id'], 'name': job['name'], 'trigger': trigger}
 
-    def _run(self, run_id, site, prompt):
+    def _run(self, run_id, site, prompt, meta=None):
         status, output = 'failed', ''
         try:
             ok, output = self.runner(site, prompt)
             status = 'succeeded' if ok else 'failed'
+            if self.delivery is not None and meta is not None:
+                # Only after the run itself finished; the hook never raises and
+                # never changes the run's status, it only appends a note.
+                output = (output or '') + self.delivery.after_run(
+                    site=site, run_id=run_id, ok=bool(ok), output=output or '', **meta)
         except Exception as exc:
             output = f'執行器錯誤：{type(exc).__name__}'
         finally:

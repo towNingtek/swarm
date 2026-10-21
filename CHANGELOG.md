@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Optional LINE delivery for scheduled runs (`PLATFORM_SITE_LINE=1`)
+
+- `platform/support_site_line.py`: after a scheduled run, a report with `line_push: true` in the site's `project.yaml` pushes its cleaned answer (the `deliverable()` of `support_schedule_answer`; < 40 characters is not pushed, > 1600 is cut) to the LINE bots listed under `line.push`. Tokens stay in the site: the platform pipes `platform/site_scripts/line_agent.js` into the site's container, which reads the site's own token file and returns only a status.
+- Relay through another site's bot only when both sides consent (`line.push[].relay` in the source, `.swarm/line-channels.yaml` with `accept_from` in the destination).
+- 30-day delivery log and monthly LINE quota per bot in the database; hourly quota reading, alerts at 80 % / 95 % (per-bot rules in `line-quota.yaml` next to the database), sends skipped for the rest of a month once LINE reports the limit, burst alert above 30 sends an hour. Alerts go through the site's own Discord bot (`notify:`) or the platform notifier (`DiscordNotifier.system_failure`), both optional.
+- Reports with `hackmd: {repo, token_file, owner}` refresh one owner-only HackMD note in the site (`platform/site_scripts/bd_hackmd.js`) and push "this week's changes + link".
+- `SiteScheduler(delivery=…)` and `run_now(..., deliver=False)` for a dry run that never pushes. The run log gets `[LINE：…]` / `[HackMD：…]` notes. Off by default; without the flag nothing changes.
+
 ## 0.2.0 — 2026-10-21
 
 The swarm: issues are run by AI agents in parallel and accepted only when their criteria pass; a board to see and steer it; new operator and customer consoles.
