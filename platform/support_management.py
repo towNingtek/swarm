@@ -115,6 +115,18 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                    'metadata_only': True, 'provisioning': 'trusted_bootstrap_only'} for r in rows]
         return values if tenant_id is None else values[0]
 
+    def _reset_audit(event, tenant_id, account_id, ttl=None):
+        """Who/when only: never the link or a password (swarm#580)."""
+        import json as _json, os as _os, time as _time
+        path = _os.environ.get('PASSWORD_RESET_AUDIT') or str(
+            __import__('pathlib').Path(getattr(core, 'db_path', '.')).parent / 'password-reset-audit.jsonl')
+        try:
+            with open(path, 'a', encoding='utf-8') as fh:
+                fh.write(_json.dumps({'at': int(_time.time()), 'event': event, 'by': 'admin',
+                                      'tenant_id': tenant_id, 'account_id': account_id, 'ttl': ttl}) + '\n')
+        except OSError:
+            pass
+
     async def dispatch(request, operation, tenant_id=None):
         try:
             # Resolve dynamically and validate every request, even if adapter
@@ -193,6 +205,17 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                 body = await strict_body(request, {'names': list, 'mode': str})
                 value = {'deliveries': await run_in_threadpool(
                     task_library.push, actor, tenant_id, body['names'], body['mode'])}
+            elif operation == 'accounts':
+                value = {'accounts': await run_in_threadpool(core.list_accounts, actor, tenant_id)}
+            elif operation == 'reset':
+                body = await strict_body(request, {'account_id': str, 'ttl_seconds': int})
+                ttl = body['ttl_seconds']
+                if not MIN_INVITE_TTL <= ttl <= MAX_INVITE_TTL:
+                    raise InvalidInput('invalid lifetime')
+                token = await run_in_threadpool(core.issue_password_reset, actor, tenant_id,
+                                                body['account_id'], ttl=ttl)
+                _reset_audit('issued', tenant_id, body['account_id'], ttl)
+                value = {'token': token, 'ttl_seconds': ttl, 'metadata_only': True, 'retry_safe': False}
             elif operation == 'invite':
                 body = await strict_body(request, {'ttl_seconds': int})
                 ttl = body['ttl_seconds']
@@ -213,7 +236,7 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                                         policy.get('monthly_limit'))
                 value = {'metadata_only': True, 'policy': {
                     'mode': mode, 'monthly_limit': policy.get('monthly_limit')}}
-            return JSONResponse(value, status_code=201 if operation == 'invite' else 200,
+            return JSONResponse(value, status_code=201 if operation in ('invite', 'reset') else 200,
                                 headers=SENSITIVE_RESPONSE_HEADERS)
         except OverflowError:
             return _error(413)
@@ -269,6 +292,14 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
     @app.post('/admin/tenants/{tenant_id}/invites')
     async def issue_invite(tenant_id: str, request: Request):
         return await dispatch(request, 'invite', tenant_id)
+
+    @app.get('/admin/tenants/{tenant_id}/accounts')
+    async def list_accounts(tenant_id: str, request: Request):
+        return await dispatch(request, 'accounts', tenant_id)
+
+    @app.post('/admin/tenants/{tenant_id}/password-resets')
+    async def issue_reset(tenant_id: str, request: Request):
+        return await dispatch(request, 'reset', tenant_id)
 
     @app.get('/admin/tasks')
     async def list_tasks(request: Request):

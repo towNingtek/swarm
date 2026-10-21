@@ -55,8 +55,12 @@ button { margin: .3rem; cursor: pointer; }
 
 WELCOME_JS = r"""'use strict';
 (() => {
-  let invite = new URLSearchParams(location.search).get('token') || '';
-  const fromInvite = Boolean(invite);
+  const query = new URLSearchParams(location.search);
+  let invite = query.get('token') || '';
+  // swarm#580: a password reset link carries ?reset= instead of ?token=.
+  let reset = query.get('reset') || '';
+  if (reset) invite = '';
+  const fromInvite = Boolean(invite) || Boolean(reset);
   history.replaceState(null, '', location.pathname);
   const form = document.getElementById('credentials');
   const password = document.getElementById('password');
@@ -81,10 +85,50 @@ WELCOME_JS = r"""'use strict';
   addEventListener('pagehide', () => {
     invite = ''; password.value = ''; confirmField.value = '';
   });
+  if (reset) {
+    // Password reset (swarm#580): same form, the account name is fixed by the link.
+    document.title = 'Swarm · 重設密碼';
+    document.getElementById('page-title').textContent = '重設密碼';
+    document.getElementById('intro').textContent = '請設定新的密碼（至少 8 個字）。這個連結只能用一次；設定後，這個帳號在其他地方的登入都會被登出。';
+    document.getElementById('action').textContent = '設定新密碼並登入';
+    confirmRow.hidden = false; confirmField.required = true; password.autocomplete = 'new-password';
+    const user = document.getElementById('username');
+    user.readOnly = true; user.value = '';
+    fetch('/customer/password-reset/preview', {method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reset})})
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d) => { user.value = d.username || ''; })
+      .catch(() => { status.textContent = '這個重設連結已經使用過或過期了。請聯絡平台管理員重新產生。'; document.getElementById('action').disabled = true; });
+    addEventListener('pagehide', () => { reset = ''; });
+  }
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const button = document.getElementById('action');
     if (button.disabled) return;
+    if (reset) {
+      button.disabled = true;
+      if (password.value !== confirmField.value) {
+        status.textContent = '兩次輸入的密碼不一致，請重新輸入。'; button.disabled = false; return;
+      }
+      let body = {reset, password: password.value};
+      password.value = ''; confirmField.value = '';
+      try {
+        const r = await fetch('/customer/password-reset', {method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          redirect: 'error', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+        if (!r.ok) {
+          throw new Error(r.status === 429 ? '嘗試次數過多，請稍後再試。'
+            : r.status === 400 ? '密碼至少 8 個字，請重新輸入。'
+            : '這個重設連結已經使用過或過期了。請聯絡平台管理員重新產生。');
+        }
+        reset = '';
+        location.replace('/customer/onboarding');
+      } catch (error) {
+        status.textContent = error.message || '無法連線。請檢查網路後再試。';
+      } finally {
+        body.password = ''; body = null; button.disabled = false;
+      }
+      return;
+    }
     button.disabled = true;
     if (invite && password.value !== confirmField.value) {
       status.textContent = '兩次輸入的密碼不一致，請重新輸入。';
@@ -125,11 +169,11 @@ WELCOME_JS = r"""'use strict';
         // account look like a wrong password, with no way to act on it.
         if (response.status === 429) throw new Error('嘗試次數過多，請稍後再試。');
         if (response.status === 409) {
-          throw new Error('這個站台已經啟用過了。請改用「重新登入」，以你先前設定的帳號密碼登入；忘記密碼請聯絡管理員。');
+          throw new Error('這個站台已經啟用過了。請改用「重新登入」，以你先前設定的帳號密碼登入；忘記密碼請聯絡管理員，管理員可以給你重設密碼的連結。');
         }
         throw new Error(activating
           ? '啟用失敗：邀請可能已使用或過期，或帳號格式不符。請確認後再試，或聯絡管理員重新發送邀請。'
-          : '帳號或密碼不正確。請確認後再試，或聯絡管理員。');
+          : '帳號或密碼不正確。請確認後再試；忘記密碼請聯絡平台管理員，管理員可以給你重設密碼的連結。');
       }
       invite = '';
       location.replace('/customer/onboarding');
