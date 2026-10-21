@@ -7,6 +7,7 @@ ports, DNS, reverse proxy) lives in common.py.
 Settings (environment):
   SWARM_SITE_IMAGE           image built from site/Dockerfile
   SWARM_SITE_NETWORK         isolated Docker network name (empty: default bridge)
+  SWARM_SSH_SITES            "name=ip,..." sites allowed to ssh to the host, pinned to that address
   SWARM_SITE_SUBNET/GATEWAY  that network's subnet and gateway
   SWARM_SITE_BRIDGE          its Linux bridge name (the firewall matches on it)
   SWARM_MODEL_RELAY          host:port of the platform model relay sites may reach
@@ -287,6 +288,29 @@ SITE_BRIDGE = os.environ.get("SWARM_SITE_BRIDGE", "br-swarm-sites")
 # The metadata IP is the host's default resolver; sites use public DNS instead.
 SITE_DNS = ("1.1.1.1", "8.8.8.8")
 MODEL_RELAY = os.environ.get("SWARM_MODEL_RELAY", "172.17.0.1:8212")
+# Operator-approved sites that may ssh to the host (for example the operator's own
+# site). SWARM_SSH_SITES="name=ip,..." pins each such site to a fixed address on
+# the site network; the firewall (deploy/bin/swarm-site-firewall) opens host port
+# 22 to exactly those addresses. Empty (default): no site can reach ssh.
+def _ssh_sites(value: str) -> dict[str, str]:
+    import ipaddress
+    out: dict[str, str] = {}
+    network = ipaddress.ip_network(SITE_SUBNET, strict=False)
+    for item in (value or "").split(","):
+        name, _, ip = item.strip().partition("=")
+        if not name or not ip:
+            continue
+        try:
+            address = ipaddress.ip_address(ip.strip())
+        except ValueError:
+            continue
+        if address in network and address not in (network.network_address, network.broadcast_address) \
+                and str(address) != SITE_GATEWAY:
+            out[name.strip()] = str(address)
+    return out
+
+
+SSH_SITES = _ssh_sites(os.environ.get("SWARM_SSH_SITES", ""))
 # Host / neighbour services a site must NOT reach (sampled, not exhaustive: the
 # firewall drops whole ranges; these prove the rules are loaded).
 def _extra_probes() -> tuple[tuple[str, int], ...]:
@@ -383,6 +407,7 @@ def docker_run(
         if _env_value(env_file, "RELAY_TRUSTED_PEERS") != SITE_GATEWAY:
             raise SiteError(f"RELAY_TRUSTED_PEERS must be the site network gateway {SITE_GATEWAY}")
         isolation = ["--network", SITE_NETWORK,
+                     *(["--ip", SSH_SITES[name]] if name in SSH_SITES else []),
                      *[arg for server in SITE_DNS for arg in ("--dns", server)],
                      "-e", "DSH_PERMISSION_MODE=danger-full-access"]
     run(
