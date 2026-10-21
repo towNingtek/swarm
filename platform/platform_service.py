@@ -150,7 +150,12 @@ def build():
     if os.environ.get('PLATFORM_SITE_SCHEDULER') == '1':
         from support_site_scheduler import SiteScheduler
 
-        site_scheduler = SiteScheduler(core, office, library=task_library)
+        from support_schedule_answer import schedule_models
+
+        # SCHEDULE_MODELS: "provider/model,..." for unattended runs (a chat default
+        # that is a personal subscription cannot run unattended). Empty = site default.
+        site_scheduler = SiteScheduler(core, office, library=task_library,
+                                       models=schedule_models(os.environ.get('SCHEDULE_MODELS', '')))
         # .swarm/platform-status.md in every site, so the site's own AI knows
         # its model, allowance, schedules and recent results.
         from support_onboarding import starter_allowance
