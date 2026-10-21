@@ -2,7 +2,7 @@
 import tempfile
 import threading
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -153,6 +153,14 @@ class CronTests(unittest.TestCase):
         self.assertTrue(cron_matches('0 9 * * mon-fri', tue))
         self.assertFalse(cron_matches('0 9 * * mon,wed', tue))
         self.assertTrue(cron_matches('*/15 * * * *', tue))
+        # standard cron numbering (2026-10-21: "0 10 * * 3" meant Wednesday but ran Thursday)
+        self.assertTrue(cron_matches('0 9 * * 2', tue))            # 2 = Tuesday
+        self.assertFalse(cron_matches('0 9 * * 1', tue))           # 1 = Monday
+        self.assertTrue(cron_matches('0 9 * * 1-5', tue))          # weekdays
+        self.assertFalse(cron_matches('0 9 * * 0', tue))           # 0 = Sunday
+        sun = tue + timedelta(days=5)
+        self.assertTrue(cron_matches('0 9 * * 0', sun) and cron_matches('0 9 * * 7', sun) and cron_matches('0 9 * * sun', sun))
+        self.assertFalse(cron_matches('0 9 * * 1-5', sun))
         self.assertFalse(cron_matches('5 9 * * *', tue))
         self.assertTrue(cron_matches('0 9 29 9 *', tue))
         self.assertFalse(cron_matches('0 9 28 * tue', tue))  # fields are ANDed
