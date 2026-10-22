@@ -68,6 +68,7 @@ def _check_tools(tools):
                 or set(tool['function']) - _FUNCTION_KEYS
                 or not isinstance(tool['function'].get('name'), str)):
             raise ValueError('only function tools are available on the starter plan')
+
 # Sites live on Docker bridge networks; nothing else should reach the relay.
 TRUSTED_PEERS = (ipaddress.ip_network('172.16.0.0/12'), ipaddress.ip_network('127.0.0.0/8'))
 
@@ -143,7 +144,8 @@ class SseUsage:
                 self.total = total
 
 
-def create_app(access, *, base_url, api_key, models, transport=None, peer_check=None):
+def create_app(access, *, base_url, api_key, models, transport=None, peer_check=None,
+               scm_access=None, scm_minters=None):
     import httpx
     from starlette.applications import Starlette
     from starlette.background import BackgroundTask
@@ -281,10 +283,21 @@ def create_app(access, *, base_url, api_key, models, transport=None, peer_check=
             yield
         finally:
             await client.aclose()
+            for minter in (scm_minters or {}).values():
+                await minter.aclose()
+
+    # Optional: short-lived GitHub App tokens for sites (scm_token_relay.py).
+    # Same bind address, peer check and firewall opening as the model relay.
+    scm_routes = []
+    if scm_access is not None and scm_minters:
+        from scm_token_relay import create_routes
+
+        scm_routes = create_routes(scm_access, scm_minters, peer_ok=peer_ok, error=_error)
 
     app = Starlette(routes=[
         Route('/v1/models', list_models, methods=['GET']),
         Route('/v1/chat/completions', chat, methods=['POST']),
+        *scm_routes,
         Route('/{path:path}', not_found, methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
     ], lifespan=lifespan)
     return app
@@ -314,8 +327,19 @@ def build():
         print(f'[site-model-relay] {released} interrupted request(s) billed at their estimate',
               flush=True)
     models = [m.strip() for m in os.environ.get('SITE_MODEL_IDS', 'cloud-fast').split(',') if m.strip()]
+    from scm_token_relay import build_minters
+
+    scm_minters = build_minters()  # None unless SCM_APPS_FILE is set
+    scm_access = None
+    if scm_minters:
+        from support_site_scm import SiteScmAccess
+
+        scm_access = SiteScmAccess(core)
+        print(f'[site-model-relay] SCM token relay enabled (/scm/v1/github/token); '
+              f'apps: {", ".join(sorted(scm_minters))}', flush=True)
     return create_app(access, base_url=_require('PLATFORM_MODEL_BASE_URL'),
-                      api_key=_require('PLATFORM_MODEL_KEY'), models=models)
+                      api_key=_require('PLATFORM_MODEL_KEY'), models=models,
+                      scm_access=scm_access, scm_minters=scm_minters)
 
 
 def main():

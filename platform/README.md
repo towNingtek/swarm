@@ -8,7 +8,7 @@ Three processes share one SQLite database:
 |---|---|---|---|
 | Platform | `platform_service.py` | `127.0.0.1:8210` | Invitations, login, copilot, support rooms, single-use entry into a site |
 | Admin console | `admin_service.py` | `127.0.0.1:8211` | Operator login, customers, invites, site builds, password reset, deletion |
-| Site model relay | `site_model_relay.py` | Docker bridge `:8212` | The only model endpoint sites can reach. Each site has its own key; the platform key never leaves the host |
+| Site model relay | `site_model_relay.py` | Docker bridge `:8212` | The only endpoint sites can reach: models (`/v1/...`) and, when configured, short-lived GitHub App tokens (`/scm/v1/github/token`). Each site has its own key; neither the platform key nor any App private key leaves the host |
 
 Put a reverse proxy with TLS in front of the first two (same origin; admin under `/admin`). The relay is reached only from site containers.
 
@@ -27,12 +27,33 @@ Each entry point documents its variables at the top of the file. The essentials:
 | `SWARM_DOMAIN` | all | Parent domain for sites |
 | `SWARM_ENTRY_SECRET` | platform, site | Master secret for single-use entry tickets |
 | `PLATFORM_MODEL_BASE_URL`, `PLATFORM_MODEL_KEY` | relay | Upstream OpenAI-compatible gateway and its key |
+| `SCM_APPS_FILE` | relay | Optional 0600 JSON file of GitHub Apps that may mint installation tokens for sites; without it the `/scm/...` route is not mounted |
 
 | `PLATFORM_SITE_SCHEDULER` | platform | `1` to run customer schedules inside their sites |
 | `PLATFORM_SITE_LINE` | platform | `1` to let reports push results to LINE / HackMD (needs the scheduler; off by default) |
 | `PLATFORM_PLUGINS` | platform, admin | Comma-separated plugin directories, each with `plugin.py` exposing `install(context)` (optional; see below) |
 
 `platform_admin_cli.py` is a small command line for the same database (add a customer, mint an invite, set up a site's starter model).
+
+## GitHub App tokens for sites (optional)
+
+Sites routinely need git and `gh`. Handing a GitHub App private key to a site would hand it every installation the App has, so the key stays on the host and a site holds only a relay key. Code: `scm_token_relay.py`, `support_site_scm.py`.
+
+`SCM_APPS_FILE` names a 0600 JSON file of Apps:
+
+```json
+{"acme": {"client_id": "Iv1.…", "pem_file": "/etc/swarm/secrets/acme-app.pem"}}
+```
+
+With it set, the relay mounts one extra route on the same bind address, peer check and firewall opening as the models:
+
+* `POST /scm/v1/github/token`, `Authorization: Bearer scs_…`, optional `{"repo": "owner/name"}` body.
+
+The relay authenticates the relay key, signs an App JWT (RS256 via the system `openssl`; no extra dependency), finds the installation for the repository owner, and mints an installation token **narrowed to the tenant's repositories and permission ceiling** — the App may hold more, the token never does. Default is read-only (`contents`, `issues`, `pull_requests`, `metadata`); write is granted per tenant on purpose. `owner/*` is allowed and lets GitHub bound the token to the installation's own repository selection.
+
+Tokens are cached until five minutes before they expire, so a burst of git operations costs one GitHub call. Three tables underpin this: `support_site_scm_tokens` (one relay key per tenant; only the SHA-256 digest is stored, and issuing again rotates it), `support_site_scm_scopes` (the repositories that tenant may receive a token for; an empty scope is *not* a wildcard — the relay refuses instead of guessing) and `support_site_scm_mints` (one audit row per exchange, granted or refused; cache hits are not recorded because they grant nothing new).
+
+Do not list the operator's own App: no site may ever act under the operator's name.
 
 ## Plugins (optional)
 
