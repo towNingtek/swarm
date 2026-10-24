@@ -15,9 +15,14 @@ FROM node:22-bookworm-slim
 # dsh-plugin-subscriptions / cordis 4.0.4 一致。仍無 lockfile，重建不保證可重現。
 ARG DSH_VERSION=0.1.7-rc.2
 
-# git 必要：dsh 的 worktree/版本控制功能需要。
+# 標準套件（每個站台都有，不靠站台自訂 packages）：
+#   git — dsh 的 worktree/版本控制功能需要。
+#   gh  — 看板（Wolffia，plugins/swarm-board）用它檢查 GitHub 登入、抓 Projects、
+#         拖曳改狀態與放行 EPIC；沒有 gh 看板只會顯示「尚未連接 GitHub」。
+#         站台帳號沒有 root，事後裝不進系統目錄，所以必須在 image 內。
+#         gh 只是工具；登入／token 仍由各站台自己設定。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates \
+    && apt-get install -y --no-install-recommends git gh ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1001 dsh
 
