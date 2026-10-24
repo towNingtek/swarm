@@ -23,7 +23,7 @@ export function startFetcher({
   projects = [],
   outDir,
   intervalMs = 10 * 60_000,
-  env = undefined, // extra env for the script, e.g. WOLFFIA_PROJECTS
+  env = undefined, // extra env for the script, e.g. WOLFFIA_PROJECTS; or async () => env (per run)
   log = () => {},
   // test hooks: fake clock / timers
   now = Date.now,
@@ -37,7 +37,8 @@ export function startFetcher({
 
   async function fetchOne(project) {
     try {
-      await run(python, [script, '--one', String(project), outDir], { timeout: TIMEOUT_MS, env })
+      const e = typeof env === 'function' ? await env() : env
+      await run(python, [script, '--one', String(project), outDir], { timeout: TIMEOUT_MS, env: e })
     } catch (err) {
       const why = String(err?.stderr || err?.message || err).trim().split('\n').pop()
       log(`board fetch ${typeof project === 'string' ? project : `p${project}`} failed: ${why}`)

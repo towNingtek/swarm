@@ -110,6 +110,13 @@ class AccessTests(Base):
             with self.assertRaises(InvalidInput):
                 self.scm.set_repos(self.tenant.id, ['a/b'], bad)
 
+    def test_organization_projects_is_opt_in(self):
+        self.assertNotIn('organization_projects', READ_ONLY)
+        _, perms = self.scm.set_repos(self.tenant.id, ['acme/*'], {'issues': 'write', 'organization_projects': 'write'})
+        self.assertEqual(perms['organization_projects'], 'write')
+        with self.assertRaises(InvalidInput):
+            self.scm.set_repos(self.tenant.id, ['a/b'], {'organization_projects': 'admin'})
+
     def test_metadata_is_forced_to_read(self):
         _, perms = self.scm.set_repos(self.tenant.id, ['a/b'], {'issues': 'write', 'metadata': 'write'})
         self.assertEqual(perms['metadata'], 'read')

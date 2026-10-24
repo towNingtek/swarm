@@ -45,7 +45,9 @@ _APP_RE = re.compile(r'[a-z0-9][a-z0-9-]{0,62}')  # local name of a configured G
 # was registered (or later edited) with more.
 # Default is read-only: a site gets write access only when explicitly granted.
 READ_ONLY = {'contents': 'read', 'issues': 'read', 'pull_requests': 'read', 'metadata': 'read'}
-_PERMISSION_KEYS = frozenset(READ_ONLY)
+# Opt-in only (never in the default): organization Projects V2, for the site's board
+# (plugins/swarm-board reads a project and moves cards between Status columns).
+_PERMISSION_KEYS = frozenset(READ_ONLY) | {'organization_projects'}
 _LEVELS = frozenset({'read', 'write'})
 
 
