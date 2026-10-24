@@ -39,11 +39,11 @@ export function parseRunning(data) {
   return items
 }
 
-function ghGraphql(query, vars, timeoutMs = 30_000) {
+export function ghGraphql(query, vars, timeoutMs = 30_000, env = undefined) {
   const args = ['api', 'graphql', '-f', `query=${query}`]
   for (const [k, v] of Object.entries(vars)) args.push('-f', `${k}=${v}`)
   return new Promise((resolve, reject) => {
-    execFile('gh', args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile('gh', args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, env: env ? { ...process.env, ...env } : process.env }, (err, stdout, stderr) => {
       if (err) return reject(new Error(String(stderr || err.message).trim().split('\n').pop()))
       try { resolve(JSON.parse(stdout).data) } catch (e) { reject(e) }
     })

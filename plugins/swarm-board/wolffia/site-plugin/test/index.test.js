@@ -382,3 +382,46 @@ test('no projects: projects.json is not written', () => {
   const { root } = setup({ projects: [] })
   assert.equal(existsSync(join(root, 'projects.json')), false)
 })
+
+// Platform relay key (no `gh auth login` on the site): the board connects with the relay's token.
+function relaySetup(relayToken) {
+  const startFetcher = fakeFetcher()
+  const root = mkdtempSync(join(tmpdir(), 'swarm-board-'))
+  const registered = []
+  const ctx = {
+    logger: () => ({ warn() {}, error() {}, info() {} }),
+    effect: (fn) => { fn() },
+    connection: {}, typertGateway: {},
+    webServer: { register: (r) => { registered.push(r); return () => {} } },
+  }
+  plugin.apply(ctx, { dataDir: join(root, 'data'), projects: [2], digestEveryMs: 0 },
+    { ghLogin: async () => false, relay: { get: async () => relayToken }, startFetcher })
+  return { route: registered[0], startFetcher }
+}
+
+test('platform relay: without a gh login the board connects and every fetch gets GH_TOKEN', async () => {
+  const TOKEN = 'ghs_' + 'c'.repeat(36)
+  const { route, startFetcher } = relaySetup(TOKEN)
+  assert.deepEqual(JSON.parse((await call(route, '/board/data/status.json')).body), { github: true })
+  await settle()
+  assert.equal(startFetcher.calls.length, 1)
+  const env = await startFetcher.calls[0].opts.env()
+  assert.equal(env.GH_TOKEN, TOKEN)
+  assert.ok(env.WOLFFIA_PROJECTS)
+})
+
+test('platform relay: no relay token and no gh login -> {"github":false}, nothing fetched', async () => {
+  const { route, startFetcher } = relaySetup(null)
+  assert.deepEqual(JSON.parse((await call(route, '/board/data/status.json')).body), { github: false })
+  await settle()
+  assert.equal(startFetcher.calls.length, 0)
+})
+
+test('platform relay: the token never reaches the page', async () => {
+  const TOKEN = 'ghs_' + 'd'.repeat(36)
+  const { route } = relaySetup(TOKEN)
+  for (const url of ['/board/data/status.json', '/board/', '/board/api/projects/available']) {
+    const res = await call(route, url)
+    assert.ok(!String(res.body ?? '').includes(TOKEN), url)
+  }
+})
