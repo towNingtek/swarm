@@ -10,8 +10,9 @@
 //                             Full path /board/api/think|api/think relative to
 //                             the page — v8.html posts to the relative one.
 //   GET /board/data/status.json {"github": true|false}: whether the site's gh is logged in
-//                             (`gh auth status`). Without it the board fetcher does not
-//                             run and v8.html shows「尚未連接 GitHub」instead of an error.
+//                             (`gh auth status`, rechecked at most every 30s, so a login
+//                             after DSH started counts without a restart). Without it the
+//                             board fetcher does not run and v8.html shows「尚未連接 GitHub」.
 //   GET /board/api/suggestions 每日聚合的「💡 建議」(lib/digest.js), suggestions.json
 //                             as is; {"suggestions":[]} when there is none yet.
 //   POST /board/api/epic/go | api/epic/rego | api/epic/automerge | api/status
@@ -128,7 +129,7 @@ async function thinkRoute(req, res, opts) {
 async function actionRoute(req, res, kind, opts) {
   const bad = thinkRequestError(req)
   if (bad) return sendJson(res, bad[0], { error: bad[2] })
-  if (!opts.act || !(opts.github ? await opts.github : false)) return sendJson(res, 409, { error: NO_GITHUB })
+  if (!opts.act || !(await githubNow(opts.github))) return sendJson(res, 409, { error: NO_GITHUB })
   let body
   try {
     body = JSON.parse(await readBody(req, MAX_ACTION_BODY))
@@ -162,6 +163,31 @@ export function ghLoggedIn() {
   return new Promise((resolve) => {
     execFile('gh', ['auth', 'status'], { timeout: 15_000 }, (err) => resolve(!err))
   })
+}
+
+// opts.github: a function returning (a promise of) true/false, or (older callers) a promise.
+const githubNow = async (github) => {
+  try { return (typeof github === 'function' ? await github() : await github) === true } catch { return false }
+}
+
+export const GITHUB_RECHECK_MS = 30_000
+
+// The site may log gh in (or out) while DSH is running: ask again, but at most once per
+// ttlMs, sharing one in-flight check. onChange(ok) runs whenever the answer differs from
+// the previous one (the first answer counts as a change).
+export function githubGate(hasGitHub, { ttlMs = GITHUB_RECHECK_MS, now = Date.now, onChange } = {}) {
+  let last = null, at = -Infinity, inflight = null
+  return function github() {
+    if (inflight) return inflight
+    if (last !== null && now() - at < ttlMs) return Promise.resolve(last)
+    inflight = Promise.resolve().then(() => hasGitHub()).then((ok) => ok === true, () => false).then((ok) => {
+      const changed = ok !== last
+      last = ok; at = now(); inflight = null
+      if (changed) { try { onChange?.(ok) } catch {} }
+      return ok
+    })
+    return inflight
+  }
 }
 
 // fetch-project.py --one reads projects.json from beside itself; the site layout puts
@@ -241,7 +267,7 @@ export function createHandler({ html, launcher, dataDir, gateway, store, suggest
     }
     if (pathname === `${PREFIX}/api/projects/available`) {
       if (method !== 'GET' && !head) return send(res, 405, 'text/plain; charset=utf-8', 'method not allowed', head, { allow: 'GET, HEAD' })
-      if (!picker || !(github ? await github : false)) return send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ github: false }), head)
+      if (!picker || !(await githubNow(github))) return send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ github: false }), head)
       let body
       try {
         body = await picker.available()
@@ -288,7 +314,7 @@ export function createHandler({ html, launcher, dataDir, gateway, store, suggest
     }
 
     if (pathname === `${PREFIX}/data/status.json`) {
-      const ok = github ? await github : false
+      const ok = await githubNow(github)
       return send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ github: ok }), head)
     }
 
@@ -314,7 +340,7 @@ function runningFor(github, dataDir, projects = [], query = undefined) {
   let current = null, key = ''
   const orgs = projects.filter((k) => typeof k === 'string').map((k) => splitKey(k).owner)
   return async () => {
-    if (!(await github)) return { at: new Date().toISOString(), items: [] }
+    if (!(await githubNow(github))) return { at: new Date().toISOString(), items: [] }
     const owners = [...new Set([...ownersFromBoards(await readBoards(dataDir)).map((o) => o.toLowerCase()), ...orgs])].sort()
     if (owners.join(',') !== key) { key = owners.join(','); current = createRunning({ owners, query }) }
     return current()
@@ -382,7 +408,14 @@ export function apply(ctx, config = {}, hooks = {}) {
   const fetchEveryMs = config.fetchEveryMs ?? FETCH_EVERY_MS
   const startFetcher = hooks.startFetcher ?? realStartFetcher
   const hasGitHub = hooks.hasGitHub ?? ghLoggedIn
-  const github = Promise.resolve().then(() => hasGitHub()).then((ok) => ok === true, () => false)
+  // One gate for the whole board: status.json, actions, running, the fetcher and the digest.
+  // Rechecked (at most every githubRecheckMs), so logging gh in later needs no DSH restart.
+  let onGitHub = () => {}
+  const github = githubGate(hasGitHub, {
+    ttlMs: config.githubRecheckMs ?? GITHUB_RECHECK_MS,
+    now: hooks.now,
+    onChange: (ok) => onGitHub(ok),
+  })
   const lifetime = new AbortController()
   ctx.effect(() => () => lifetime.abort(), 'swarm-board: lifetime')
   const store = createStore(config.sessionsFile || undefined)
@@ -454,17 +487,31 @@ export function apply(ctx, config = {}, hooks = {}) {
 
   // 抓看板資料: every fetchEveryMs (default 10 minutes; 0 = off) run fetch-project.py --one
   // for each of config.projects into dataDir. Needs a logged-in gh; without it nothing runs
-  // and /board/data/status.json says {"github": false}.
+  // and /board/data/status.json says {"github": false}. When gh is logged in later, the next
+  // check (a page load asks status.json; also every githubRecheckMs) starts the fetcher.
   ensureProjectsJson(dataDir, projects, logger)
   ctx.effect(() => {
-    let stopped = false
-    github.then((ok) => {
-      if (!ok) { logger.info?.('swarm-board: gh is not logged in (gh auth status failed); board fetcher not started'); return }
+    let stopped = false, warned = false
+    onGitHub = (ok) => {
       if (stopped) return
+      if (!ok) {
+        if (!warned) logger.info?.('swarm-board: gh is not logged in (gh auth status failed); board fetcher not started')
+        warned = true
+        return
+      }
+      if (!fetcherStarted) logger.info?.('swarm-board: gh is logged in; board fetcher started')
       fetcherStarted = true
       startFetching()
-    })
-    return () => { stopped = true; fetcherStarted = false; fetcher?.stop(); fetcher = null }
+    }
+    github()
+    // While gh is not logged in, look again now and then so the fetcher starts without a page visit.
+    const recheckMs = config.githubRecheckMs ?? GITHUB_RECHECK_MS
+    const timer = recheckMs > 0 ? (hooks.setInterval ?? setInterval)(() => { if (!fetcherStarted) github() }, recheckMs) : null
+    timer?.unref?.()
+    return () => {
+      stopped = true; fetcherStarted = false; fetcher?.stop(); fetcher = null
+      if (timer) (hooks.clearInterval ?? clearInterval)(timer)
+    }
   }, 'swarm-board: fetcher')
 
   // 每日聚合: digestEveryMs (default a day; 0 = off). The first check waits
@@ -479,7 +526,7 @@ export function apply(ctx, config = {}, hooks = {}) {
           send: (q) => think({ ...q, gateway: ctx.typertGateway, store, cwd, workspace, signal: lifetime.signal }),
         }),
         readBoards: () => readBoards(dataDir),
-        github: () => Promise.resolve().then(() => hasGitHub()).then((ok) => ok === true, () => false),
+        github,
         store: suggestions,
         everyMs,
         delayMs: config.digestDelayMs ?? 60_000,

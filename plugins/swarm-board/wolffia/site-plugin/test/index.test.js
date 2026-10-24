@@ -280,6 +280,83 @@ test('with gh: status.json is {"github":true}', async () => {
   assert.equal((await call(route, '/board/data/status.json', 'HEAD')).body, undefined)
 })
 
+// gh logged in AFTER DSH started: no restart needed.
+function lateLogin(config = {}) {
+  let loggedIn = false, checks = 0, t = 0
+  const intervals = []
+  const s = setup({ projects: [2], githubRecheckMs: 30_000, ...config }, {
+    hasGitHub: () => { checks++; return loggedIn },
+    now: () => t,
+    setInterval: (fn, ms) => { const h = { fn, ms }; intervals.push(h); return h },
+    clearInterval: (h) => { h.cleared = true },
+  })
+  return { ...s, intervals, login: () => { loggedIn = true }, advance: (ms) => { t += ms }, checks: () => checks }
+}
+
+test('gh login after startup: status.json turns true and the fetcher starts, no restart', async () => {
+  const b = lateLogin()
+  const [route] = b.registered
+  await settle()
+  assert.equal(b.startFetcher.calls.length, 0)
+  assert.deepEqual(JSON.parse((await call(route, '/board/data/status.json')).body), { github: false })
+
+  b.login()
+  // Within the recheck window the cached answer stands (gh is not run on every request).
+  assert.deepEqual(JSON.parse((await call(route, '/board/data/status.json')).body), { github: false })
+  b.advance(30_000)
+  assert.deepEqual(JSON.parse((await call(route, '/board/data/status.json')).body), { github: true })
+  await settle()
+  assert.equal(b.startFetcher.calls.length, 1, 'the fetcher starts once gh is seen logged in')
+  assert.ok(b.logs.some((l) => /fetcher started/.test(l)))
+})
+
+test('gh login after startup: the background recheck starts the fetcher without a page visit', async () => {
+  const b = lateLogin()
+  await settle()
+  assert.equal(b.intervals.length, 1)
+  assert.equal(b.intervals[0].ms, 30_000)
+  b.login(); b.advance(30_000)
+  b.intervals[0].fn()
+  await settle()
+  assert.equal(b.startFetcher.calls.length, 1)
+  b.intervals[0].fn() // once running, the timer no longer asks gh
+  await settle()
+  assert.equal(b.startFetcher.calls.length, 1)
+})
+
+test('gh login after startup: actions stop answering 409', async () => {
+  const b = lateLogin()
+  const route = b.registered[0]
+  const post = async () => {
+    const res = { status: 0, headers: {}, body: undefined, headersSent: false,
+      writeHead(s, h) { this.status = s; this.headers = h; this.headersSent = true }, end(x) { this.body = x === undefined ? undefined : String(x) }, destroy() {} }
+    const req = { method: 'POST', url: '/board/api/status', headers: { 'content-type': 'application/json', host: 'h' },
+      on(ev, fn) { if (ev === 'data') fn(Buffer.from('{}')); if (ev === 'end') fn() } }
+    await route.handler(req, res)
+    return res.status
+  }
+  assert.equal(await post(), 409)
+  b.login(); b.advance(30_000)
+  assert.notEqual(await post(), 409)
+})
+
+test('gh check is shared and throttled: concurrent requests run gh once', async () => {
+  const b = lateLogin()
+  const [route] = b.registered
+  await settle()
+  const before = b.checks()
+  b.advance(30_000)
+  await Promise.all([1, 2, 3, 4].map(() => call(route, '/board/data/status.json')))
+  assert.equal(b.checks() - before, 1)
+})
+
+test('disposing clears the gh recheck timer', async () => {
+  const b = lateLogin()
+  await settle()
+  b.disposers.forEach((d) => d())
+  assert.equal(b.intervals[0].cleared, true)
+})
+
 test('status.json waits for the gh check', async () => {
   let answer
   const [route] = setup({}, { hasGitHub: () => new Promise((r) => { answer = r }) }).registered
