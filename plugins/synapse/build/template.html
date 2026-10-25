@@ -73,7 +73,7 @@ const projOf=id=>PROJECTS.find(p=>p.id===id)||{id,title:id,missing:true};
 const epicOf=id=>EPICS.find(e=>e.id===id)||{id,title:id,done:0,total:0,state:'?',url:'https://github.com/'+id.replace('#','/issues/'),missing:true};
 document.getElementById('draftSection').hidden=true;
 const SRC=__SRC__;
-const HUB_URL=__HUB_URL__;
+let HUB_URL=__HUB_URL__;
 let lastTap={id:null,t:0};
 
 const $=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg';
@@ -284,7 +284,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(press&&press.mod
 let last=performance.now();function frame(now){const f=Math.min(3,(now-last)/16.7);last=now;if(motionOn||dragId){step(motionOn?f:0,now,motionOn);paint(now)}requestAnimationFrame(frame)}
 const md=$('hubSource').textContent;$('mdIn').value=md;$('srcNote').textContent=SRC;load(md);requestAnimationFrame(frame);
 $('projSel').onchange=function(){if(this.value){addProject(this.value);this.value=''}};
-$('epicSel').onchange=function(){const v=this.value;this.value='';if(!v)return;if(v!=='+'){addEpic(v);return}const t=prompt('貼上 EPIC 的 issue 網址（例：https://github.com/town-intelligent/office/issues/13），或 owner/repo#編號：');if(t==null)return;const id=parseIssueRef(t);if(!id){toast('看不懂這個網址；請貼 GitHub issue 網址，或 owner/repo#編號。');return}addEpic(id)};
+$('epicSel').onchange=function(){const v=this.value;this.value='';if(!v)return;if(v!=='+'){addEpic(v);return}const t=prompt('貼上 EPIC 的 issue 網址（例：https://github.com/owner/repo/issues/13），或 owner/repo#編號：');if(t==null)return;const id=parseIssueRef(t);if(!id){toast('看不懂這個網址；請貼 GitHub issue 網址，或 owner/repo#編號。');return}addEpic(id)};
 $('restoreAll').onclick=()=>{if(confirm('還原畫布？所有 hive 回到圖上，移除畫布上的 project 與連線。'))restoreAll()};
 async function loadProjects(){try{const r=await fetch('data/projects.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json();const before=JSON.stringify([PROJECTS.map(p=>p.id),EPICS.map(e=>[e.id,e.done])]);PROJECTS=j.projects||[];EPICS=j.epics||[];
   if(before!==JSON.stringify([PROJECTS.map(p=>p.id),EPICS.map(e=>[e.id,e.done])])){layout();if(!motionOn)settle(300);render()}}catch(e){}renderCanvasPanel()}
@@ -297,7 +297,7 @@ async function sync(){if(document.hidden)return;try{const r=await fetch(SYNC_URL
   if(syncDigest===null){syncDigest=j.digest;if(j.markdown!==$('hubSource').textContent){$('hubSource').textContent=j.markdown;$('mdIn').value=j.markdown;load(j.markdown,true)}$('srcNote').textContent=note;return}
   if(j.digest!==syncDigest){syncDigest=j.digest;$('hubSource').textContent=j.markdown;$('mdIn').value=j.markdown;load(j.markdown,true);burst('hub');toast('HackMD 有更新，節點已同步。')}
   $('srcNote').textContent=note}catch(e){if(++syncFail===3)$('srcNote').textContent=SRC+'（目前無法同步：'+e.message+'）'}}
-async function loadHives(){try{const r=await fetch('data/hives.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!Array.isArray(j.hives))return;const before=JSON.stringify(ALL_HIVES.map(x=>[x.id,x.states&&x.states.length]));ALL_HIVES=j.hives;HIVES=ALL_HIVES.filter(x=>!CANVAS.removedHives.includes(x.id));if(before!==JSON.stringify(ALL_HIVES.map(x=>[x.id,x.states&&x.states.length]))){layout();if(!motionOn)settle(300);render();renderCanvasPanel()}}catch(e){}}
+async function loadHives(){try{const r=await fetch('data/hives.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(typeof j.url==='string'&&/^https:\/\//.test(j.url))HUB_URL=j.url;if(!Array.isArray(j.hives))return;const before=JSON.stringify(ALL_HIVES.map(x=>[x.id,x.states&&x.states.length]));ALL_HIVES=j.hives;HIVES=ALL_HIVES.filter(x=>!CANVAS.removedHives.includes(x.id));if(before!==JSON.stringify(ALL_HIVES.map(x=>[x.id,x.states&&x.states.length]))){layout();if(!motionOn)settle(300);render();renderCanvasPanel()}}catch(e){}}
 if(location.protocol!=='file:'){loadHives();setInterval(()=>{if(!document.hidden)loadHives()},60000);sync();setInterval(sync,SYNC_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()})}
 // ─── Copilot（規則式示意：答案直接從本頁的策略與 hive 算出來，不呼叫模型）──────
 (()=>{const panel=$('copilotPanel'),open=$('copilotOpen'),log=$('cpLog');

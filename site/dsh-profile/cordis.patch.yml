@@ -55,6 +55,8 @@
     hackmdTokenFile: !!js process.env.SYNAPSE_HACKMD_TOKEN_FILE || undefined
     orgs: !!js (process.env.SYNAPSE_ORGS || '').split(',').map((s) => s.trim()).filter(Boolean)
     hivesDir: !!js process.env.SYNAPSE_HIVES_DIR || undefined
+    devices: !!js (process.env.SYNAPSE_DEVICES || '').split(',').map((s) => s.trim()).filter(Boolean)
+    hubUrl: !!js process.env.SYNAPSE_HUB_URL || undefined
     cwd: !!js process.env.SWARM_BOARD_THINK_CWD || undefined
 
 - id: swarm-board

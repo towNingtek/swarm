@@ -18,6 +18,8 @@ Everything is behind the site login (`dsh-web-auth`). **Do not add `/synapse` to
 | `SYNAPSE_HACKMD_TOKEN_FILE` | path of the site's HackMD token file |
 | `SYNAPSE_ORGS` | comma-separated GitHub orgs for Projects/EPICs; empty = none |
 | `SYNAPSE_HIVES_DIR` | the site's swarm `hives/` directory |
+| `SYNAPSE_DEVICES` | comma-separated hive names that are devices, not systems |
+| `SYNAPSE_HUB_URL` | where double-clicking the hub opens (the HackMD note) |
 
 ## Tests
 

@@ -37,7 +37,7 @@ export async function fetchHub({ note, tokenFile, out, fetchImpl = fetch }) {
 }
 
 /** One hive per directory with a HIVE.md: id, title, kind, state machine (## 狀態機 bullets). */
-export function readHives(dir, devices = ['pi4', 'pi5', 'esp32-hi']) {
+export function readHives(dir, devices = []) {
   if (!dir || !existsSync(dir)) return []
   return readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(dir, d.name, 'HIVE.md'))).map((d) => {
     const t = readFileSync(join(dir, d.name, 'HIVE.md'), 'utf8')
@@ -99,7 +99,7 @@ export async function fetchProjects({ orgs, out, graphql = ghGraphql }) {
 }
 
 /** Start the rounds; returns stop(). Each kind runs on its own timer and never overlaps itself. */
-export function startFetcher({ dataDir, hub, projects, hivesDir, logger = console, hubEveryMs = 60_000, projectsEveryMs = 600_000, deps = {} }) {
+export function startFetcher({ dataDir, hub, projects, hivesDir, devices = [], logger = console, hubEveryMs = 60_000, projectsEveryMs = 600_000, deps = {} }) {
   mkdirSync(dataDir, { recursive: true })
   const timers = []
   const every = (label, ms, fn) => {
@@ -114,6 +114,6 @@ export function startFetcher({ dataDir, hub, projects, hivesDir, logger = consol
   }
   if (hub?.note) every('hub', hubEveryMs, () => fetchHub({ note: hub.note, tokenFile: hub.tokenFile, out: join(dataDir, 'hub.json'), fetchImpl: deps.fetch }))
   if (projects?.orgs?.length) every('projects', projectsEveryMs, () => fetchProjects({ orgs: projects.orgs, out: join(dataDir, 'projects.json'), graphql: deps.graphql }))
-  if (hivesDir) every('hives', hubEveryMs, async () => writeAtomic(join(dataDir, 'hives.json'), JSON.stringify({ hives: readHives(hivesDir), syncedAt: Math.floor(Date.now() / 1000) })))
+  if (hivesDir) every('hives', hubEveryMs, async () => writeAtomic(join(dataDir, 'hives.json'), JSON.stringify({ hives: readHives(hivesDir, devices), url: hub?.url || null, syncedAt: Math.floor(Date.now() / 1000) })))
   return () => timers.forEach(clearInterval)
 }

@@ -156,15 +156,15 @@ import { readHives, fetchHub, fetchProjects, cleanHub } from '../lib/fetcher.js'
 test('readHives: kind, title, state machine', () => {
   const dir = mkdtempSync(join(tmpdir(), 'hives-'))
   const mk = (n, t) => { mkdirSync(join(dir, n)); writeFileSync(join(dir, n, 'HIVE.md'), t) }
-  mk('town-intelligent', '# 小鎮智能 — 專案規則\n> town-intelligent 組織規則\n')
-  mk('jtb-tech', '# JTB Tech 雙向翻譯 — 專案規則\n\n## 狀態機\n- 旅客開口\n- 翻譯\n\n## SCM\n- x\n')
-  mk('esp32-hi', '# esp32-hi — 專案規則\n')
+  mk('acme', '# Acme — 專案規則\n> acme 組織規則\n')
+  mk('translator', '# 雙向翻譯 — 專案規則\n\n## 狀態機\n- 旅客開口\n- 翻譯\n\n## SCM\n- x\n')
+  mk('robot', '# robot — 專案規則\n')
   mkdirSync(join(dir, 'no-hive-md'))
-  const h = Object.fromEntries(readHives(dir).map((x) => [x.id, x]))
-  assert.deepEqual(Object.keys(h).sort(), ['esp32-hi', 'jtb-tech', 'town-intelligent'])
-  assert.equal(h['town-intelligent'].kind, 'org'); assert.equal(h['town-intelligent'].title, '小鎮智能')
-  assert.equal(h['esp32-hi'].kind, 'device')
-  assert.deepEqual(h['jtb-tech'].states, ['旅客開口', '翻譯'])
+  const h = Object.fromEntries(readHives(dir, ['robot']).map((x) => [x.id, x]))
+  assert.deepEqual(Object.keys(h).sort(), ['acme', 'robot', 'translator'])
+  assert.equal(h['acme'].kind, 'org'); assert.equal(h['acme'].title, 'Acme')
+  assert.equal(h['robot'].kind, 'device')
+  assert.deepEqual(h['translator'].states, ['旅客開口', '翻譯'])
 })
 
 test('fetchHub: strips preview banner, unchanged → not rewritten', async () => {

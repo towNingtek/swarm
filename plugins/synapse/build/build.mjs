@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d }
 const OUT = arg('--out', join(here, '..', 'page', 'index.html'))
-const HUB_URL = arg('--hub-url', 'https://hackmd.io/@yillkid/Hk2OhEs3fx')
+const HUB_URL = arg('--hub-url', '')  // 站台在執行時由 hub.json 的 url 提供
 
 const parser = readFileSync(join(here, 'parse-hub.mjs'), 'utf8')
   .replace(/^import[^\n]*\n/m, '').replace(/^export\s+/gm, '').replace(/\nif \(process\.argv[\s\S]*$/, '\n')

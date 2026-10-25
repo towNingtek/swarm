@@ -138,9 +138,10 @@ export function apply(ctx, config = {}) {
   if (config.fetch !== false && !process.env.NODE_TEST_CONTEXT) {
     const stop = startFetcher({
       dataDir, logger,
-      hub: { note: config.hackmdNote, tokenFile: config.hackmdTokenFile },
+      hub: { note: config.hackmdNote, tokenFile: config.hackmdTokenFile, url: config.hubUrl },
       projects: { orgs: Array.isArray(config.orgs) ? config.orgs : [] },
       hivesDir: config.hivesDir,
+      devices: Array.isArray(config.devices) ? config.devices : [],
     })
     ctx.effect(() => stop, 'synapse: fetcher')
   }
