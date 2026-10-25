@@ -15,7 +15,8 @@
         "dsh-plugin-subscriptions",
         "swarm-brand",
         "dsh-share-room",
-        "dsh-swarm-board"
+        "dsh-swarm-board",
+        "dsh-synapse"
       ],
       "patchReload": "live"
     }

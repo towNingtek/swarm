@@ -37,10 +37,12 @@ def _probe(port):
 # Its presence is read from the site's web profile on disk: the site relay
 # answers 403 to the platform for every path, so asking over HTTP proves nothing.
 BOARD_PLUGIN = 'dsh-swarm-board'
+# The optional synapse plugin (a DSH web plugin serving /synapse/ inside the site).
+SYNAPSE_PLUGIN = 'dsh-synapse'
 
 
-def _board_installed(site_name):
-    """True when this site's web profile has the board plugin installed.
+def _board_installed(site_name, plugin=BOARD_PLUGIN):
+    """True when this site's web profile has the given plugin (default: the board) installed.
 
     Takes the site name this platform recorded when it built the site (never a
     customer-supplied value) and looks under SWARM_SITES_ROOT.
@@ -54,7 +56,7 @@ def _board_installed(site_name):
     import common
 
     return os.path.isfile(os.path.join(str(common.SITES_ROOT), site_name, 'dsh-home', 'profiles', 'web',
-                                       'node_modules', BOARD_PLUGIN, 'lib', 'index.js'))
+                                       'node_modules', plugin, 'lib', 'index.js'))
 
 
 def _table(conn, name):
@@ -139,6 +141,7 @@ def overview(core, actor, *, now=None, probe=_probe, board_installed=_board_inst
             'site_job': job['status'] if job else None,
             'online': alive.get(tid),
             'board': bool(job and job['status'] == 'succeeded_provisioned' and board_installed(job['site_name'])),
+            'synapse': bool(job and job['status'] == 'succeeded_provisioned' and board_installed(job['site_name'], SYNAPSE_PLUGIN)),
             'accounts': accounts.get(tid, 0),
             'open_invites': invites.get(tid, 0),
             'usage_month': usage.get(tid, {'tokens': 0, 'calls': 0}),

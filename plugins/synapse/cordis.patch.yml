@@ -1,0 +1,6 @@
+# dsh-synapse: synapse at /synapse/, behind the site login.
+# /synapse stays private: do not add it to any login gate's public list.
+# Optional config: page (path of the built synapse page), dataDir (hub.json / projects.json; default $DSH_HOME/synapse/data).
+- insert:
+    - id: synapse
+      name: 'dsh-synapse'

@@ -60,7 +60,7 @@ class SiteEntry:
         import base64
         return base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')
 
-    ALLOWED_NEXT = ('/', '/board/')
+    ALLOWED_NEXT = ('/', '/board/', '/synapse/')
 
     def entry_url(self, actor, next_path='/'):
         """Return the one-time URL for this customer's provisioned site."""

@@ -49,6 +49,10 @@ COPY plugins/swarm-brand/ /opt/dsh-web-profile/node_modules/swarm-brand/
 # 看板（Wolffia）與 epic skill：/board/ 在站台登入後面。整個外掛目錄放在 profile 內，
 # 以相對連結當作套件（profile 封存不允許連到 profile 外）。看板只在站台登入 GitHub 後抓資料。
 COPY plugins/swarm-board/ /opt/dsh-web-profile/node_modules/.swarm-board/
+# 神經系統（synapse）：/synapse/ 在站台登入後面；Copilot 走站台自己的 DSH 對話與模型選單。
+COPY plugins/synapse/ /opt/dsh-web-profile/node_modules/dsh-synapse/
+RUN node /opt/dsh-web-profile/node_modules/dsh-synapse/build/build.mjs \
+    && rm -rf /opt/dsh-web-profile/node_modules/dsh-synapse/test /opt/dsh-web-profile/node_modules/dsh-synapse/build
 RUN ln -s .swarm-board/wolffia/site-plugin /opt/dsh-web-profile/node_modules/dsh-swarm-board \
     && rm -rf /opt/dsh-web-profile/node_modules/.swarm-board/wolffia/tests /opt/dsh-web-profile/node_modules/.swarm-board/wolffia/site-plugin/test
 # 對話分享 dsh-share-room 由 npm 安裝（見 package.json）：站主把對話分享給沒有帳號的訪客。

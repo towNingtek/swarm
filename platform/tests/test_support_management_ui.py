@@ -431,9 +431,9 @@ setTimeout(() => {
   assert.equal(board.href, 'https://ok.example.com/board/'); assert.equal(enter.href, 'https://ok.example.com/');
   assert.equal(board.className, 'act primary', 'board is the primary button');
   assert.equal(enter.className, 'act', 'enter is secondary when the board exists');
-  assert.ok(board.textContent.includes('看板') && board.title);
+  assert.ok(board.textContent.includes('任務星系') && board.title);
   for (const a of [enter, board]) { assert.equal(a.target, '_blank'); assert.ok(a.rel.includes('noopener')); }
-  // 沒裝看板的站台：只有「進入站台」，沒有「看板」。
+  // 沒裝任務星系的站台：只有「進入站台」，沒有「任務星系」。
   const nb = linksOf(cards[1]);
   assert.equal(nb.length, 1); assert.equal(nb[0].children.length, 1);
   assert.equal(nb[0].children[0].href, 'https://noboard.example.com/');
