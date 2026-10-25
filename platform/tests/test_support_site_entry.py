@@ -113,7 +113,10 @@ class SiteEntryTests(unittest.TestCase):
         board = self.entry.entry_url(self.actor, '/board/')
         self.assertTrue(board.startswith('https://acme.example/auth/enter?ticket='))
         self.assertTrue(board.endswith('&next=%2Fboard%2F'))
-        for bad in ('/admin', 'https://evil.example/', '//evil.example', '/board/../x', '/board', ''):
+        synapse = self.entry.entry_url(self.actor, '/synapse/')
+        self.assertTrue(synapse.endswith('&next=%2Fsynapse%2F'))
+        for bad in ('/admin', 'https://evil.example/', '//evil.example', '/board/../x', '/board', '',
+                    '/synapse', '/synapse/../admin', '/synapse/api/ask'):
             with self.assertRaises(ValueError):
                 self.entry.entry_url(self.actor, bad)
 

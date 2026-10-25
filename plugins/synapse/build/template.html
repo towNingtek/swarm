@@ -1,0 +1,413 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>synapse v3｜中樞 → 策略 → hive</title>
+<style>
+:root{--bg:#100f1d;--panel:#141a22;--line:#28303a;--fg:#e6edf3;--dim:#97a8bb;--gold:#ffc76f;--spine:#b995ff;--hive:#50d7eb;--gl:#ff9d6b;--amber:#e0b083;--done:#78e5ae}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 system-ui,"Noto Sans TC",sans-serif}button,textarea{font:inherit}button{cursor:pointer}
+#app{height:100dvh;min-height:560px;display:flex}#stage{flex:1;min-width:0;position:relative;overflow:hidden}svg{width:100%;height:100%;display:block;touch-action:none;user-select:none}
+#side{width:360px;flex:none;padding:18px;background:var(--panel);border-left:1px solid var(--line);overflow:auto}
+h1{font-size:16px;margin:0 0 4px}h2{font-size:14px;margin:6px 0}.dim{color:var(--dim)}.small{font-size:11px}.eyebrow{font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--gold)}
+.section{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}
+.head{position:absolute;top:14px;left:18px;pointer-events:none;max-width:62%}.head .first{font-size:15px;font-weight:700;color:#ffe2ad}.head .zh{font-size:12px;color:#d9e4ee}
+.controls{position:absolute;bottom:14px;left:14px;display:flex;gap:5px}.controls button,.btn{background:#192430dd;border:1px solid #364859;border-radius:5px;color:#dae4ed;padding:5px 10px}
+.card{border:1px solid #2c3947;border-radius:8px;padding:9px;margin:8px 0;background:#171f29}
+.chip{display:inline-block;font-size:10px;border:1px solid #3d4b5a;border-radius:10px;padding:1px 7px;margin:2px 3px 2px 0;color:#c9d6e2}.chip.rel{border-color:#3f6d63;color:#bff5e6}.chip.pend{border-style:dashed;color:#e7aa78}.chip.gh{border-color:#3e6b77;color:#bfeef6}.chip.gl{border-color:#7a4e36;color:#ffd2b8}
+a{color:#89d8e6}textarea{width:100%;height:150px;color:#ebf4fa;background:#1f2d3b;border:1px solid #496276;border-radius:6px;padding:6px;font:11px/1.45 ui-monospace,monospace}
+.prob{color:#ffb3a6;font-size:11px}
+.cluster{pointer-events:none}.fiber{stroke:#7c93a5;stroke-opacity:.4;stroke-width:.65}.synapse{opacity:.85}#stage.motion-on .synapse{animation:breath 2.4s ease-in-out infinite alternate}@keyframes breath{to{opacity:.32}}
+.cluster.firing .synapse{opacity:1;filter:drop-shadow(0 0 3px #9beaff)}
+.edge{fill:none;stroke-linecap:round}.edge.spine{stroke:#b995ff;stroke-opacity:.75}.edge.spine.waiting{stroke-dasharray:5 6;stroke-opacity:.45}.node.waiting .core{fill-opacity:.35;stroke:#b995ff;stroke-dasharray:2 2}.edge.axon{stroke:#8c98ac;stroke-opacity:.6}
+.node{cursor:grab;outline:none}.node:focus{outline:none}.node.sel .core,.node:focus-visible .core{stroke:#fff;stroke-width:2.2}
+.label{font-size:10px;fill:#d9e4ee;paint-order:stroke;stroke:#100f1d;stroke-width:3px;stroke-linejoin:round;pointer-events:none}.label.strat{font-size:11px;font-weight:700;fill:#e3d4ff}.label.hub{font-size:14px;font-weight:700;fill:#ffd88f}.label.main{font-size:12px;font-weight:700;fill:#e6f6fa}.label.ms{font-size:9px;opacity:.8}.edge.proj{stroke:#e7c46b;stroke-opacity:.55}.edge.ms{stroke:#5d6b78;stroke-opacity:.5}.label.far{opacity:.6}
+.mat{fill:none;stroke-width:2.2;stroke-linecap:round}.mat.rel{stroke:#fff}.mat.ms{stroke:#78e5ae}.mat.epic{stroke:#50d7eb}.mat.pend{stroke:#e0b083;stroke-dasharray:2 3}
+.burst-ring{fill:none;stroke-width:1;animation:ring 1.3s ease-out both;transform-box:fill-box;transform-origin:center}@keyframes ring{0%{opacity:.45;transform:scale(.45)}100%{opacity:0;transform:scale(2.4)}}
+.impulse{fill:#e9dcff;opacity:.7}
+.edge-hit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}.edge-hit:hover{stroke:#7f8ea0;stroke-opacity:.16}.edge.sel{stroke:#fff!important;stroke-opacity:1!important;stroke-width:2.4}.edge.draft{stroke:#5fe0c0!important;stroke-opacity:.85!important}
+#linkPreview{stroke:#5fe0c0;stroke-width:1.6;stroke-dasharray:4 4}.node.link-target .core{stroke:#fff;stroke-width:3}#stage.linking .node{cursor:crosshair}
+#edgeBar{position:absolute;z-index:5;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:260px;padding:6px 8px;background:#1b2532f2;border:1px solid #5c7086;border-radius:9px;box-shadow:0 8px 26px #000b}#edgeBar span{flex-basis:100%;font-size:10px;color:#c3d3e0}#edgeBar[hidden],#hint[hidden],#toast[hidden]{display:none}
+#hint,#toast{position:absolute;left:14px;bottom:52px;padding:5px 10px;border-radius:6px;font-size:11px}#hint{border:1px solid #3f6d63;background:#132a26e6;color:#bff5e6}#toast{left:50%;transform:translateX(-50%);bottom:auto;top:60px;border:1px solid #6d5a44;background:#2b2118f0;color:#ffd9a8}
+.btn.cut{border-color:#6d5a44;background:#3a2b1d;color:#ffd9a8}.btn.on{border-color:#5fe0c0;background:#173d36;color:#bff5e6}.chip.new{border-color:#3f6d63;color:#bff5e6}.chip.gone{border-style:dashed;color:#e7aa78;text-decoration:line-through}
+#copilotOpen{position:fixed;right:382px;bottom:18px;z-index:20;border:1px solid #8de3e7;border-radius:22px;background:#183747;color:#e9fbff;box-shadow:0 5px 26px #000a;padding:9px 15px;font-weight:700}
+#copilotPanel{position:fixed;right:376px;bottom:66px;z-index:21;width:min(380px,calc(100vw - 32px));height:min(520px,calc(100dvh - 90px));background:#141e2b;border:1px solid #476078;border-radius:14px;box-shadow:0 18px 65px #000c;display:flex;flex-direction:column;overflow:hidden}#copilotPanel[hidden]{display:none}
+.cpHead{padding:12px 14px;border-bottom:1px solid #334657;display:flex;justify-content:space-between;gap:8px}.cpHead small{display:block;color:#a4b8c9;font-size:11px}.cpHead button{border:0;background:none;color:#c8d9e6;font-size:20px}
+#cpLog{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}.cpB{border-radius:9px;padding:8px 10px;background:#233242;white-space:pre-wrap;line-height:1.55}.cpB.user{background:#244b54;align-self:flex-end;max-width:90%}
+.cpQuick{padding:7px 12px;border-top:1px solid #344657;display:flex;flex-wrap:wrap;gap:4px}.cpQuick button{font-size:11px;border:1px solid #60778c;border-radius:6px;background:#294256;color:#f0f8fa;padding:4px 8px}
+#cpForm{display:flex;gap:6px;padding:9px 12px;border-top:1px solid #344657;flex-wrap:wrap}#cpModel{flex-basis:100%;order:2;font-size:11px;color:#cfe3ee;background:#101d2a;border:1px solid #3d5466;border-radius:6px;padding:4px 6px}.cpB.wait{opacity:.6;font-style:italic}.cpB .cpMeta{display:block;margin-top:4px;font-size:10px;color:#8fa6b8}#cpForm input{flex:1;min-width:0;border:1px solid #567085;border-radius:6px;background:#101d2a;color:#e8f4f7;padding:7px}#cpForm button{background:#2d6973;border:0;border-radius:6px;color:#fff;padding:7px 10px}
+@media(prefers-reduced-motion:reduce){.synapse,.burst-ring{animation:none!important}}
+@media(max-width:820px){#app{flex-direction:column;height:auto}#stage{height:68vh}#side{width:auto}#copilotOpen{right:16px}#copilotPanel{right:16px}}
+</style></head><body><div id="app">
+<main id="stage">
+ <div class="head"><div class="eyebrow">synapse v3 · 討論樣稿</div><div class="first" id="first1"></div><div class="zh" id="first2"></div></div>
+ <svg id="svg" viewBox="0 0 1000 700" role="img" aria-label="中樞、策略與 hive 的神經系統圖"><defs><filter id="glow"><feGaussianBlur stdDeviation="7"/></filter></defs>
+  <g id="camera"><g id="clusterLayer"></g><g id="edgeLayer"></g><g id="nodeLayer"></g><g id="fxLayer" pointer-events="none"></g><line id="linkPreview" visibility="hidden" pointer-events="none"></line></g></svg>
+ <div id="edgeBar" hidden><span id="edgeBarLabel"></span><button class="btn cut" id="edgeCut" type="button">✂ 切斷這條連線</button><button class="btn" id="edgeClose" type="button" aria-label="取消選取">✕</button></div>
+ <div id="hint" hidden>連線模式：從策略拖到 hive 就會接上 · Esc 結束</div><div id="toast" hidden role="status"></div>
+ <div class="controls"><button id="fit">全圖</button><button id="motion" aria-pressed="true">✺ 微動：開</button><button id="explode">✦ 爆開重排</button><button id="linkMode" aria-pressed="false" title="也可以按住 Shift 拖曳">🔗 連線模式</button></div>
+</main>
+<aside id="side">
+ <div class="eyebrow">讀圖</div>
+ <p class="dim small" style="margin:4px 0 0"><b style="color:var(--gold)">金色中樞</b>＝roadmap。<br><b style="color:var(--spine)">紫色菱形</b>＝Function（S 編號）。<br><b style="color:var(--hive)">圓點</b>＝hive（swarm 資料夾）；灰色＝還沒有狀態機。<br><b style="color:#e7c46b">金色方塊</b>＝GitHub Project。<br><b style="color:var(--done)">小圓點</b>＝EPIC（子 issue 完成越多越亮；綠＝全部完成）。<br>沒接上的節點漂在外圈，不代表沒價值。</p>
+ <div class="section" id="detail"></div>
+ <div class="section"><div class="eyebrow">畫布</div><select id="projSel" aria-label="加入 GitHub Project" style="width:100%;margin:6px 0;color:#ebf4fa;background:#1f2d3b;border:1px solid #496276;border-radius:6px;padding:5px"></select><select id="epicSel" aria-label="加入 EPIC" style="width:100%;margin:0 0 6px;color:#ebf4fa;background:#1f2d3b;border:1px solid #496276;border-radius:6px;padding:5px"></select><p class="dim small" id="canvasNote"></p><p class="dim small">從 hive 拖到 Function、從 project 拖到 hive、從 EPIC 拖到 project 就會接上（連線模式或 Shift＋拖曳）。點線可以斷開；點節點可以刪除。</p><button class="btn" id="restoreAll" type="button">↺ 還原畫布</button></div>
+ <div class="section" id="draftSection"><div class="eyebrow">待寫回 HackMD · <output id="draftLabel">無</output></div><div id="draft"></div></div>
+ <div class="section"><div class="eyebrow">資料來源</div><p class="dim small" id="srcNote"></p><div id="problems"></div>
+  <details><summary class="small">貼上新版中樞重新繪製</summary><p class="dim small">只在這個頁面重畫，不會寫回 HackMD。</p><textarea id="mdIn" aria-label="中樞 Markdown"></textarea><button class="btn" id="rerender" style="margin-top:6px">重新繪製</button></details></div>
+</aside></div>
+<button id="copilotOpen" type="button" aria-controls="copilotPanel" aria-expanded="false">✦ Copilot · 示意</button>
+<section id="copilotPanel" hidden aria-label="Copilot 示意"><div class="cpHead"><div><strong>✦ 策略 Copilot</strong><small id="cpSub">說明 synapse 的規則，並依這張圖回答；不會寫入任何地方</small></div><button id="cpClose" aria-label="關閉">×</button></div><div id="cpLog" role="log" aria-live="polite"></div><div class="cpQuick"><button data-q="rules">📘 基本規則</button><button data-q="link">接線規則</button><button data-q="drift">哪些 hive 漂走了？</button><button data-q="noev">哪些 Function 還沒有 EPIC？</button><button data-q="spine">主幹怎麼長的？</button><button data-q="draft">我改了什麼？</button></div><form id="cpForm"><select id="cpModel" aria-label="選擇模型" title="選擇模型"><option value="rules">規則（不用模型）</option></select><input id="cpIn" placeholder="例如：哪些 hive 漂走了？" autocomplete="off" aria-label="提問"><button>送出</button></form></section>
+<script type="text/markdown" id="hubSource">__HUB_MD__</script>
+<script>
+// ─── 解析器：由 parse-hub.mjs 內嵌（build-v3.mjs 產生，請勿手改這段）────────────
+__PARSER__
+// ─── hive 清單（swarm/hives/*/HIVE.md）────────────────────────────────
+let ALL_HIVES=__HIVES__;
+// 四層：中樞 → Function → hive → project → EPIC。
+const SHOW_HIVES=true;
+// ─── 畫布上的編輯（存在這個瀏覽器；不寫回 HackMD、swarm 或 GitHub）──────────────
+// hive 預設全部列出，可刪除；project 由選單加入，可刪除；連線：S—hive、hive—project。
+const LS='synapse.canvas.v1';
+let CANVAS=(()=>{try{const v=JSON.parse(localStorage.getItem(LS)||'{}');return {removedHives:v.removedHives||[],projects:v.projects||[],epics:v.epics||[],links:v.links||[]}}catch(e){return {removedHives:[],projects:[],epics:[],links:[]}}})();
+const saveCanvas=()=>{try{localStorage.setItem(LS,JSON.stringify(CANVAS))}catch(e){}};
+let PROJECTS=[];   // 由 data/projects.json 載入（開啟中的 GitHub Project）
+let EPICS=[];      // 同一份檔案：所有 EPIC（標題 [EPIC]＋有子 issue）；選單只列開啟中的
+let HIVES=ALL_HIVES.filter(x=>!CANVAS.removedHives.includes(x.id));
+const projOf=id=>PROJECTS.find(p=>p.id===id)||{id,title:id,missing:true};
+const epicOf=id=>EPICS.find(e=>e.id===id)||{id,title:id,done:0,total:0,state:'?',url:'https://github.com/'+id.replace('#','/issues/'),missing:true};
+document.getElementById('draftSection').hidden=true;
+const SRC=__SRC__;
+const HUB_URL=__HUB_URL__;
+let lastTap={id:null,t:0};
+
+const $=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg';
+function add(t,a,p){const e=document.createElementNS(ns,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.append(e);return e}
+function h(tag,props={},...kids){const e=document.createElement(tag);for(const k in props){if(k==='on')for(const ev in props.on)e.addEventListener(ev,props.on[ev]);else if(k in e)e[k]=props[k];else e.setAttribute(k,props[k])}for(const c of kids.flat())if(c!=null)e.append(c.nodeType?c:document.createTextNode(c));return e}
+const L={cluster:$('clusterLayer'),edge:$('edgeLayer'),node:$('nodeLayer'),fx:$('fxLayer')},svg=$('svg'),camera=$('camera'),stage=$('stage');
+const CX=500,CY=360,prefersLess=matchMedia('(prefers-reduced-motion: reduce)').matches;let motionOn=!prefersLess;
+
+let G={first:[],strategies:[],problems:[]},sel=null,selEdge=null,BASE={},linkMode=false;
+// 圖上接上／切斷只改這份草稿；HackMD 才是準，差異會列在「待寫回 HackMD」。
+const isAdded=(sid,hid)=>!(BASE[sid]||[]).includes(hid);
+// 顯示用：「S1 名稱」；S 編號是 ID，名稱給人看
+const label=id=>{if(id==='中樞')return '中樞';const s=G.strategies.find(x=>x.id===id);return s?s.id+' '+s.name:id};
+const KIND={project:'project',org:'公司',device:'裝置'};
+function changes(){const out=[];for(const s of G.strategies){const b=BASE[s.id]||[],add=s.neurons.filter(n=>!b.includes(n)),rem=b.filter(n=>!s.neurons.includes(n));if(add.length||rem.length)out.push({s,add,rem})}return out}
+const sim={};let ph=0;
+function node(id,x,y){if(!sim[id])sim[id]={id,x,y,vx:0,vy:0,ph:(ph+=1.37)};return sim[id]}
+
+// 圖的連線全部由策略的「接在」與「神經元」推出，沒有另外維護的連線資料。
+const exists=k=>k==='hub'||(k.startsWith('s:')&&G.strategies.some(s=>'s:'+s.id===k))||(k.startsWith('h:')&&HIVES.some(x=>'h:'+x.id===k))||(k.startsWith('p:')&&CANVAS.projects.includes(k.slice(2)))||(k.startsWith('e:')&&CANVAS.epics.includes(k.slice(2)));
+function links(){const out=[];for(const s of G.strategies){const p=s.parent==='中樞'?'hub':s.parent&&G.strategies.some(x=>x.id===s.parent)?'s:'+s.parent:null;if(p)out.push({a:p,b:'s:'+s.id,kind:'spine'})}
+ for(const l of CANVAS.links)if(exists(l.a)&&exists(l.b))out.push({a:l.a,b:l.b,kind:l.a.startsWith('s:')?'axon':l.b.startsWith('e:')?'ms':'proj'});return out}
+const cited=()=>new Set(CANVAS.links.filter(l=>l.a.startsWith('s:')&&exists(l.a)&&exists(l.b)).map(l=>l.b.slice(2)));
+const projLinked=()=>new Set(CANVAS.links.filter(l=>l.b.startsWith('p:')&&exists(l.a)).map(l=>l.b.slice(2)));
+function active(){return [sim.hub,...G.strategies.map(s=>sim['s:'+s.id]),...HIVES.map(x=>sim['h:'+x.id]),...CANVAS.projects.map(p=>sim['p:'+p]),...CANVAS.epics.map(e=>sim['e:'+e])].filter(Boolean)}
+
+function layout(){for(const p of CANVAS.projects)if(!sim['p:'+p])node('p:'+p,CX+(Math.random()-.5)*160,CY+260);for(const e of CANVAS.epics)if(!sim['e:'+e])node('e:'+e,CX+(Math.random()-.5)*200,CY+290);node('hub',CX,CY);orderFunctions();const S=G.strategies;S.forEach((s,i)=>{const a=ANG[s.id]!=null?ANG[s.id]:-Math.PI/2+(i+.5)*(Math.PI*2/Math.max(S.length,1));node('s:'+s.id,CX+Math.cos(a)*130,CY+Math.sin(a)*110)});HIVES.forEach((x,i)=>{const a=i/HIVES.length*Math.PI*2+.3;node('h:'+x.id,CX+Math.cos(a)*300,CY+Math.sin(a)*240)})}
+let dragId=null;
+// 依「接在」算深度：中樞 0 → 主幹 1 → 分支 2…；hive 比接它的策略再深一層。
+// 用半徑把層次撐開，主幹才會比分支靠近中樞，hive 永遠在策略外側。
+function depths(){const d={hub:0},S=G.strategies;let changed=true,guard=0;while(changed&&guard++<20){changed=false;for(const s of S){const p=s.parent==='中樞'?0:d['s:'+s.parent];if(p!=null&&d['s:'+s.id]!==p+1){d['s:'+s.id]=p+1;changed=true}}}
+ const E=links().filter(e=>e.kind!=='spine');for(let r=0;r<4;r++)for(const e of E){const a=d[e.a];if(a==null)continue;if(d[e.b]==null||a+1<d[e.b])d[e.b]=a+1}return d}
+// 每一層的半徑；沒被接上的 hive 固定在最外圈，永遠比任何接上的層更外側。
+const RING=[0,140,230,320,360],FLOAT=375;
+// ─── 依連線排版 ────────────────────────────────────────────────
+// 1. 共用同一個 hive 的 Function 排在相鄰位置（減少交叉）。只在載入或「爆開重排」時重算，接線當下不動。
+// 2. hive 固定在 Function 圈外側，角度＝它所接 Function 角度的平均。
+// 3. hive 大小＝接了幾個 Function（main／side project）。
+let ANG={};
+const hivesOfS=sid=>CANVAS.links.filter(l=>l.a==='s:'+sid&&exists(l.b)).map(l=>l.b);
+const degOf=hk=>CANVAS.links.filter(l=>l.b===hk&&l.a.startsWith('s:')&&exists(l.a)).length;
+function orderFunctions(){const S=G.strategies.filter(s=>s.parent==='中樞').map(s=>s.id);if(!S.length){ANG={};return}
+ const num=x=>parseInt(x.slice(1),10),base=[...S].sort((a,b)=>num(a)-num(b));let order=base;
+ const E=CANVAS.links.filter(l=>l.a.startsWith('s:')&&exists(l.a)&&exists(l.b)&&S.includes(l.a.slice(2)));
+ if(E.length&&S.length<=8){
+  // 窮舉 Function 在環上的順序（固定第一個，最多 7! = 5040 種），用理想位置算交叉數，挑最少的。
+  const H=[...new Set(E.map(l=>l.b))],fsOf={};for(const l of E)(fsOf[l.b]=fsOf[l.b]||[]).push(l.a.slice(2));
+  const cross=(p1,p2,p3,p4)=>{const d=(a,b,c)=>(c.x-a.x)*(b.y-a.y)-(b.x-a.x)*(c.y-a.y);return d(p3,p4,p1)*d(p3,p4,p2)<0&&d(p1,p2,p3)*d(p1,p2,p4)<0};
+  const score=ord=>{const ang={},pos={hub:{x:0,y:0}};ord.forEach((id,k)=>{ang[id]=-Math.PI/2+(k+.5)*(Math.PI*2/ord.length);pos['s:'+id]={x:Math.cos(ang[id])*RING[1],y:Math.sin(ang[id])*RING[1]/1.3}});
+   for(const h of H){let x=0,y=0;for(const f of fsOf[h]){x+=Math.cos(ang[f]);y+=Math.sin(ang[f])}const a=Math.atan2(y,x);let w=0;for(const f2 of fsOf[h]){let d=Math.abs(ang[f2]-a);d=Math.min(d,Math.PI*2-d);w=Math.max(w,d)}const R=fsOf[h].length<2?RING[2]:Math.min(330,RING[1]/Math.max(Math.cos(Math.min(w,1.35)),.22)+70);pos[h]={x:Math.cos(a)*R,y:Math.sin(a)*R/1.3,a}}
+   const seg=[...ord.map(id=>['hub','s:'+id]),...E.map(l=>[l.a,l.b])];let c=0,len=0;
+   for(let p=0;p<seg.length;p++)for(let q=p+1;q<seg.length;q++){const [a,b]=seg[p],[e,f]=seg[q];if(a===e||a===f||b===e||b===f)continue;if(cross(pos[a],pos[b],pos[e],pos[f]))c++}
+   for(const l of E)len+=Math.hypot(pos[l.a].x-pos[l.b].x,pos[l.a].y-pos[l.b].y);
+   // 兩個 hive 落在幾乎同一方向會互相推擠，算半個交叉
+   for(let p=0;p<H.length;p++)for(let q=p+1;q<H.length;q++){let d=Math.abs(pos[H[p]].a-pos[H[q]].a);d=Math.min(d,Math.PI*2-d);if(d<.35)c+=.5}
+   return c*10000+len};
+  const rest=base.slice(1);let best=null,bs=Infinity;
+  const perm=(arr,k)=>{if(k===arr.length){const o=[base[0],...arr],sc=score(o);if(sc<bs-1e-6){bs=sc;best=o}return}for(let i=k;i<arr.length;i++){[arr[k],arr[i]]=[arr[i],arr[k]];perm(arr,k+1);[arr[k],arr[i]]=[arr[i],arr[k]]}};
+  perm(rest.slice(),0);order=best||base}
+ ANG={};order.forEach((id,i)=>ANG[id]=-Math.PI/2+(i+.5)*(Math.PI*2/order.length));
+ for(let r=0;r<5;r++)for(const s of G.strategies)if(ANG[s.id]==null&&s.parent&&ANG[s.parent]!=null)ANG[s.id]=ANG[s.parent]}
+function hiveR(hk){const fs=CANVAS.links.filter(l=>l.b===hk&&l.a.startsWith('s:')&&exists(l.a)).map(l=>ANG[l.a.slice(2)]).filter(a=>a!=null);if(fs.length<2)return RING[2];const c=hiveAngle(hk);let w=0;for(const a of fs){let d=Math.abs(a-c);d=Math.min(d,Math.PI*2-d);w=Math.max(w,d)}return Math.min(330,RING[1]/Math.max(Math.cos(Math.min(w,1.35)),.22)+70)}
+function hiveAngle(hk){const fs=CANVAS.links.filter(l=>l.b===hk&&l.a.startsWith('s:')&&exists(l.a)).map(l=>ANG[l.a.slice(2)]).filter(a=>a!=null);if(!fs.length)return null;
+ let x=0,y=0;for(const a of fs){x+=Math.cos(a);y+=Math.sin(a)}return Math.atan2(y,x)}
+function step(f,now,sway){const nodes=active(),E=links(),c=cited(),D=depths();
+ for(const e of E){const a=sim[e.a],b=sim[e.b];if(!a||!b)continue;const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,rest=e.kind==='spine'?120:e.kind==='ms'?58:95,F=(d-rest)*.0026*f;a.vx+=dx/d*F*.5;a.vy+=dy/d*F*.5;b.vx-=dx/d*F;b.vy-=dy/d*F}
+ for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j],dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy)||1,lim=(a.id[0]==='e'&&b.id[0]==='e')?44:(a.id[0]==='e'||b.id[0]==='e')?56:150;if(d<lim){const F=(lim-d)*.0017*f;a.vx+=dx/d*F;a.vy+=dy/d*F;b.vx-=dx/d*F;b.vy-=dy/d*F}}
+ for(const n of nodes){if(n.id===dragId){n.vx=n.vy=0;continue}
+  if(n.id==='hub'){n.vx=(CX-n.x)*.2;n.vy=(CY-n.y)*.2}
+  else{
+   const ta=n.id.startsWith('s:')?ANG[n.id.slice(2)]:n.id.startsWith('h:')?hiveAngle(n.id):null;if(ta!=null){const R0=n.id.startsWith('s:')?RING[1]:hiveR(n.id),tx=CX+Math.cos(ta)*R0,ty=CY+Math.sin(ta)*R0/1.3,kk=n.id.startsWith('s:')?.03:.02;n.vx+=(tx-n.x)*kk*f;n.vy+=(ty-n.y)*kk*f}else{
+   const dep=D[n.id],R=dep==null?FLOAT:RING[Math.min(dep,RING.length-1)],dx=n.x-CX,dy=(n.y-CY)*1.3,r=Math.hypot(dx,dy)||1,k=dep==null?.0018:n.id.startsWith('s:')?.009:.0022,F=(R-r)*k*f;n.vx+=dx/r*F;n.vy+=dy/r*F*.8}}
+  if(sway){n.vx+=Math.cos(now*.00042+n.ph)*.014*f;n.vy+=Math.sin(now*.00035+n.ph*1.3)*.012*f}
+  const damp=Math.pow(.86,f);n.vx=Math.max(-2.5,Math.min(2.5,n.vx*damp));n.vy=Math.max(-2.5,Math.min(2.5,n.vy*damp));
+  n.x=Math.max(50,Math.min(950,n.x+n.vx*f));n.y=Math.max(90,Math.min(650,n.y+n.vy*f))}}
+function settle(k=500){for(let i=0;i<k;i++)step(1,0,false)}
+
+let seed=191;const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};const shapes={};
+function cluster(key,count,base,color,dim){if(!shapes[key]){const pts=[];for(let i=0;i<count;i++){const a=2*Math.PI*i/count+(rnd()-.5)*.26,r=base+(i%3)*4+rnd()*3;pts.push({x:Math.cos(a)*r,y:Math.sin(a)*r,big:i%4===0,fiber:i%3!==0,a})}shapes[key]=pts}
+ const g=add('g',{class:'cluster','data-cluster':key,opacity:dim?.4:.78},L.cluster);for(const p of shapes[key]){if(p.fiber)add('line',{x1:Math.cos(p.a)*4,y1:Math.sin(p.a)*4,x2:p.x,y2:p.y,class:'fiber'},g);add('circle',{cx:p.x,cy:p.y,r:p.big?2.3:1.65,fill:color,class:'synapse'},g)}}
+function arcPath(r,a0,a1){const P=t=>{const a=(t-90)*Math.PI/180;return[r*Math.cos(a),r*Math.sin(a)]},x=P(a0),y=P(a1);return`M${x[0]} ${x[1]} A${r} ${r} 0 ${a1-a0>180?1:0} 1 ${y[0]} ${y[1]}`}
+function evidenceOf(hid){const items=[];for(const s of G.strategies)if(s.neurons.includes(hid)){for(const e of s.evidence)items.push({...e,from:s.id});if(s.pending)items.push({kind:'pend',from:s.id})}return items}
+function arcs(g,items,r){if(!items.length)return;const gap=12,span=360/items.length;items.forEach((it,i)=>add('path',{d:arcPath(r,i*span+gap/2,(i+1)*span-gap/2),class:'mat '+(it.kind==='release'?'rel':it.kind==='milestone'?'ms':it.kind==='epic'?'epic':'pend')},g))}
+function curve(a,b){const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,dx=b.x-a.x,dy=b.y-a.y;return`M${a.x} ${a.y} Q${mx-dy*.08} ${my+dx*.08} ${b.x} ${b.y}`}
+
+function render(){for(const k in L)if(k!=='fx')L[k].replaceChildren();const c=cited();
+ const waiting=new Set();
+ for(const e of links()){const k=e.a+'|'+e.b,isSel=selEdge===k,isNew=false;add('path',{class:'edge '+e.kind+(isSel?' sel':'')+(isNew?' draft':'')+(waiting.has(e.b)?' waiting':''),'data-a':e.a,'data-b':e.b,'stroke-width':e.kind==='spine'?2.2:1},L.edge);add('path',{class:'edge-hit','data-a':e.a,'data-b':e.b,'data-hit':k},L.edge)}
+ cluster('hub',26,34,'#f3bf74',false);
+ const hub=add('g',{class:'node','data-node':'hub',tabindex:0,role:'button','aria-label':'中樞'},L.node);add('circle',{r:34,fill:'#ffc76f',opacity:.16,filter:'url(#glow)'},hub);add('circle',{r:34,fill:'transparent'},hub);add('title',{},hub).textContent='點兩下開啟中樞文件（HackMD）';add('circle',{r:15,fill:'#ffc76f',class:'core',stroke:'#223347'},hub);
+ add('text',{class:'label hub',x:0,y:-46,'text-anchor':'middle'},hub).textContent='中樞（150%）';
+ for(const s of G.strategies){const g=add('g',{class:'node'+(waiting.has('s:'+s.id)?' waiting':''),'data-node':'s:'+s.id,tabindex:0,role:'button','aria-label':'策略 '+s.name},L.node);add('circle',{r:16,fill:'transparent'},g);add('rect',{x:-7,y:-7,width:14,height:14,rx:3,transform:'rotate(45)',fill:'#b995ff',class:'core',stroke:'#223347'},g);add('text',{class:'label strat',x:14,y:waiting.has('s:'+s.id)?-4:4},g).textContent=s.name;if(waiting.has('s:'+s.id))add('text',{class:'label',x:14,y:10},g).textContent='等 hive 接上'}
+ for(const x of HIVES){const far=!c.has(x.id),grey=!(x.states&&x.states.length),col=grey?'#7d8794':x.host==='gitlab'?'#ff9d6b':'#50d7eb';const deg=degOf('h:'+x.id),sz=Math.min(deg,4);cluster('h:'+x.id+(sz?'#'+sz:''),11+sz*4,14+sz*5,grey?'#6b7480':x.host==='gitlab'?'#f0a5aa':'#62cedd',far);
+  const g=add('g',{class:'node'+(grey?' legacy':''),'data-node':'h:'+x.id,'data-kind':x.kind,tabindex:0,role:'button','aria-label':'hive '+x.id+(grey?'（還沒有狀態機）':''),opacity:far?.6:1},L.node);add('circle',{r:16,fill:'transparent'},g);add('circle',{r:5+sz*2.5,fill:col,class:'core',stroke:'#223347'},g);add('text',{class:'label hl'+(far?' far':'')+(sz>=2?' main':''),x:15+sz*5,y:4,'data-off':15+sz*5},g).textContent=x.id+(deg>1?' ×'+deg:'')}
+ const pl=projLinked();
+ for(const pid of CANVAS.projects){const P=projOf(pid),far=!pl.has(pid);
+  const g=add('g',{class:'node project','data-node':'p:'+pid,tabindex:0,role:'button','aria-label':'GitHub Project '+P.title,opacity:far?.6:1},L.node);add('circle',{r:16,fill:'transparent'},g);
+  add('rect',{x:-7,y:-7,width:14,height:14,rx:2,fill:P.missing?'#5b4a3a':'#e7c46b',class:'core',stroke:'#223347'},g);
+  add('text',{class:'label',x:13,y:4},g).textContent=P.title+(P.missing?'（已不在開啟中的清單）':'')}
+ const epLinked=new Set(CANVAS.links.filter(l=>l.b.startsWith('e:')&&exists(l.a)).map(l=>l.b.slice(2)));
+ for(const eid of CANVAS.epics){const E=epicOf(eid),done=E.total&&E.done===E.total,frac=E.total?E.done/E.total:0,closed=E.state==='CLOSED';
+  const g=add('g',{class:'node ms','data-node':'e:'+eid,tabindex:0,role:'button','aria-label':'EPIC '+E.title+' '+E.done+'/'+E.total,opacity:epLinked.has(eid)?(closed?.55:1):.5},L.node);add('circle',{r:10,fill:'transparent'},g);
+  add('circle',{r:5.5,fill:done?'#78e5ae':'#50d7eb','fill-opacity':done?.95:.25+.7*frac,class:'core',stroke:closed?'#5d6b78':'#223347','stroke-dasharray':E.missing?'2 2':null},g);
+  add('text',{class:'label ms',x:9,y:3},g).textContent=(E.title.length>14?E.title.slice(0,13)+'…':E.title)+' '+E.done+'/'+E.total}
+ L.node.querySelectorAll('.node').forEach(g=>{if(sel===g.dataset.node)g.classList.add('sel');g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();pick(g.dataset.node)}})});
+ paint(performance.now());detail();renderDraft()}
+function paint(now){L.node.querySelectorAll('.node').forEach(g=>{const n=sim[g.dataset.node];if(n)g.setAttribute('transform',`translate(${n.x} ${n.y})`)});L.node.querySelectorAll('.label.hl').forEach(t=>{const n=sim[t.parentNode.dataset.node];if(!n)return;const left=n.x<CX-20,o=+t.dataset.off;t.setAttribute('x',left?-o:o);t.setAttribute('text-anchor',left?'end':'start')});L.cluster.querySelectorAll('[data-cluster]').forEach(g=>{const n=sim[g.dataset.cluster.replace(/#\d$/,'')];if(n)g.setAttribute('transform',`translate(${n.x} ${n.y})`)});L.edge.querySelectorAll('.edge,.edge-hit').forEach(p=>{const a=sim[p.dataset.a],b=sim[p.dataset.b];if(a&&b)p.setAttribute('d',curve(a,b))});placeBar()}
+function burst(id){const n=sim[id];if(!n||!motionOn)return;const c=L.cluster.querySelector(`[data-cluster="${CSS.escape(id)}"]`)||L.cluster.querySelector(`[data-cluster^="${CSS.escape(id)}#"]`);if(c){c.classList.add('firing');setTimeout(()=>c.classList.remove('firing'),900)}const r=add('circle',{cx:n.x,cy:n.y,r:17,class:'burst-ring',stroke:id==='hub'?'#ffc76f':id.startsWith('s:')?'#b995ff':'#74e0ef'},L.fx);setTimeout(()=>r.remove(),1400)}
+function impulse(){if(!motionOn||document.hidden)return;const E=links();if(!E.length)return;const e=E[Math.floor(Math.random()*E.length)],dot=add('circle',{r:1.8,class:'impulse'},L.fx),t0=performance.now();
+ (function go(now){const t=(now-t0)/1800,a=sim[e.b],b=sim[e.a];if(t>=1||!a||!b){dot.remove();return}dot.setAttribute('cx',a.x+(b.x-a.x)*t);dot.setAttribute('cy',a.y+(b.y-a.y)*t);requestAnimationFrame(go)})(t0)}
+setInterval(impulse,3200);
+
+function pick(id){sel=id;selEdge=null;render();burst(id)}
+function toast(t){const el=$('toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
+// 只有「策略 → hive」可以切斷／接上；主幹與分支由「接在」決定，要改請改文字。
+// 名稱：給提示訊息用
+const nm=k=>k==='hub'?'中樞':k.startsWith('s:')?label(k.slice(2)):k.startsWith('h:')?k.slice(2):k.startsWith('p:')?projOf(k.slice(2)).title:k.startsWith('e:')?'EPIC '+epicOf(k.slice(2)).title:k.slice(2);
+// 可以接的兩種線：S—hive、hive—project。project—EPIC 也可以接。主幹（中樞—S、S—S）由 HackMD 的「接在」決定。
+function pairOf(a,b){const t=x=>x==='hub'?'hub':x[0];const ta=t(a),tb=t(b);
+ if(ta==='s'&&tb==='h')return {a,b};if(ta==='h'&&tb==='s')return {a:b,b:a};
+ if(ta==='h'&&tb==='p')return {a,b};if(ta==='p'&&tb==='h')return {a:b,b:a};
+ if(ta==='p'&&tb==='e')return {a,b};if(ta==='e'&&tb==='p')return {a:b,b:a};return null}
+function connect(a,b){const pr=pairOf(a,b);
+ if(!pr){const t=[a,b].map(x=>x==='hub'?'hub':x[0]).sort().join('');toast(t.includes('e')?'EPIC 只能接到 project。':t==='hh'?'hive 之間不直接相連。':t==='pp'?'project 之間不直接相連。':t.includes('hub')||t==='ss'?'中樞與 Function 的連線由 HackMD 的「接在」決定。':t==='ps'?'project 要接到 hive，不是直接接到 Function。':'這兩個節點不能相連。');return}
+ if(CANVAS.links.some(l=>l.a===pr.a&&l.b===pr.b)){toast(nm(pr.b)+' 已經接在「'+nm(pr.a)+'」上。');return}
+ if(pr.b.startsWith('e:')){const old=CANVAS.links.find(l=>l.b===pr.b);if(old){CANVAS.links=CANVAS.links.filter(l=>l!==old);toast('EPIC 只掛在一個 project 下：已從「'+nm(old.a)+'」移到「'+nm(pr.a)+'」。')}}
+ CANVAS.links.push(pr);saveCanvas();selEdge=pr.a+'|'+pr.b;sel=null;render();burst(pr.b)}
+function cutEdge(k){const [a,b]=k.split('|');if(!CANVAS.links.some(l=>l.a===a&&l.b===b)){toast('中樞與 Function 的連線由 HackMD 的「接在」決定。');return}
+ CANVAS.links=CANVAS.links.filter(l=>!(l.a===a&&l.b===b));saveCanvas();selEdge=null;render();toast('已斷開「'+nm(a)+'」與「'+nm(b)+'」。')}
+// 刪除：hive、project 都可以刪；連在上面的線一起移除。中樞與 Function 由 HackMD 決定，不能在圖上刪。
+function removeNode(k){if(k.startsWith('h:')){CANVAS.removedHives.push(k.slice(2));HIVES=ALL_HIVES.filter(x=>!CANVAS.removedHives.includes(x.id))}
+ else if(k.startsWith('p:'))CANVAS.projects=CANVAS.projects.filter(p=>p!==k.slice(2));else if(k.startsWith('e:'))CANVAS.epics=CANVAS.epics.filter(e=>e!==k.slice(2));else return;
+ CANVAS.links=CANVAS.links.filter(l=>l.a!==k&&l.b!==k);delete sim[k];
+ saveCanvas();sel=null;selEdge=null;render();toast('已刪除「'+nm(k)+'」（只在這個瀏覽器）。');renderCanvasPanel()}
+function addProject(pid){if(CANVAS.projects.includes(pid)){toast('這個 project 已經在圖上。');pick('p:'+pid);return}
+ CANVAS.projects.push(pid);saveCanvas();layout();render();burst('p:'+pid);renderCanvasPanel();toast('已加入「'+projOf(pid).title+'」；把它拖到某個 hive 上就能接線（連線模式或 Shift＋拖曳）。')}
+function addEpic(eid){if(CANVAS.epics.includes(eid)){toast('這個 EPIC 已經在圖上。');pick('e:'+eid);return}
+ CANVAS.epics.push(eid);saveCanvas();layout();render();burst('e:'+eid);renderCanvasPanel();const E=epicOf(eid);
+ toast(E.missing?'已加入；這個 issue 不在 EPIC 清單裡（可能剛開、不在這些組織，或不是 [EPIC]＋子 issue），進度先顯示 0/0，下一輪更新後才會讀到。':'已加入 EPIC「'+E.title+'」；把它拖到 project 上接線。')}
+// 貼網址：https://github.com/<owner>/<repo>/issues/<n>，也接受 owner/repo#n
+function parseIssueRef(t){t=(t||'').trim();let m=t.match(/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/(\d+)/i)||t.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);return m?m[1]+'/'+m[2]+'#'+m[3]:null}
+function restoreAll(){CANVAS={removedHives:[],projects:[],epics:[],links:[]};saveCanvas();HIVES=ALL_HIVES.slice();for(const k of Object.keys(sim))if(k[0]==='p'||k[0]==='e')delete sim[k];layout();settle();render();renderCanvasPanel();toast('已還原：所有 hive 回到圖上，移除畫布上的 project、EPIC 與連線。')}
+function renderDraft(){const box=$('draft'),ch=changes();box.replaceChildren();$('draftLabel').textContent=ch.length?ch.length+' 條策略':'無';
+ if(!ch.length){box.append(h('p',{className:'dim small'},'沒有修改。在圖上切斷或接上連線，差異會列在這裡；HackMD 才是準。'));return}
+ for(const c of ch)box.append(h('div',{className:'card small'},h('b',{},c.s.name),h('br'),...c.add.map(n=>h('span',{className:'chip new'},'＋ '+n)),...c.rem.map(n=>h('span',{className:'chip gone'},'－ '+n)),h('br'),h('button',{className:'btn',style:'font-size:10px;margin-top:4px',on:{click:()=>{c.s.neurons=[...(BASE[c.s.id]||[])];render()}}},'還原這條')));
+ const ta=h('textarea',{readOnly:true,'aria-label':'要貼回 HackMD 的神經元行'});ta.value=ch.map(c=>'### '+c.s.id+' '+c.s.name+(c.s.summary?'：'+c.s.summary:'')+'\n- 神經元：'+c.s.neurons.join('、')).join('\n\n');
+ box.append(h('p',{className:'dim small'},'把對應策略的「神經元」改成：'),ta,h('button',{className:'btn',style:'margin-top:6px',on:{click:()=>{ta.select();(navigator.clipboard&&isSecureContext?navigator.clipboard.writeText(ta.value):Promise.reject()).then(()=>toast('已複製，貼回 HackMD 才算正式修改。'),()=>{document.execCommand('copy');toast('已複製，貼回 HackMD 才算正式修改。')})}}},'複製'),' ',h('button',{className:'btn cut',on:{click:()=>{for(const s of G.strategies)s.neurons=[...(BASE[s.id]||[])];render()}}},'捨棄全部'))}
+function placeBar(){const bar=$('edgeBar');if(!selEdge){bar.hidden=true;return}const [a,b]=selEdge.split('|'),A=sim[a],B=sim[b];if(!A||!B){bar.hidden=true;return}
+ const m=camera.getScreenCTM(),pt=new DOMPoint((A.x+B.x)/2,(A.y+B.y)/2).matrixTransform(m),r=stage.getBoundingClientRect();
+ bar.hidden=false;$('edgeBarLabel').textContent=nm(a)+' → '+nm(b);$('edgeCut').hidden=!CANVAS.links.some(l=>l.a===a&&l.b===b);
+ bar.style.left=Math.max(8,Math.min(r.width-268,pt.x-r.left-120))+'px';bar.style.top=Math.max(8,Math.min(r.height-60,pt.y-r.top-64))+'px'}
+$('edgeCut').onclick=()=>selEdge&&cutEdge(selEdge);$('edgeClose').onclick=()=>{selEdge=null;render()};
+function setLinkMode(on){linkMode=on;$('linkMode').setAttribute('aria-pressed',on);$('linkMode').classList.toggle('on',on);$('hint').hidden=!on;stage.classList.toggle('linking',on)}
+$('linkMode').onclick=()=>setLinkMode(!linkMode);
+function detail(){const d=$('detail');d.replaceChildren();
+ const delBtn=k=>h('button',{className:'btn cut',style:'margin-top:8px',on:{click:()=>removeNode(k)}},'✕ 從圖上刪除');
+ const chips=(arr,empty)=>arr.length?arr.map(t=>h('span',{className:'chip'},t)):[h('span',{className:'chip pend'},empty)];
+ if(!sel||sel==='hub'){d.append(h('div',{className:'eyebrow'},'中樞 · Function '+G.strategies.length+' 個'),h('p',{className:'dim small'},'點 Function 看說明。'+(G.first[0]?'':'（中樞沒有第一句）')));for(const s of G.strategies)d.append(h('button',{className:'btn',style:'display:block;width:100%;text-align:left;margin:5px 0',on:{click:()=>pick('s:'+s.id)}},s.id+' '+s.name));return}
+ if(sel.startsWith('s:')){const s=G.strategies.find(x=>x.id===sel.slice(2));if(!s){sel=null;return detail()}
+  d.append(...[h('div',{className:'eyebrow'},s.id+' · 接在 '+(s.parent?label(s.parent):'？')),h('h2',{},s.name),s.purpose?h('p',{style:'font-weight:700;color:#e3d4ff'},s.purpose):null,s.note?h('p',{style:'white-space:pre-wrap'},s.note):null].filter(Boolean));
+  const hs=CANVAS.links.filter(l=>l.a===sel&&exists(l.b)).map(l=>l.b.slice(2));
+  d.append(h('p',{className:'small'},'接上的 hive：',...chips(hs,'還沒有')));return}
+ if(sel.startsWith('h:')){const x=HIVES.find(v=>v.id===sel.slice(2));if(!x){sel=null;return detail()}
+  const fs=CANVAS.links.filter(l=>l.b===sel&&exists(l.a)).map(l=>label(l.a.slice(2))),ps=CANVAS.links.filter(l=>l.a===sel&&exists(l.b)).map(l=>projOf(l.b.slice(2)).title);
+  d.append(h('div',{className:'eyebrow'},'hive · '+KIND[x.kind]),h('h2',{},x.id),h('p',{className:'dim small'},x.title+(x.org?' · '+x.org:'')),
+   h('p',{className:'small'},'實現的 Function：',...chips(fs,'還沒有')),h('p',{className:'small'},'綁定的 project：',...chips(ps,'還沒有')),delBtn(sel));return}
+ if(sel.startsWith('p:')){const P=projOf(sel.slice(2)),hs=CANVAS.links.filter(l=>l.b===sel&&exists(l.a)).map(l=>l.a.slice(2)),es=CANVAS.links.filter(l=>l.a===sel&&exists(l.b)).map(l=>epicOf(l.b.slice(2)));
+  d.append(...[h('div',{className:'eyebrow'},'GitHub Project · '+P.id),h('h2',{},P.title),
+   P.url?h('p',{className:'small'},h('a',{href:P.url,target:'_blank',rel:'noopener'},'在 GitHub 開啟 ↗')):null,
+   h('p',{className:'small'},'屬於 hive：',...chips(hs,'還沒有，拖到 hive 上接線')),
+   h('p',{className:'small'},'接上的 EPIC：',...chips(es.map(e=>e.title+' '+e.done+'/'+e.total),'還沒有')),
+   P.cards!=null?h('p',{className:'dim small'},P.cards+' 張卡'):null,
+   P.missing?h('p',{className:'small',style:'color:#e7aa78'},'這個 project 已經不在開啟中的清單（可能已關閉）。'):null,delBtn(sel)].filter(Boolean));return}
+ if(sel.startsWith('e:')){const E=epicOf(sel.slice(2)),ps=CANVAS.links.filter(l=>l.b===sel&&exists(l.a)).map(l=>projOf(l.a.slice(2)).title);
+  d.append(...[h('div',{className:'eyebrow'},'EPIC · '+E.id),h('h2',{},E.title),
+   h('p',{},E.total?E.done+' / '+E.total+' 個子 issue 已完成（'+Math.round(E.done/E.total*100)+'%）':'還沒讀到子 issue 進度'),
+   E.state==='CLOSED'?h('p',{className:'dim small'},'EPIC 已關閉'):null,
+   h('p',{className:'small'},'屬於 project：',...chips(ps,'還沒有，拖到 project 上接線')),
+   h('p',{className:'small'},h('a',{href:E.url,target:'_blank',rel:'noopener'},'在 GitHub 開啟 ↗')),
+   E.missing?h('p',{className:'small',style:'color:#e7aa78'},'不在 EPIC 清單裡（可能剛開、不在這些組織，或不是「[EPIC] 標題＋子 issue」）。清單每 10 分鐘更新。'):null,delBtn(sel)].filter(Boolean));return}
+ sel=null;detail()}
+// 畫布面板：加入 project（像 Wolffia 的選單）、還原
+function renderCanvasPanel(){const S=$('projSel');if(!S)return;const on=new Set(CANVAS.projects);
+ S.replaceChildren(h('option',{value:''},PROJECTS.length?'選擇 project…':'讀取 project 清單中…'),...PROJECTS.map(p=>h('option',{value:p.id,disabled:on.has(p.id)},p.title+'（'+p.id+'）'+(on.has(p.id)?' ✓ 已在圖上':''))));
+ const E=$('epicSel'),onE=new Set(CANVAS.epics),open=EPICS.filter(e=>e.state==='OPEN');
+ E.replaceChildren(h('option',{value:''},EPICS.length?'選擇 EPIC…（開啟中 '+open.length+' 個）':'讀取 EPIC 清單中…'),...open.map(e=>h('option',{value:e.id,disabled:onE.has(e.id)},e.title+'（'+e.done+'/'+e.total+'，'+e.repo.split('/')[1]+'#'+e.number+'）'+(onE.has(e.id)?' ✓ 已在圖上':''))),h('option',{value:'+'},'＋ 貼上 issue 網址…'));
+ $('canvasNote').textContent='hive '+HIVES.length+'/'+ALL_HIVES.length+' 個 · project '+CANVAS.projects.length+' 個 · EPIC '+CANVAS.epics.length+' 個 · 連線 '+CANVAS.links.length+' 條（只存在這個瀏覽器）'}
+// live=true：從 HackMD 同步來的更新。保留既有節點位置，只讓新節點長出來，不整張重排。
+function load(md,live){G=parseHub(md);BASE=Object.fromEntries(G.strategies.map(s=>[s.id,[...s.neurons]]));selEdge=null;$('first1').textContent=G.first[0]||'';$('first2').textContent=G.first[1]||'';for(const k of Object.keys(sim))if(k.startsWith('s:')&&!G.strategies.some(s=>'s:'+s.id===k))delete sim[k];const before=new Set(Object.keys(sim));layout();if(live){for(const k of Object.keys(sim))if(!before.has(k)){sim[k].x=CX;sim[k].y=CY}if(!motionOn)settle(300)}else settle();if(sel&&!sim[sel])sel=null;render();
+ const p=$('problems');p.replaceChildren(...G.problems.map(t=>h('div',{className:'prob'},'⚠ '+t)))}
+
+let zoom=1,panX=0,panY=0,press=null;
+function cam(){camera.setAttribute('transform',`translate(${panX} ${panY}) scale(${zoom})`)}
+function gpt(cx,cy){const p=new DOMPoint(cx,cy).matrixTransform(camera.getScreenCTM().inverse());return{x:p.x,y:p.y}}
+const preview=$('linkPreview');
+function nodeAt(cx,cy,except){const g=gpt(cx,cy);let best=null,bd=28/zoom;for(const n of active()){if(n.id===except)continue;const d=Math.hypot(n.x-g.x,n.y-g.y);if(d<bd){bd=d;best=n.id}}return best}
+svg.addEventListener('pointerdown',e=>{if(e.button)return;svg.setPointerCapture(e.pointerId);const n=e.target.closest&&e.target.closest('[data-node]');if(n&&(linkMode||e.shiftKey)){const id=n.dataset.node,a=sim[id];press={mode:'link',from:id,over:null};for(const k of['x1','x2'])preview.setAttribute(k,a.x);for(const k of['y1','y2'])preview.setAttribute(k,a.y);preview.setAttribute('visibility','visible');return}if(n){const id=n.dataset.node,g=gpt(e.clientX,e.clientY);press={mode:'node',id,ox:sim[id].x-g.x,oy:sim[id].y-g.y,sx:e.clientX,sy:e.clientY,moved:false};dragId=id;return}press={mode:'pan',hit:e.target.getAttribute&&e.target.getAttribute('data-hit'),sx:e.clientX,sy:e.clientY,px:panX,py:panY,moved:false}});
+svg.addEventListener('pointermove',e=>{if(!press)return;if(press.mode==='link'){const g=gpt(e.clientX,e.clientY),over=nodeAt(e.clientX,e.clientY,press.from);if(over!==press.over){L.node.querySelectorAll('.link-target').forEach(x=>x.classList.remove('link-target'));over&&L.node.querySelector(`[data-node="${CSS.escape(over)}"]`)?.classList.add('link-target');press.over=over}const f=sim[press.from],t=over?sim[over]:g;preview.setAttribute('x1',f.x);preview.setAttribute('y1',f.y);preview.setAttribute('x2',t.x);preview.setAttribute('y2',t.y);return}if(Math.abs(e.clientX-press.sx)+Math.abs(e.clientY-press.sy)>4)press.moved=true;if(press.mode==='node'){const g=gpt(e.clientX,e.clientY),n=sim[press.id];n.x=g.x+press.ox;n.y=g.y+press.oy;if(!motionOn)paint(0);return}const r=svg.getBoundingClientRect(),s=Math.max(1000/r.width,700/r.height);panX=press.px+(e.clientX-press.sx)*s;panY=press.py+(e.clientY-press.sy)*s;cam()});
+function end(cancel){const p=press;press=null;dragId=null;if(!p)return;if(p.mode==='link'){preview.setAttribute('visibility','hidden');L.node.querySelectorAll('.link-target').forEach(x=>x.classList.remove('link-target'));if(!cancel&&p.over)connect(p.from,p.over);return}if(cancel)return;if(p.mode==='node'){if(!p.moved){const now=performance.now();if(p.id==='hub'&&lastTap.id==='hub'&&now-lastTap.t<400&&HUB_URL){lastTap={id:null,t:0};window.open(HUB_URL,'_blank','noopener');return}lastTap={id:p.id,t:now};pick(p.id)}else if(!motionOn){settle(200);paint(0)}}else if(!p.moved){if(p.hit){selEdge=p.hit;sel=null;render()}else if(sel||selEdge){sel=null;selEdge=null;render()}}}
+svg.addEventListener('pointerup',()=>end(false));svg.addEventListener('pointercancel',()=>end(true));
+svg.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.min(3,Math.max(.5,zoom*(e.deltaY>0?.9:1.1)));cam()},{passive:false});
+$('fit').onclick=()=>{zoom=1;panX=panY=0;cam()};
+function syncMotion(){stage.classList.toggle('motion-on',motionOn);$('motion').textContent=prefersLess?'✺ 微動：依系統關閉':motionOn?'✺ 微動：開':'✺ 微動：關';$('motion').setAttribute('aria-pressed',motionOn);$('motion').disabled=prefersLess}
+$('motion').onclick=()=>{motionOn=!motionOn;syncMotion();if(!motionOn){settle();paint(0)}};syncMotion();
+$('explode').onclick=()=>{orderFunctions();if(!motionOn){settle();render();return}for(const n of active()){if(n.id==='hub')continue;const ta=n.id.startsWith('s:')?ANG[n.id.slice(2)]:n.id.startsWith('h:')?hiveAngle(n.id):null;const a=ta!=null?ta:Math.random()*Math.PI*2,sp=5+Math.random()*4;n.x=CX+Math.cos(a)*8;n.y=CY+Math.sin(a)*8;n.vx=Math.cos(a)*sp;n.vy=Math.sin(a)*sp}burst('hub')};
+$('rerender').onclick=()=>load($('mdIn').value);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(press&&press.mode==='link')end(true);if(linkMode)setLinkMode(false);else if(selEdge||sel){selEdge=null;sel=null;render()}}});
+let last=performance.now();function frame(now){const f=Math.min(3,(now-last)/16.7);last=now;if(motionOn||dragId){step(motionOn?f:0,now,motionOn);paint(now)}requestAnimationFrame(frame)}
+const md=$('hubSource').textContent;$('mdIn').value=md;$('srcNote').textContent=SRC;load(md);requestAnimationFrame(frame);
+$('projSel').onchange=function(){if(this.value){addProject(this.value);this.value=''}};
+$('epicSel').onchange=function(){const v=this.value;this.value='';if(!v)return;if(v!=='+'){addEpic(v);return}const t=prompt('貼上 EPIC 的 issue 網址（例：https://github.com/town-intelligent/office/issues/13），或 owner/repo#編號：');if(t==null)return;const id=parseIssueRef(t);if(!id){toast('看不懂這個網址；請貼 GitHub issue 網址，或 owner/repo#編號。');return}addEpic(id)};
+$('restoreAll').onclick=()=>{if(confirm('還原畫布？所有 hive 回到圖上，移除畫布上的 project 與連線。'))restoreAll()};
+async function loadProjects(){try{const r=await fetch('data/projects.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json();const before=JSON.stringify([PROJECTS.map(p=>p.id),EPICS.map(e=>[e.id,e.done])]);PROJECTS=j.projects||[];EPICS=j.epics||[];
+  if(before!==JSON.stringify([PROJECTS.map(p=>p.id),EPICS.map(e=>[e.id,e.done])])){layout();if(!motionOn)settle(300);render()}}catch(e){}renderCanvasPanel()}
+loadProjects();setInterval(()=>{if(!document.hidden)loadProjects()},60000);renderCanvasPanel();
+// ─── 與 HackMD 同步：主機每分鐘把 HackMD 抓成 hub.json；這裡每 20 秒看一次，有變才重畫 ───
+const SYNC_URL='data/hub.json',SYNC_MS=20000;let syncDigest=null,syncFail=0;
+const fmtTime=t=>new Date(t*1000).toLocaleString('zh-TW',{hour12:false});
+async function sync(){if(document.hidden)return;try{const r=await fetch(SYNC_URL+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();syncFail=0;
+  const note='與 HackMD 同步 · 最近一次變更 '+fmtTime(j.syncedAt)+'（每分鐘檢查）';
+  if(syncDigest===null){syncDigest=j.digest;if(j.markdown!==$('hubSource').textContent){$('hubSource').textContent=j.markdown;$('mdIn').value=j.markdown;load(j.markdown,true)}$('srcNote').textContent=note;return}
+  if(j.digest!==syncDigest){syncDigest=j.digest;$('hubSource').textContent=j.markdown;$('mdIn').value=j.markdown;load(j.markdown,true);burst('hub');toast('HackMD 有更新，節點已同步。')}
+  $('srcNote').textContent=note}catch(e){if(++syncFail===3)$('srcNote').textContent=SRC+'（目前無法同步：'+e.message+'）'}}
+async function loadHives(){try{const r=await fetch('data/hives.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!Array.isArray(j.hives))return;const before=JSON.stringify(ALL_HIVES.map(x=>[x.id,x.states&&x.states.length]));ALL_HIVES=j.hives;HIVES=ALL_HIVES.filter(x=>!CANVAS.removedHives.includes(x.id));if(before!==JSON.stringify(ALL_HIVES.map(x=>[x.id,x.states&&x.states.length]))){layout();if(!motionOn)settle(300);render();renderCanvasPanel()}}catch(e){}}
+if(location.protocol!=='file:'){loadHives();setInterval(()=>{if(!document.hidden)loadHives()},60000);sync();setInterval(sync,SYNC_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()})}
+// ─── Copilot（規則式示意：答案直接從本頁的策略與 hive 算出來，不呼叫模型）──────
+(()=>{const panel=$('copilotPanel'),open=$('copilotOpen'),log=$('cpLog');
+ const say=(t,c)=>{log.append(h('div',{className:'cpB'+(c?' '+c:'')},t));log.scrollTop=log.scrollHeight};
+ // ─── synapse 的基本規則（Copilot 的說明書）────────────────────
+ const RULES={
+  overview:['synapse 的基本規則',
+   '一張圖、五種節點，由內往外長：',
+   '中樞（roadmap）→ Function（S 編號）→ hive → Project → EPIC',
+   '',
+   '・中樞與 Function 來自 HackMD，在 HackMD 改；',
+   '・hive、Project、EPIC 的接線在這張圖上改；',
+   '・接線只能一層接一層，不能跳層。',
+   '',
+   '想看細節可以問：中樞、Function、hive、Project、EPIC、接線、操作、存在哪。'],
+  hub:['中樞（金色大圓）',
+   '・就是 roadmap，也是第一句：The harness for swarms, where the cloud can\'t reach.',
+   '・目標定在 150%：是方向，不是終點，所以中樞不顯示完成度。',
+   '・內容來自 HackMD 定稿，點中樞兩下就會打開它。'],
+  fn:['Function（紫色菱形，S 編號）',
+   '・達成中樞需要的能力，不是結果，也不是分類。',
+   '・寫在 HackMD 的「## Function」段落，每一條都用同一個格式：',
+   '  ### S2 Hive 狀態機',
+   '  - 接在：中樞（或另一個 S 編號）',
+   '  - 用途：這個 Function 回答什麼問題',
+   '  - 說明：這個 Function 做什麼',
+   '・S 編號是 ID，不代表先後；名稱可以改，連線不會斷；刪掉的編號不回收。',
+   '・格式寫錯會在「資料來源」列出錯誤，不會猜。',
+   '・HackMD 改字後約 1 分鐘，圖上的節點就會跟著變。'],
+  hive:['hive（圓點）',
+   '・swarm 的一個資料夾＝一個運作中的系統。',
+   '・預設全部列出；沒接上任何 Function 的漂在外圈，不代表沒價值。',
+   '・灰色＝還沒寫狀態機（HIVE.md 的「## 狀態機」）；寫了就會亮起來。',
+   '・越大＝接了越多 Function，例如「×3」就是 main project。'],
+  proj:['Project（金色方塊）',
+   '・GitHub Project，代表這個 hive 的工作範圍。',
+   '・從側欄「選擇 project…」加入；只列開啟中的 Project。',
+   '・要接到 hive，不能直接接 Function。'],
+  epic:['EPIC（小圓點）',
+   '・能力推進的證據。標題以 [EPIC] 開頭、而且有子 issue 才算。',
+   '・進度＝子 issue 完成比例；越亮越接近完成，綠色＝全部完成。',
+   '・從側欄「選擇 EPIC…」加入，或選最後一項「＋ 貼上 issue 網址…」。',
+   '・只能接到 Project；一個 EPIC 只屬於一個 Project。',
+   '・不用 milestone：milestone 是驗收日、請款條件，說的是案子能不能交件，不是能力有沒有長出來。'],
+  link:['接線規則',
+   '可以接：',
+   '・Function — hive',
+   '・hive — Project',
+   '・Project — EPIC',
+   '不能接：',
+   '・中樞 — Function、Function — Function：由 HackMD 的「接在」決定',
+   '・跳層，例如 Project 直接接 Function、EPIC 直接接 hive',
+   '・同一層互接，例如 hive — hive'],
+  ops:['怎麼操作',
+   '・接線：按住 Shift 拖曳，或開「🔗 連線模式」再拖；兩個方向都可以。',
+   '・斷線：點那條線，再按「✂ 切斷」。',
+   '・刪除：點 hive、Project 或 EPIC，按「✕ 從圖上刪除」。中樞與 Function 不能在圖上刪。',
+   '・重排：按「✦ 爆開重排」，共用 hive 的 Function 會排在一起，線不交叉。接線當下不會重排。',
+   '・中樞點兩下：打開 HackMD。',
+   '・改亂了：側欄「↺ 還原畫布」。'],
+  store:['資料存在哪',
+   '・中樞與 Function：HackMD（唯一來源；這裡只讀）。',
+   '・Project 與 EPIC 清單：GitHub，每 10 分鐘讀一次（只讀）。',
+   '・你在圖上的刪除、加入、接線：只存在這個瀏覽器；換電腦或換瀏覽器就看不到。',
+   '・這張圖不會改 HackMD、swarm 或 GitHub。']};
+ const ruleText=k=>RULES[k].join('\n');
+ const RULE_KEYS=[[/規則|怎麼用|說明書|教學|help|是什麼東西|synapse/i,'overview'],[/中樞|roadmap|150/i,'hub'],[/function|功能|S\d|格式|hackmd/i,'fn'],[/epic|子 ?issue|milestone|里程碑/i,'epic'],[/project|專案/i,'proj'],[/hive|蜂巢|狀態機|灰色|變大|×\d/i,'hive'],[/接線|連線|能接|不能接|斷線|跳層/i,'link'],[/操作|拖|刪除|重排|還原|點兩下/i,'ops'],[/存在哪|儲存|保存|換電腦|同步|寫回/i,'store']];
+ const A={rules:()=>ruleText('overview'),link:()=>ruleText('link'),
+  drift(){const c=cited(),far=HIVES.filter(x=>!c.has(x.id));return far.length?'沒有被任何策略接上、漂在外圍的 hive（'+far.length+' 個）：\n'+far.map(x=>'・'+x.id+'（'+x.title+'）').join('\n')+'\n\n漂走不代表沒價值；可能是多做的，或還沒寫進中樞。':'每個 hive 都被某條策略接上了。'},
+  noev(){const L=CANVAS.links.filter(l=>exists(l.a)&&exists(l.b)),down=k=>L.filter(l=>l.a===k).map(l=>l.b);
+   const rows=G.strategies.map(s=>{const hs=down('s:'+s.id),ps=hs.flatMap(down),es=ps.flatMap(down);return {s,hs,ps,es}});
+   const none=rows.filter(r=>!r.es.length);
+   return (none.length?'還沒有 EPIC 撐著的 Function：\n'+none.map(r=>'・'+label(r.s.id)+'：'+(!r.hs.length?'沒有 hive':!r.ps.length?'有 hive，沒有 project':'有 project，沒有 EPIC')).join('\n'):'每個 Function 都有 EPIC 撐著。')+
+    (rows.some(r=>r.es.length)?'\n\n有 EPIC 的：\n'+rows.filter(r=>r.es.length).map(r=>'・'+label(r.s.id)+'：'+r.es.map(k=>{const E=epicOf(k.slice(2));return E.title+' '+E.done+'/'+E.total}).join('、')).join('\n'):'')+'\n\n證據＝Function → hive → project → EPIC 一路接上。'},
+  spine(){const kids=p=>G.strategies.filter(s=>s.parent===p);const walk=(p,d)=>kids(p).flatMap(s=>['  '.repeat(d)+'└ '+s.name+'（hive：'+(CANVAS.links.filter(l=>l.a==='s:'+s.id&&exists(l.b)).map(l=>l.b.slice(2)).join('、')||'無')+'）',...walk(s.id,d+1)]);const t=walk('中樞',1);return t.length?'中樞\n'+t.join('\n'):'還沒有任何策略接在中樞上。'},
+  draft(){const L=CANVAS.links.filter(l=>exists(l.a)&&exists(l.b));const out=[];if(CANVAS.removedHives.length)out.push('刪除的 hive：'+CANVAS.removedHives.join('、'));if(CANVAS.projects.length)out.push('加入的 project：'+CANVAS.projects.map(p=>projOf(p).title).join('、'));if(L.length)out.push('連線：\n'+L.map(l=>'・'+nm(l.a)+' → '+nm(l.b)).join('\n'));return out.length?out.join('\n\n')+'\n\n這些只存在這個瀏覽器。':'畫布上還沒有任何修改。'}};
+ const ask=(k,q)=>{say(q,'user');say(A[k]())};
+ document.querySelectorAll('.cpQuick button').forEach(b=>b.onclick=()=>ask(b.dataset.q,b.textContent));
+ // ─── 模型：從 /api/models 讀選單（像 DSH 的模型選單；記住上次選的）──────
+ const MK='synapse.copilot.model.v2';
+ const graphCtx=()=>{const L=CANVAS.links.filter(l=>exists(l.a)&&exists(l.b));
+  return {rules:Object.fromEntries(Object.entries(RULES).map(([k,v])=>[k,v.join('\n')])),
+   graph:{first:G.first,functions:G.strategies.map(s=>({id:s.id,name:s.name,parent:s.parent,purpose:s.purpose,note:s.note})),
+    hives:HIVES.map(x=>({id:x.id,title:x.title,kind:x.kind,stateMachine:!!(x.states&&x.states.length),functions:degOf('h:'+x.id)})),
+    removedHives:CANVAS.removedHives,
+    projects:CANVAS.projects.map(p=>{const P=projOf(p);return {id:p,title:P.title}}),
+    epics:CANVAS.epics.map(e=>{const E=epicOf(e);return {id:e,title:E.title,done:E.done,total:E.total,state:E.state}}),
+    links:L.map(l=>nm(l.a)+' → '+nm(l.b)),selected:sel?nm(sel):null}}};
+ // 模型選單＝站台自己的 DSH 模型目錄（和 DSH 輸入框的模型選單同一份：訂閱、API key 都在這裡）
+ const optVal=(p,m)=>p+'\u001f'+m,parseVal=v=>{const k=v.indexOf('\u001f');return k<0?null:{provider:v.slice(0,k),model:v.slice(k+1)}};
+ (async()=>{const S=$('cpModel');try{const r=await fetch('api/models',{cache:'no-store',credentials:'same-origin'});if(!r.ok)throw 0;const j=await r.json();
+   for(const g of j.groups||[]){const og=h('optgroup',{label:g.name});for(const m of g.models)og.append(h('option',{value:optVal(g.provider,m.id)},m.name));S.append(og)}
+   const saved=localStorage.getItem(MK),def=j.default?optVal(j.default.provider,j.default.model):null,has=v=>v&&[...S.options].some(o=>o.value===v);
+   S.value=has(saved)?saved:has(def)?def:'rules'}catch(e){S.title='模型目前連不上，只能用規則回答'}
+  S.onchange=()=>{try{localStorage.setItem(MK,S.value)}catch(e){}$('cpSub').textContent=S.value==='rules'?'規則式：不呼叫模型':'用站台的 '+S.selectedOptions[0].textContent.trim()+' 回答；只讀，不會寫入任何地方'};S.onchange()})();
+ // 問題送進站台的 DSH 對話（側欄會多一個「🧠 synapse Copilot」對話），再輪詢回覆
+ async function askModel(q){const model=parseVal($('cpModel').value);if(!model)return false;say(q,'user');const w=h('div',{className:'cpB wait'},'思考中…');log.append(w);log.scrollTop=log.scrollHeight;
+  try{const r=await fetch('api/ask',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,model,context:graphCtx()})});
+   const a=await r.json().catch(()=>({error:'回應格式錯誤'}));
+   if(!r.ok||a.error){w.remove();say('（'+(a.error||('HTTP '+r.status))+'）改用規則回答：');return false}
+   const t0=Date.now();
+   while(Date.now()-t0<180000){await new Promise(z=>setTimeout(z,1500));
+    const rr=await fetch('api/reply?session='+encodeURIComponent(a.sessionId)+'&after='+a.after+'&marker='+encodeURIComponent(a.marker),{cache:'no-store',credentials:'same-origin'});const x=await rr.json().catch(()=>({}));
+    if(x.done){w.remove();if(x.error){say('（'+x.error+'）改用規則回答：');return false}
+     log.append(h('div',{className:'cpB'},x.text||'（模型沒有回覆內容）',h('span',{className:'cpMeta'},model.model)));log.scrollTop=log.scrollHeight;return true}
+    w.textContent='思考中…'+Math.round((Date.now()-t0)/1000)+' 秒'}
+   w.remove();say('（等太久了，模型還在跑；可以到站台的「🧠 synapse Copilot」對話看結果）改用規則回答：');return false}
+  catch(e){w.remove();say('（模型連不上）改用規則回答：');return false}}
+ $('cpForm').onsubmit=async e=>{e.preventDefault();const q=$('cpIn').value.trim();if(!q)return;$('cpIn').value='';
+  if($('cpModel').value!=='rules'){$('cpIn').disabled=true;const ok=await askModel(q);$('cpIn').disabled=false;$('cpIn').focus();if(ok)return;const k2=/漂|外圍/.test(q)?'drift':/證據|沒有 ?epic|還沒有/i.test(q)?'noev':/主幹|分支|結構|怎麼長/.test(q)?'spine':/我改|改了什麼|草稿/.test(q)?'draft':null;if(k2){say(A[k2]());return}const r2=RULE_KEYS.find(([re])=>re.test(q));say(r2?ruleText(r2[1]):ruleText('overview'));return}const k=/漂|外圍/.test(q)?'drift':/證據|沒有 ?epic|還沒有/i.test(q)?'noev':/主幹|分支|結構|怎麼長/.test(q)?'spine':/我改|改了什麼|草稿/.test(q)?'draft':null;if(k){ask(k,q);return}const r=RULE_KEYS.find(([re])=>re.test(q));if(r){say(q,'user');say(ruleText(r[1]));return}else{say(q,'user');say('我目前能回答兩類問題：\n\n① synapse 的規則：中樞、Function、hive、Project、EPIC、接線、操作、資料存在哪。\n② 這張圖的狀況：哪些 hive 漂走了、哪些 Function 還沒有 EPIC、主幹怎麼長的、我改了什麼。\n\n也可以直接按下面的按鈕。')}};
+ const toggle=on=>{panel.hidden=!on;open.setAttribute('aria-expanded',on);if(on&&!log.children.length){say(ruleText('overview'));say('下方可以選模型：選了模型就由模型依這些規則與目前這張圖回答；選「規則（不用模型）」就直接從規則算答案。兩種都不會寫入任何地方。')}};
+ open.onclick=()=>toggle(panel.hidden);$('cpClose').onclick=()=>toggle(false)})();
+</script></body></html>

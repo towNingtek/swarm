@@ -23,7 +23,8 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <section id="site-card" class="panel site-card">
 <div class="site-head"><div><h2>我的站台</h2><p id="site-job" class="site-state"></p><p id="site-link" class="site-link"></p></div>
 <div id="site-ready" class="site-actions" hidden><button id="site-enter" type="button" class="btn primary">進入我的站台 →</button>
-<a id="site-board" class="btn board-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>📊 看板</a>
+<a id="site-board" class="btn board-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>🌌 任務星系</a>
+<a id="site-synapse" class="btn board-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>🧠 神經系統</a>
 <p class="hint">不需要另外的帳號密碼。</p></div></div>
 <p id="site-secret" class="hint"></p>
 <details id="site-password" class="sitepw" hidden><summary>設定站台密碼（選用）</summary>
@@ -609,6 +610,7 @@ JS = r"""'use strict';
       const live = ['queued','running'].includes(job.status);
       byId('auto-note').textContent = live ? '（建站期間會自動更新）' : '';
       boardOn = data.board === true;
+      synapseOn = data.synapse === true;
       renderSite(job);
       renderSteps(data.steps);
       office = data.office && typeof data.office === 'object' ? data.office : null;
@@ -646,24 +648,29 @@ JS = r"""'use strict';
     unit.textContent = all ? '／' + all + ' 個會執行' : '還沒有排程';
   }
   let boardOn = false;
+  let synapseOn = false;
   function renderSite(job) {
     const ready = job && job.provisioned === true && typeof job.site_host === 'string';
     byId('site-ready').hidden = !ready;
     byId('site-link').textContent = ready ? 'https://' + job.site_host + '/' : '';
     // 看板在站台的 /board/（站台登入後）；平台回報站台裝好看板才顯示。
-    const board = byId('site-board');
-    if (board) { const on = ready && boardOn === true; board.hidden = !on; board.href = on ? 'https://' + job.site_host + '/board/' : '#'; }
-    if (board && !board.dataset.oneClick) {
-      board.dataset.oneClick = '1';
-      board.addEventListener('click', (ev) => {
-        // 一鍵進看板：用一次性票登入站台，直接跳到 /board/（不用先進一次站台）。
+    // 任務星系在站台的 /board/、神經系統在 /synapse/（都在站台登入後）；平台回報站台裝好才顯示。
+    // 一鍵進入：用一次性票登入站台，直接跳到該頁（不用先進一次站台）。
+    for (const [id, on, path] of [['site-board', boardOn, '/board/'], ['site-synapse', synapseOn, '/synapse/']]) {
+      const el = byId(id);
+      if (!el) continue;
+      const show = ready && on === true;
+      el.hidden = !show; el.href = show ? 'https://' + job.site_host + path : '#';
+      if (el.dataset.oneClick) continue;
+      el.dataset.oneClick = '1';
+      el.addEventListener('click', (ev) => {
         ev.preventDefault();
         const w = window.open('about:blank', '_blank');
         fetch('/customer/site-entry', {method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-          headers: {'Content-Type': 'application/json'}, body: JSON.stringify({next: '/board/'})})
+          headers: {'Content-Type': 'application/json'}, body: JSON.stringify({next: path})})
           .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
           .then(d => { if (w) { try { w.opener = null; } catch (e) {} w.location.href = d.url; } else location.href = d.url; })
-          .catch(() => { if (w) w.location.href = board.href; else location.href = board.href; });
+          .catch(() => { if (w) w.location.href = el.href; else location.href = el.href; });
       });
     }
     if (!ready) { byId('site-password').hidden = true; return; }

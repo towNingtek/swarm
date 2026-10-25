@@ -4,7 +4,7 @@
 //   /board/data/<file>.js     board data, read from dataDir on every request;
 //                             only index.js, p<number>.js (default org) and
 //                             p-<org>-<number>.js (another org's project), anything else 404
-//   /board/_/launcher.js      the "📋 看板" button script (also the ./client bundle)
+//   /board/_/launcher.js      the "🌌 任務星系" button script (also the ./client bundle)
 //   POST /board/api/think     「想」: question + board context into the site's DSH
 //                             session (lib/think.js); JSON body up to 64KB.
 //                             Full path /board/api/think|api/think relative to
@@ -243,7 +243,7 @@ export function createHandler({ html, launcher, dataDir, gateway, store, suggest
       const marker = (u.searchParams.get('q') ?? '').split('\n')[0].slice(0, 200)
       const mine = Object.values((await store.all?.()) ?? {})
       if (!/^session-[0-9a-f-]{8,64}$/.test(sessionId) || !mine.includes(sessionId)) {
-        return sendJson(res, 404, { error: 'think/unknown-session', message: '不是看板開的對話。' })
+        return sendJson(res, 404, { error: 'think/unknown-session', message: '不是任務星系開的對話。' })
       }
       try {
         const headAt = await headSeq(gateway, sessionId, signal)
@@ -425,7 +425,7 @@ export function apply(ctx, config = {}, hooks = {}) {
   // DSH Workspace（側欄分組）只在 thinkWorkspace 明確給目錄時才建。
   const workspace = typeof config.thinkWorkspace !== 'string' || !config.thinkWorkspace || !ctx.typertGateway ? undefined
     : boardWorkspace({ gateway: ctx.typertGateway, dir: config.thinkWorkspace,
-                       title: config.thinkWorkspaceTitle || '📊 看板分析', signal: lifetime.signal, logger })
+                       title: config.thinkWorkspaceTitle || '🌌 任務星系分析', signal: lifetime.signal, logger })
 
   // 站台層級的 epic skill → $DSH_HOME/skills/epic（不存在或和外掛版本不同時才寫）。
   // Under `node --test` only an explicit skillsDir installs, so tests never touch the real DSH home.
