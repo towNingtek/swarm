@@ -23,9 +23,9 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <section id="site-card" class="panel site-card">
 <div class="site-head"><div><h2>我的站台</h2><p id="site-job" class="site-state"></p><p id="site-link" class="site-link"></p></div>
 <div id="site-ready" class="site-actions" hidden><button id="site-enter" type="button" class="btn primary">進入我的站台 →</button>
-<a id="site-board" class="btn board-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>🌌 任務星系</a>
-<a id="site-synapse" class="btn board-btn" href="#" target="_blank" rel="noopener noreferrer" hidden>🧠 神經系統</a>
 <p class="hint">不需要另外的帳號密碼。</p></div></div>
+<div id="site-tools" class="site-tools" hidden><a id="site-board" class="tool-btn" href="#" target="_blank" rel="noopener noreferrer" hidden><span class="tool-ic">🌌</span><span><b>任務星系</b><small>Project 與 EPIC 的工作進度</small></span></a>
+<a id="site-synapse" class="tool-btn" href="#" target="_blank" rel="noopener noreferrer" hidden><span class="tool-ic">🧠</span><span><b>神經系統</b><small>策略中樞、Function 與 hive</small></span></a></div>
 <p id="site-secret" class="hint"></p>
 <details id="site-password" class="sitepw" hidden><summary>設定站台密碼（選用）</summary>
 <p class="hint">想直接打開站台網址登入時才需要。登入帳號固定是 <code>admin</code>。平台不會保存這組密碼。
@@ -656,6 +656,8 @@ JS = r"""'use strict';
     // 看板在站台的 /board/（站台登入後）；平台回報站台裝好看板才顯示。
     // 任務星系在站台的 /board/、神經系統在 /synapse/（都在站台登入後）；平台回報站台裝好才顯示。
     // 一鍵進入：用一次性票登入站台，直接跳到該頁（不用先進一次站台）。
+    const tools = byId('site-tools');
+    if (tools) tools.hidden = !(ready && (boardOn === true || synapseOn === true));
     for (const [id, on, path] of [['site-board', boardOn, '/board/'], ['site-synapse', synapseOn, '/synapse/']]) {
       const el = byId(id);
       if (!el) continue;
@@ -1038,13 +1040,16 @@ body.app main { max-width: 60rem; padding-bottom: 7rem; }
 .site-actions { text-align: right; }
 .site-actions .hint { margin-top: .5rem; }
 #site-enter { font-size: 1.05rem; padding: 1rem 1.7rem; }
-.board-btn { display: inline-flex; align-items: center; justify-content: center; padding: .75rem 1.4rem;
-  font-weight: 600; text-decoration: none; border-radius: .8rem; border: 1px solid var(--honey);
-  color: var(--honey); background: #f5b30112; }
-.board-btn:hover { background: #f5b30126; color: var(--honey-2); }
-.site-actions { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: flex-end; align-items: center; }
-.site-actions .hint { flex-basis: 100%; text-align: right; }
-.board-btn[hidden] { display: none; }
+.site-actions { display: flex; flex-direction: column; align-items: flex-end; }
+.site-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .75rem;
+  margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid #ffffff14; }
+.site-tools[hidden], .tool-btn[hidden] { display: none; }
+.tool-btn { display: flex; align-items: center; gap: .85rem; padding: .85rem 1rem; text-decoration: none;
+  border-radius: .8rem; border: 1px solid #f5b30155; background: #f5b3010d; color: var(--honey); }
+.tool-btn:hover { background: #f5b30121; border-color: var(--honey); }
+.tool-ic { font-size: 1.5rem; line-height: 1; }
+.tool-btn b { display: block; font-weight: 700; }
+.tool-btn small { display: block; color: var(--muted); font-size: .82rem; margin-top: .15rem; }
 /* Progress */
 .panel.slim { padding: 1.1rem 1.4rem; }
 .small-title { font-size: .95rem !important; color: var(--muted); font-weight: 600; margin-bottom: .7rem !important; }
@@ -1205,7 +1210,8 @@ label.inline input { width: auto; }
 @media (max-width: 40rem) {
   .nav-links a:not(.nav-login) { display: none; }
   .panel { padding: 1.2rem 1.1rem; }
-  .site-actions { text-align: left; width: 100%; }
+  .site-actions { align-items: stretch; width: 100%; }
+  .site-actions .hint { text-align: left; }
   #site-enter { width: 100%; }
   #copilot-launcher span { display: none; }
   #copilot-launcher { padding: .9rem; }
