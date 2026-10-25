@@ -364,12 +364,38 @@ def ensure_site_network() -> None:
         raise SiteError(f"docker network {SITE_NETWORK} exists with other settings; refusing")
 
 
+def _probe_address() -> str:
+    """An address for the isolation probe that is NOT an ssh-exempt site's address.
+
+    Docker hands a new container the lowest free address. While an ssh-exempt site
+    is being recreated its pinned address is free, so an auto-assigned probe would
+    sit on exactly the address the firewall opens to host ssh and report a leak
+    that is not there (the probe would also never test what other sites see).
+    So pick explicitly: the highest free address that no ssh-exempt site owns.
+    Fail closed when none is free.
+    """
+    import ipaddress
+    network = ipaddress.ip_network(SITE_SUBNET, strict=False)
+    raw = run(["docker", "network", "inspect", SITE_NETWORK])
+    info = (json.loads(raw) or [{}])[0]
+    used = {SITE_GATEWAY, *SSH_SITES.values()}
+    for c in (info.get("Containers") or {}).values():
+        addr = (c.get("IPv4Address") or "").split("/")[0]
+        if addr:
+            used.add(addr)
+    for host in reversed(list(network.hosts())):
+        if str(host) not in used:
+            return str(host)
+    raise SiteError("site network has no free address for the isolation probe; refusing")
+
+
 def verify_site_isolation(image: str) -> dict:
     """Probe from a throwaway container on the site network. Fail closed."""
     ensure_site_network()
+    probe_ip = _probe_address()
     host, _, port = MODEL_RELAY.rpartition(":")
     spec = json.dumps([[[host, int(port)]], [list(item) for item in ISOLATION_MUST_BLOCK]])
-    out = run(["docker", "run", "--rm", "--network", SITE_NETWORK,
+    out = run(["docker", "run", "--rm", "--network", SITE_NETWORK, "--ip", probe_ip,
                *[arg for server in SITE_DNS for arg in ("--dns", server)],
                "--user", CONTAINER_USER, "--cap-drop", "ALL",
                "--security-opt", "no-new-privileges", "--memory", "128m",

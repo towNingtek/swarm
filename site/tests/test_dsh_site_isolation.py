@@ -75,6 +75,47 @@ class IsolationProbeTests(unittest.TestCase):
         probe = [c for c in log if c[:2] == ["docker", "run"]][0]
         for flag in (["--network", "swarm-sites"], ["--cap-drop", "ALL"], ["--dns", "1.1.1.1"]):
             self.assertIn(flag, [probe[i:i + 2] for i in range(len(probe) - 1)])
+        self.assertIn("--ip", probe, "the probe address is chosen explicitly, never left to docker")
+
+
+class ProbeAddressTests(unittest.TestCase):
+    """The probe must never sit on an ssh-exempt site's address (false leak), nor a used one."""
+
+    def setUp(self):
+        for name, value in (("SITE_NETWORK", "swarm-sites"), ("SITE_SUBNET", "172.29.10.0/24"),
+                            ("SITE_GATEWAY", "172.29.10.1")):
+            p = patch.object(dsh, name, value); p.start(); self.addCleanup(p.stop)
+
+    def network(self, *addresses):
+        net = json.loads(json.dumps(NETWORK))
+        net[0]["Containers"] = {f"c{i}": {"IPv4Address": f"{a}/24"} for i, a in enumerate(addresses)}
+        return net
+
+    def probe_ip(self, network, ssh):
+        log = []
+        with patch.object(dsh, "SSH_SITES", ssh), patch.object(dsh, "run", side_effect=fake_docker(GOOD, network, log)):
+            dsh.verify_site_isolation("img")
+        probe = [c for c in log if c[:2] == ["docker", "run"]][0]
+        return probe[probe.index("--ip") + 1]
+
+    def test_ssh_site_stopped_for_recreate_its_address_is_never_used(self):
+        # an ssh-exempt site pinned at .4 is stopped (being recreated): .4 is free but must not be picked.
+        ip = self.probe_ip(self.network("172.29.10.2", "172.29.10.3", "172.29.10.5"), {"ops": "172.29.10.4"})
+        self.assertNotEqual(ip, "172.29.10.4")
+        self.assertNotIn(ip, ("172.29.10.1", "172.29.10.2", "172.29.10.3", "172.29.10.5"))
+
+    def test_picks_the_highest_free_address(self):
+        self.assertEqual(self.probe_ip(self.network("172.29.10.2"), {}), "172.29.10.254")
+        self.assertEqual(self.probe_ip(self.network("172.29.10.254", "172.29.10.253"), {}), "172.29.10.252")
+
+    def test_ssh_address_skipped_even_at_the_top(self):
+        self.assertEqual(self.probe_ip(self.network(), {"ops": "172.29.10.254"}), "172.29.10.253")
+
+    def test_no_free_address_fails_closed(self):
+        full = self.network(*[f"172.29.10.{i}" for i in range(2, 255)])
+        with patch.object(dsh, "SSH_SITES", {}), patch.object(dsh, "run", side_effect=fake_docker(GOOD, full)):
+            with self.assertRaisesRegex(dsh.SiteError, "no free address"):
+                dsh.verify_site_isolation("img")
 
 
 class DockerRunTests(unittest.TestCase):
