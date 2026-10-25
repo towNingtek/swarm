@@ -30,7 +30,7 @@ class OnboardingUITests(unittest.TestCase):
         harness = r'''
 const assert = require('node:assert/strict');
 const nodes = {};
-for (const id of ['site-board','steps','rules','acknowledge','reload','status','site-job','site-card','office','office-meta','office-note','hives','office-empty','model-meta','model-current','starter-box','starter-bar','starter-usage','model-howto','rules-box','rules-state','site-ready','site-link','site-enter','site-secret','auto-note','copilot','copilot-message','copilot-act','copilot-status','chat-log','chat-mode','chat-ask-ai','chat-form','chat-input','chat-send','chat-status','copilot-launcher','copilot-close','site-password','site-password-form','site-password-new','site-password-reuse','site-password-new-fields','site-password-reuse-fields','site-password-input','site-password-confirm','site-password-platform','site-password-save','site-password-status','sched-form','sched-title','sched-freq','sched-dow','sched-dow-wrap','sched-time','sched-time-wrap','sched-minute','sched-minute-wrap','sched-cron','sched-cron-wrap','sched-role','sched-skill','sched-name','sched-context','sched-save','sched-cancel','sched-status','sched-home','sched-preview','offers','offers-meta','offer-list','offers-waiting','runs-box','runs-meta','run-list','schedule-note-text']) nodes[id] = {
+for (const id of ['site-board','site-synapse','site-tools','steps','rules','acknowledge','reload','status','site-job','site-card','office','office-meta','office-note','hives','office-empty','model-meta','model-current','starter-box','starter-bar','starter-usage','model-howto','rules-box','rules-state','site-ready','site-link','site-enter','site-secret','auto-note','copilot','copilot-message','copilot-act','copilot-status','chat-log','chat-mode','chat-ask-ai','chat-form','chat-input','chat-send','chat-status','copilot-launcher','copilot-close','site-password','site-password-form','site-password-new','site-password-reuse','site-password-new-fields','site-password-reuse-fields','site-password-input','site-password-confirm','site-password-platform','site-password-save','site-password-status','sched-form','sched-title','sched-freq','sched-dow','sched-dow-wrap','sched-time','sched-time-wrap','sched-minute','sched-minute-wrap','sched-cron','sched-cron-wrap','sched-role','sched-skill','sched-name','sched-context','sched-save','sched-cancel','sched-status','sched-home','sched-preview','offers','offers-meta','offer-list','offers-waiting','runs-box','runs-meta','run-list','schedule-note-text']) nodes[id] = {
  children:[],disabled:false,hidden:false,value:'',textContent:'',append(x){this.children.push(x);},
  replaceChildren(...x){this.children=x;},addEventListener(k,fn){this[k]=fn;},
  setAttribute(k,v){this['attr:'+k]=v;}, focus(){}, dataset:{}, scrollTop:0, scrollHeight:480
@@ -132,8 +132,10 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  jobStatus='succeeded_provisioned'; siteHost='acme.example'; nodes.reload.click(); await tick();
  assert.equal(nodes['site-ready'].hidden,false);
  assert.match(nodes['site-link'].textContent,/https:\/\/acme\.example\//);
- // 看板連結先隱藏，直到站台真的裝好（swarm#529）。
+ // 任務星系／神經系統先隱藏，直到站台真的裝好（swarm#529）；都沒裝就整列不顯示。
  assert.equal(nodes['site-board'].hidden, true);
+ assert.equal(nodes['site-synapse'].hidden, true);
+ assert.equal(nodes['site-tools'].hidden, true);
  assert.match(nodes['site-card'].className,/ready/);
  // Office unreadable: said so, nothing invented.
  assert.match(nodes['office-note'].textContent,/讀不到/);
@@ -405,7 +407,7 @@ class CustomerConsoleLayoutTests(unittest.TestCase):
         self.assertNotIn('id="mysched"', PAGE)   # no classic-scheduler table here
         self.assertIn('id="ov"', PAGE)
         # nothing the old single page offered may disappear
-        for eid in ('site-enter', 'site-board', 'site-password', 'steps', 'office', 'hives', 'sched-form',
+        for eid in ('site-enter', 'site-board', 'site-synapse', 'site-tools', 'site-password', 'steps', 'office', 'hives', 'sched-form',
                     'runs-box', 'model', 'starter-box', 'rules-box', 'acknowledge', 'reload', 'copilot'):
             self.assertIn('id="%s"' % eid, PAGE)
 
