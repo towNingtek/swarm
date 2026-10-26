@@ -34,11 +34,12 @@ import { homedir, hostname } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSuggestionStore, DAY, eventsSince, headSeq, replyIn, replyingThink, startDigest } from './digest.js'
-import { ActionError, createActions, dataFile, projectKey, setDefaultOrg, splitKey, TOWN } from './actions.js'
+import { ActionError, createActions, dataFile, projectKey, runGh, setDefaultOrg, splitKey, TOWN } from './actions.js'
 import { startFetcher as realStartFetcher } from './fetcher.js'
 import { boardWorkspace, createStore, readBoards, think, ThinkError } from './think.js'
-import { createRunning, ownersFromBoards } from './running.js'
+import { createRunning, ghGraphql, ownersFromBoards } from './running.js'
 import { createProjectPicker, readProjectsJson } from './projects.js'
+import { createGhEnv, createRelayCredential, readRelayKey } from './credential.js'
 import { defaultSkillsDir, installSkill as realInstallSkill } from './skill.js'
 
 export const name = 'dsh-swarm-board'
@@ -383,15 +384,15 @@ export const defaultThinkCwd = () => process.env.HOME || undefined
 
 // fetch-project.py --one <key> <dataDir> once, waiting for it (「＋ 加入 project」).
 function fetchOnceWith({ python, script, dataDir, env }) {
-  return (key) => new Promise((resolve, reject) => {
-    execFile(python, [script, '--one', String(key), dataDir], { timeout: FETCH_ONE_TIMEOUT_MS, env: { ...process.env, ...env } }, (err, stdout, stderr) => {
+  return (key) => Promise.resolve(typeof env === 'function' ? env() : env).then((e) => new Promise((resolve, reject) => {
+    execFile(python, [script, '--one', String(key), dataDir], { timeout: FETCH_ONE_TIMEOUT_MS, env: { ...process.env, ...e } }, (err, stdout, stderr) => {
       if (err) reject(new Error(String(stderr || err.message).trim().split('\n').pop()))
       else resolve(stdout)
     })
-  })
+  }))
 }
 
-// hooks (tests only): { startFetcher, fetchOne, hasGitHub, running, runningQuery, gh, hostname, installSkill, skillsDir }.
+// hooks (tests only): { startFetcher, fetchOne, hasGitHub, ghLogin, relay, running, runningQuery, gh, hostname, installSkill, skillsDir }.
 export function apply(ctx, config = {}, hooks = {}) {
   const logger = ctx.logger?.('swarm-board') ?? console
   const dataDir = config.dataDir || defaultDataDir()
@@ -407,7 +408,17 @@ export function apply(ctx, config = {}, hooks = {}) {
   }
   const fetchEveryMs = config.fetchEveryMs ?? FETCH_EVERY_MS
   const startFetcher = hooks.startFetcher ?? realStartFetcher
-  const hasGitHub = hooks.hasGitHub ?? ghLoggedIn
+  // GitHub credential: the site's own gh login, else the platform relay key (credential.js).
+  // hooks.hasGitHub (tests) replaces both: true means "gh works as is".
+  const relay = hooks.relay !== undefined ? hooks.relay
+    : hooks.hasGitHub ? null
+    : createRelayCredential({ relayKey: () => readRelayKey(config.workspace || process.env.HOME), log: (m) => logger.warn?.(m) })
+  const ghEnv = createGhEnv({ ghLogin: hooks.hasGitHub ?? hooks.ghLogin ?? ghLoggedIn, relay })
+  const hasGitHub = async () => (await ghEnv()) !== null
+  // Every gh the board runs gets the current credential env ({} = the site's own login).
+  const envOrEmpty = async () => (await ghEnv()) ?? {}
+  const gh = hooks.gh ?? (async (args, timeoutMs) => runGh(args, timeoutMs, await envOrEmpty()))
+  const runningQuery = hooks.runningQuery ?? (async (query, vars) => ghGraphql(query, vars, undefined, await envOrEmpty()))
   // One gate for the whole board: status.json, actions, running, the fetcher and the digest.
   // Rechecked (at most every githubRecheckMs), so logging gh in later needs no DSH restart.
   let onGitHub = () => {}
@@ -442,7 +453,7 @@ export function apply(ctx, config = {}, hooks = {}) {
   const python = config.python || 'python3'
   const fetchScript = config.fetchScript || DEFAULT_FETCH_SCRIPT
   // fetch-project.py looks for projects.json beside itself unless told; ours sits above dataDir.
-  const fetchEnv = { WOLFFIA_PROJECTS: projectsFile, WOLFFIA_ORG: TOWN }
+  const fetchEnv = async () => ({ WOLFFIA_PROJECTS: projectsFile, WOLFFIA_ORG: TOWN, ...(await envOrEmpty()) })
   function startFetching() {
     if (fetcher || !fetcherStarted || !projects.length || !(fetchEveryMs > 0)) return
     try { mkdirSync(dataDir, { recursive: true }) } catch {}
@@ -457,13 +468,13 @@ export function apply(ctx, config = {}, hooks = {}) {
     })
   }
   const picker = createProjectPicker({
-    gh: hooks.gh, projects, file: projectsFile, dataDir,
+    gh, projects, file: projectsFile, dataDir,
     fetchOne: hooks.fetchOne ?? ((key) => { try { mkdirSync(dataDir, { recursive: true }) } catch {}
       return fetchOnceWith({ python, script: fetchScript, dataDir, env: fetchEnv })(key) }),
     onAdd: () => startFetching(),
   })
   const act = createActions({
-    gh: hooks.gh, by: config.siteName || (hooks.hostname ?? hostname)(), projects,
+    gh, by: config.siteName || (hooks.hostname ?? hostname)(), projects,
     ownerOf: ownerFor(dataDir, config.org),
   })
   const handler = createHandler({
@@ -478,7 +489,7 @@ export function apply(ctx, config = {}, hooks = {}) {
     signal: lifetime.signal,
     logger,
     github,
-    running: hooks.running ?? runningFor(github, dataDir, projects, hooks.runningQuery),
+    running: hooks.running ?? runningFor(github, dataDir, projects, runningQuery),
     act,
     refetch: refetchFor(projects, dataDir, () => fetcher),
     keys: projects,

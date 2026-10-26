@@ -48,9 +48,10 @@ export class ActionError extends Error {
 }
 
 /** Default gh runner: resolves stdout, rejects with the last line of stderr. */
-export function runGh(args, timeoutMs = 60_000) {
+// env: extra environment for this gh only (e.g. { GH_TOKEN } from the platform relay).
+export function runGh(args, timeoutMs = 60_000, env = undefined) {
   return new Promise((resolve, reject) => {
-    execFile('gh', args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile('gh', args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, env: env ? { ...process.env, ...env } : process.env }, (err, stdout, stderr) => {
       if (err) return reject(new Error(String(stderr || stdout || err.message).trim().slice(0, 300)))
       resolve(stdout)
     })

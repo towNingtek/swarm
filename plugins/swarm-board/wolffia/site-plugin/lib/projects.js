@@ -16,11 +16,32 @@ const PAGE = 'projectsV2(first:100){nodes{number title closed items{totalCount}}
 const QUERY = `query{viewer{login ${PAGE} organizations(first:100){nodes{login ${PAGE}}}}}`
 
 // gh -> every open project of the viewer and its orgs, most cards first: [{owner, number, title, items}].
+// A GitHub App installation token (the platform relay) has a bot viewer with no orgs; the
+// projects come from the owners of the repositories the installation can reach instead.
+const ORG_QUERY = `query($o:String!){organization(login:$o){login ${PAGE}}}`
+const isBot = (login) => /\[bot\]$/.test(login ?? '')
+
+async function installationOrgs(gh) {
+  let out
+  try { out = JSON.parse(await gh(['api', 'installation/repositories?per_page=100'])) } catch { return [] }
+  const owners = [...new Set((out?.repositories ?? []).map((r) => r?.owner?.login).filter((o) => typeof o === 'string'))]
+  const orgs = []
+  for (const o of owners) {
+    try {
+      const r = JSON.parse(await gh(['api', 'graphql', '-f', `query=${ORG_QUERY}`, '-f', `o=${o}`]))
+      if (r?.data?.organization) orgs.push(r.data.organization)
+    } catch {}
+  }
+  return orgs
+}
+
 export async function listProjects(gh = runGh) {
   const out = JSON.parse(await gh(['api', 'graphql', '-f', `query=${QUERY}`]))
   const v = out?.data?.viewer
   if (!v) throw new Error(String(out?.errors?.[0]?.message ?? 'GraphQL error').slice(0, 300))
-  const owners = [{ login: v.login, projectsV2: v.projectsV2 }, ...(v.organizations?.nodes ?? [])]
+  const owners = isBot(v.login)
+    ? await installationOrgs(gh)
+    : [{ login: v.login, projectsV2: v.projectsV2 }, ...(v.organizations?.nodes ?? [])]
   const list = []
   for (const o of owners) {
     if (!o?.login) continue

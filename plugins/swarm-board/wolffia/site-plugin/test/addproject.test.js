@@ -230,3 +230,21 @@ test('listProjects uses one GraphQL query and no `gh project`', async () => {
   assert.match(gh.calls[0].find((a) => a.startsWith('query=')), /viewer\{login projectsV2.*organizations/)
   assert.deepEqual(list.map((p) => p.items), [30, 20, 10, 4])
 })
+
+test('listProjects with an App token (bot viewer): projects come from the installation owners', async () => {
+  const { listProjects } = await import('../lib/projects.js')
+  const calls = []
+  const gh = async (args) => {
+    calls.push(args.join(' '))
+    const q = args.join(' ')
+    if (q.includes('viewer')) return JSON.stringify({ data: { viewer: { login: 'ai-pm-acme[bot]', projectsV2: { nodes: [] }, organizations: { nodes: [] } } } })
+    if (q.startsWith('api installation/repositories')) return JSON.stringify({ repositories: [{ owner: { login: 'acme' } }, { owner: { login: 'acme' } }] })
+    if (q.includes('organization(login')) return JSON.stringify({ data: { organization: { login: 'acme', projectsV2: { nodes: [
+      { number: 3, title: 'Three', closed: false, items: { totalCount: 5 } },
+      { number: 4, title: 'Closed', closed: true, items: { totalCount: 9 } }] } } } })
+    throw new Error('unexpected ' + q)
+  }
+  const list = await listProjects(gh)
+  assert.deepEqual(list, [{ owner: 'acme', number: 3, title: 'Three', items: 5 }])
+  assert.equal(calls.filter((c) => c.includes('organization(login')).length, 1, 'each owner asked once')
+})
