@@ -35,13 +35,26 @@ async function installationOrgs(gh) {
   return orgs
 }
 
-export async function listProjects(gh = runGh) {
-  const out = JSON.parse(await gh(['api', 'graphql', '-f', `query=${QUERY}`]))
+const VIEWER_LOGIN = 'query{viewer{login}}'
+
+const viewerOf = (out) => {
   const v = out?.data?.viewer
   if (!v) throw new Error(String(out?.errors?.[0]?.message ?? 'GraphQL error').slice(0, 300))
-  const owners = isBot(v.login)
-    ? await installationOrgs(gh)
-    : [{ login: v.login, projectsV2: v.projectsV2 }, ...(v.organizations?.nodes ?? [])]
+  return v
+}
+
+export async function listProjects(gh = runGh) {
+  // Who is asking decides the query. An App installation token (the platform relay) may not
+  // read viewer.organizations at all — GitHub answers "Resource not accessible by integration"
+  // and fails the whole query — so a bot never asks for it.
+  const who = viewerOf(JSON.parse(await gh(['api', 'graphql', '-f', `query=${VIEWER_LOGIN}`])))
+  let owners
+  if (isBot(who.login)) {
+    owners = await installationOrgs(gh)
+  } else {
+    const v = viewerOf(JSON.parse(await gh(['api', 'graphql', '-f', `query=${QUERY}`])))
+    owners = [{ login: v.login, projectsV2: v.projectsV2 }, ...(v.organizations?.nodes ?? [])]
+  }
   const list = []
   for (const o of owners) {
     if (!o?.login) continue

@@ -108,11 +108,13 @@ test('available is cached for 10 minutes; added is always current', async () => 
   t += AVAILABLE_TTL_MS - 1
   projects.push(1)
   const again = await picker.available()
-  assert.equal(gh.calls.length, 1, '10 分鐘內不重查')
+  // One refresh = who-am-I + the projects query.
+  const perRefresh = 2
+  assert.equal(gh.calls.length, perRefresh, '10 分鐘內不重查')
   assert.equal(again.projects.find((p) => p.number === 1 && p.owner === 'acme').added, true)
   t += 2
   await picker.available()
-  assert.equal(gh.calls.length, 2, '過了 10 分鐘重查')
+  assert.equal(gh.calls.length, 2 * perRefresh, '過了 10 分鐘重查')
 })
 
 test('available without a logged-in gh: {github:false}, gh never asked', async () => {
@@ -223,11 +225,12 @@ test('a site with no projects yet starts fetching once one is added', async () =
   assert.deepEqual(started[0].projects, ['alice/5'])
 })
 
-test('listProjects uses one GraphQL query and no `gh project`', async () => {
+test('listProjects (user login): who-am-I, then one projects query; no `gh project`', async () => {
   const gh = fakeGh()
   const list = await listProjects(gh)
-  assert.equal(gh.calls.length, 1)
-  assert.match(gh.calls[0].find((a) => a.startsWith('query=')), /viewer\{login projectsV2.*organizations/)
+  assert.equal(gh.calls.length, 2)
+  assert.match(gh.calls[0].find((a) => a.startsWith('query=')), /^query=query\{viewer\{login\}\}$/)
+  assert.match(gh.calls[1].find((a) => a.startsWith('query=')), /viewer\{login projectsV2.*organizations/)
   assert.deepEqual(list.map((p) => p.items), [30, 20, 10, 4])
 })
 
@@ -237,7 +240,9 @@ test('listProjects with an App token (bot viewer): projects come from the instal
   const gh = async (args) => {
     calls.push(args.join(' '))
     const q = args.join(' ')
-    if (q.includes('viewer')) return JSON.stringify({ data: { viewer: { login: 'ai-pm-acme[bot]', projectsV2: { nodes: [] }, organizations: { nodes: [] } } } })
+    // Like GitHub: an App token may not read viewer.organizations; the whole query fails.
+    if (q.includes('viewer') && q.includes('organizations')) throw new Error('gh: Resource not accessible by integration')
+    if (q.includes('viewer')) return JSON.stringify({ data: { viewer: { login: 'ai-pm-acme[bot]' } } })
     if (q.startsWith('api installation/repositories')) return JSON.stringify({ repositories: [{ owner: { login: 'acme' } }, { owner: { login: 'acme' } }] })
     if (q.includes('organization(login')) return JSON.stringify({ data: { organization: { login: 'acme', projectsV2: { nodes: [
       { number: 3, title: 'Three', closed: false, items: { totalCount: 5 } },
