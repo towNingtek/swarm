@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 DOCKERFILE = Path(__file__).resolve().parents[1] / "Dockerfile"
-STANDARD = {"git", "gh", "ca-certificates"}
+STANDARD = {"git", "gh", "python3", "ca-certificates"}
 
 
 def base_apt_packages(text: str) -> set[str]:
@@ -33,6 +33,13 @@ class StandardPackagesTests(unittest.TestCase):
         board = Path(__file__).resolve().parents[2] / "plugins" / "swarm-board" / "wolffia"
         used = (board / "site-plugin" / "lib" / "index.js").read_text()
         self.assertIn("execFile('gh'", used)
+
+    def test_board_still_fetches_with_python3(self):
+        # The board runs fetch-project.py with python3 for every Projects refresh.
+        board = Path(__file__).resolve().parents[2] / "plugins" / "swarm-board" / "wolffia"
+        used = (board / "site-plugin" / "lib" / "index.js").read_text()
+        self.assertIn("'python3'", used)
+        self.assertTrue((board / "fetch-project.py").read_text().startswith("#!/usr/bin/env python3"))
 
 
 if __name__ == "__main__":

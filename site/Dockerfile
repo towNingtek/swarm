@@ -21,8 +21,10 @@ ARG DSH_VERSION=0.1.7-rc.2
 #         拖曳改狀態與放行 EPIC；沒有 gh 看板只會顯示「尚未連接 GitHub」。
 #         站台帳號沒有 root，事後裝不進系統目錄，所以必須在 image 內。
 #         gh 只是工具；登入／token 仍由各站台自己設定。
+#   python3 — 看板抓 Projects 資料是執行 wolffia/fetch-project.py；沒有它，看板
+#         顯示已連接 GitHub，卻永遠抓不到資料（只會留在空白或舊的星系圖）。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git gh ca-certificates \
+    && apt-get install -y --no-install-recommends git gh python3 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1001 dsh
 
