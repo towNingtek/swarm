@@ -50,7 +50,9 @@ export function createRelayCredential({ relayKey, url = RELAY_URL, fetch = globa
     try { data = await response.json() } catch {}
     if (!response.ok) throw new Error(`relay refused: ${String(data?.error?.code || data?.error?.message || `HTTP ${response.status}`).slice(0, 80)}`)
     const exp = Date.parse(data?.expires_at)
-    if (typeof data?.token !== 'string' || !/^ghs_[A-Za-z0-9]{20,}$/.test(data.token) || !Number.isFinite(exp)) {
+    // Installation tokens are "ghs_" + an opaque body: long, and since 2026 JWT-like
+    // (letters, digits, "_", "." and "-"). Anything else (spaces, newlines, quotes) is refused.
+    if (typeof data?.token !== 'string' || !/^ghs_[A-Za-z0-9_.-]{20,2048}$/.test(data.token) || !Number.isFinite(exp)) {
       throw new Error('relay answered something unexpected')
     }
     return { token: data.token, expires: exp, permissions: data.permissions ?? {} }

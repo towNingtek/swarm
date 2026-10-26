@@ -84,8 +84,16 @@ test('relay: refused or unreachable -> null, logged once, retried only after a b
   }
 })
 
+test('relay: current GitHub installation tokens (long, with _ . -) are accepted', async () => {
+  // Shape of a real 2026 installation token: ghs_ + ~380 chars of [A-Za-z0-9_.-].
+  const real = 'ghs_' + 'eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOjF9_'.repeat(11) + 'a-b.c_d'
+  const t = 0
+  const relay = createRelayCredential({ relayKey: () => KEY, now: () => t, fetch: relayFetch({ clock: () => t, token: real }) })
+  assert.equal(await relay.get(), real)
+})
+
 test('relay: unexpected answers are rejected', async () => {
-  for (const token of ['ghp_' + 'x'.repeat(36), '', 'ghs_short']) {
+  for (const token of ['ghp_' + 'x'.repeat(36), '', 'ghs_short', 'ghs_' + 'a'.repeat(30) + ' x', 'ghs_' + 'a'.repeat(30) + '\nX: y', 'ghs_' + 'a'.repeat(2100)]) {
     const t = 0
     const relay = createRelayCredential({ relayKey: () => KEY, now: () => t, fetch: relayFetch({ clock: () => t, token }) })
     assert.equal(await relay.get(), null, token)
