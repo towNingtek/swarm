@@ -3,7 +3,7 @@
 //   hub.json       HackMD note (config.hackmdNote) every minute, read with the site's HackMD token
 //                  (config.hackmdTokenFile; same file the office already uses). Unchanged → file untouched.
 //   projects.json  open GitHub Projects + EPICs (title [EPIC] + sub-issues) of config.orgs, every 10 min,
-//                  with the site's own `gh` (the same login the 任務星系 uses). Read-only.
+//                  with the site's own `gh` (the same login the 協作星系 uses). Read-only.
 //   hives.json     the site's swarm hives (config.hivesDir/*/HIVE.md), every minute.
 //
 // Nothing here writes to HackMD, GitHub or swarm. A failed round keeps the previous file.

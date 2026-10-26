@@ -18,7 +18,7 @@ const MAX_SUGGESTIONS = 50
 const ISSUE = /^[\w.-]+\/[\w.-]+#\d{1,9}$/
 
 export const QUESTION = [
-  '【每日聚合】請讀下面全部 project 的任務星系資料，找出：',
+  '【每日聚合】請讀下面全部 project 的協作星系資料，找出：',
   '（1）同一個 project 裡，應該合成一個 EPIC 的 issue（縱向，kind: "vertical"）；',
   '（2）跨 project 的共同需求，應該合成一個跨 project EPIC 的 issue（橫向，kind: "horizontal"）。',
   '只提建議，不要開卡、不要建 EPIC、不要改任何 issue 的狀態或欄位。',

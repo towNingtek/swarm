@@ -195,3 +195,48 @@ test('fetchProjects: open projects, EPIC = [EPIC] + sub-issues', async () => {
   assert.deepEqual(d.projects.map((p) => p.id), ['o#2'])
   assert.deepEqual(d.epics.map((e) => [e.id, e.title, e.done, e.total]), [['o/office#13', 'LLMTwins 退場', 2, 5]])
 })
+
+import { cleanCanvas, readCanvas } from '../lib/index.js'
+
+function mountWithCanvas() {
+  const dir = mkdtempSync(join(tmpdir(), 'canvas-'))
+  writeFileSync(join(dir, 'page.html'), '<html></html>')
+  let handler
+  const ctx = { typertGateway: fakeGateway(), webServer: { register: (r) => { handler = r.handler; return () => {} } }, effect: (fn) => fn(), logger: () => ({ warn() {}, error() {} }) }
+  apply(ctx, { dataDir: dir, page: join(dir, 'page.html'), canvasFile: join(dir, 'state', 'canvas.json') })
+  return { h: handler, file: join(dir, 'state', 'canvas.json') }
+}
+const put = (h, body, extra = {}) => request(h, { method: 'PUT', url: '/synapse/api/canvas', headers: { 'content-type': 'application/json', ...extra }, body: JSON.stringify(body) })
+
+test('canvas: empty at first, saved in the site, read back by any browser', async () => {
+  const { h, file } = mountWithCanvas()
+  assert.deepEqual(JSON.parse((await request(h, { url: '/synapse/api/canvas' })).body).rev, 0)
+  const c = { removedHives: ['pi4'], projects: ['acme#4'], epics: ['acme/office#13'], links: [{ a: 's:S2', b: 'h:robot' }, { a: 'h:robot', b: 'p:acme#4' }, { a: 'p:acme#4', b: 'e:acme/office#13' }] }
+  const r = await put(h, { canvas: c, rev: 0 })
+  assert.equal(r.status, 200, r.body); assert.equal(JSON.parse(r.body).rev, 1)
+  assert.deepEqual(readCanvas(file).canvas, c)
+  assert.deepEqual(JSON.parse((await request(h, { url: '/synapse/api/canvas' })).body).canvas, c)
+})
+
+test('canvas: a stale save is refused (409) and returns the current one', async () => {
+  const { h } = mountWithCanvas()
+  await put(h, { canvas: { projects: ['a#1'] }, rev: 0 })
+  const r = await put(h, { canvas: { projects: ['b#2'] }, rev: 0 })
+  assert.equal(r.status, 409)
+  assert.deepEqual(JSON.parse(r.body).canvas.projects, ['a#1'])
+})
+
+test('canvas: only known shapes; junk, traversal and other origins refused', async () => {
+  const { h } = mountWithCanvas()
+  for (const bad of [null, [], { links: [{ a: 'x:1', b: 'h:a' }] }, { links: [{ a: '../../etc', b: 'h:a' }] }, { projects: ['<script>'] }, { projects: 'a' }]) {
+    assert.equal((await put(h, { canvas: bad, rev: 0 })).status, 400, JSON.stringify(bad))
+  }
+  assert.equal((await put(h, { canvas: {}, rev: 0 }, { origin: 'https://evil.example' })).status, 403)
+  assert.equal((await request(h, { method: 'PUT', url: '/synapse/api/canvas', headers: { 'content-type': 'text/plain' }, body: '{}' })).status, 415)
+})
+
+test('cleanCanvas: drops duplicates, keeps only a/b on links', () => {
+  const c = cleanCanvas({ projects: ['a#1', 'a#1'], links: [{ a: 's:S1', b: 'h:x', extra: 1 }, { a: 's:S1', b: 'h:x' }] })
+  assert.deepEqual(c.projects, ['a#1'])
+  assert.deepEqual(c.links, [{ a: 's:S1', b: 'h:x' }])
+})

@@ -84,7 +84,7 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     const add = [GO, autoMerge ? AUTO : null].filter((l) => l && !labels.has(l))
     if (add.length) {
       await gh(['issue', 'edit', url, ...add.flatMap((l) => ['--add-label', l])])
-      await comment(url, `🚦 由 站台任務星系（${by}）放行（加 ${add.map((l) => `\`${l}\``).join('、')}）。`)
+      await comment(url, `🚦 由 站台協作星系（${by}）放行（加 ${add.map((l) => `\`${l}\``).join('、')}）。`)
     }
     return { ok: true, by, already: !add.includes(GO), auto_merge: autoMerge }
   }
@@ -93,14 +93,14 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     if (!(await epicLabels(url)).has(GO)) throw new ActionError('這個 EPIC 還沒放行過，請用「放行」')
     await gh(['issue', 'edit', url, '--remove-label', GO])
     await gh(['issue', 'edit', url, '--add-label', GO])
-    await comment(url, `↻ 由 站台任務星系（${by}）重新放行（移除再加回 \`${GO}\`）。`)
+    await comment(url, `↻ 由 站台協作星系（${by}）重新放行（移除再加回 \`${GO}\`）。`)
     return { ok: true, by, already: false }
   }
 
   async function automerge(url, on) {
     if ((await epicLabels(url)).has(AUTO) === on) return { ok: true, by, already: true, on }
     await gh(['issue', 'edit', url, on ? '--add-label' : '--remove-label', AUTO])
-    await comment(url, `⚡ 由 站台任務星系（${by}）${on ? '開啟' : '關閉'}自動合併（\`${AUTO}\`）。`)
+    await comment(url, `⚡ 由 站台協作星系（${by}）${on ? '開啟' : '關閉'}自動合併（\`${AUTO}\`）。`)
     return { ok: true, by, already: false, on }
   }
 

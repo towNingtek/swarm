@@ -1,5 +1,5 @@
-// dsh-synapse launcher: a fixed "🧠 神經系統" button in the DSH Web client that opens
-// /synapse/ in a new tab. Sits just above the 任務星系 button. Hand-written, no build step.
+// dsh-synapse launcher: a fixed "🧠 策略中樞" button in the DSH Web client that opens
+// /synapse/ in a new tab. Sits just above the 協作星系 button. Hand-written, no build step.
 (function () {
 	var URL_ = "/synapse/";
 	var BUTTON_ID = "dsh-synapse-launcher";
@@ -13,8 +13,8 @@
 		a.href = URL_;
 		a.target = "_blank";
 		a.rel = "noopener";
-		a.title = "開啟神經系統（新分頁）";
-		a.textContent = "🧠 神經系統";
+		a.title = "開啟策略中樞（新分頁）";
+		a.textContent = "🧠 策略中樞";
 		var s = a.style;
 		s.position = "fixed";
 		s.right = "16px";

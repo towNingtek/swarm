@@ -85,7 +85,7 @@ test('go adds swarm:go and comments who released it', async () => {
   assert.deepEqual(r.json, { ok: true, by: 'site.example', already: false, auto_merge: false })
   assert.deepEqual(gh.edits(), [['--add-label', 'swarm:go']])
   assert.equal(gh.comments().length, 1)
-  assert.match(gh.comments()[0], /由 站台任務星系（site\.example）放行/)
+  assert.match(gh.comments()[0], /由 站台協作星系（site\.example）放行/)
   assert.deepEqual(fetchNow, [3])
 })
 
@@ -129,7 +129,7 @@ test('rego removes swarm:go and adds it back', async () => {
   assert.equal(r.status, 200)
   assert.deepEqual(r.json, { ok: true, by: 'site.example', already: false })
   assert.deepEqual(gh.edits(), [['--remove-label', 'swarm:go'], ['--add-label', 'swarm:go']])
-  assert.match(gh.comments()[0], /由 站台任務星系（site\.example）重新放行/)
+  assert.match(gh.comments()[0], /由 站台協作星系（site\.example）重新放行/)
 })
 
 test('rego on a never released EPIC is 400', async () => {
@@ -146,7 +146,7 @@ test('automerge turns swarm:auto-merge on and off', async () => {
   assert.equal(r.status, 200)
   assert.deepEqual(r.json, { ok: true, by: 'site.example', already: false, on: true })
   assert.deepEqual(gh.edits(), [['--add-label', 'swarm:auto-merge']])
-  assert.match(gh.comments()[0], /由 站台任務星系（site\.example）開啟自動合併/)
+  assert.match(gh.comments()[0], /由 站台協作星系（site\.example）開啟自動合併/)
 
   ;({ route, gh } = setup({ gh: fakeGh({ labels: ['epic', 'swarm:go', 'swarm:auto-merge'] }) }))
   r = await post(route, '/board/api/epic/automerge', { url: EPIC, on: false })

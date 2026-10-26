@@ -3,19 +3,22 @@
 //   /synapse/                 the page (read once at start)
 //   /synapse/data/hub.json    the HackMD hub; projects.json Projects + EPICs; hives.json the site's swarm hives
 //                             (read from dataDir on every request; only these three names; kept fresh by lib/fetcher.js)
-//   /synapse/_/launcher.js    the "🧠 神經系統" button script (also the ./client bundle)
+//   /synapse/_/launcher.js    the "🧠 策略中樞" button script (also the ./client bundle)
 //   GET  /synapse/api/models  the site's own DSH model catalog (same menu as DSH)
 //   POST /synapse/api/ask     {model:{provider,model}, question, context} → {sessionId, after}
 //   GET  /synapse/api/reply   ?session=&after=&marker= → {done, text}
+//   GET  /synapse/api/canvas  the canvas (deleted hives, projects, EPICs, links), stored in the site
+//   PUT  /synapse/api/canvas  {removedHives, projects, epics, links, rev} → {rev}; stale rev → 409
+//                             (so every browser of this site sees the same canvas)
 //
 // Everything sits behind the site login (dsh-web-auth); /synapse must not be a public prefix.
 // Public Host API only: webServer.register, typertGateway.invoke (same as dsh-swarm-board).
 // The Copilot only answers; it never writes HackMD, swarm or GitHub.
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startFetcher } from './fetcher.js'
 
@@ -29,12 +32,48 @@ const MAX_QUESTION = 4000
 const BASE_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }
 const DEFAULT_PAGE = fileURLToPath(new URL('../page/index.html', import.meta.url))
 const LAUNCHER = fileURLToPath(new URL('./launcher.js', import.meta.url))
-const SESSION_TITLE = '🧠 synapse Copilot'
+const SESSION_TITLE = '🧠 策略中樞 Copilot'
+const MAX_CANVAS = 128 * 1024
+
+// The canvas is user data, not fetched data: it lives beside dataDir, never inside it
+// (data/ is served read-only and rewritten by the fetcher).
+export const defaultCanvasFile = () => join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'synapse', 'canvas.json')
+
+const ID = /^[\w.@/#-]{1,200}$/
+const NODE = /^(s|h|p|e):[\w.@/#-]{1,200}$/
+/** Validate a canvas from the page; returns a clean copy or throws. Only known shapes, bounded sizes. */
+export function cleanCanvas(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('canvas 必須是物件')
+  const list = (x, test, max, label) => {
+    if (x === undefined) return []
+    if (!Array.isArray(x) || x.length > max) throw new Error(`${label} 格式錯誤`)
+    return [...new Set(x.map((y) => { if (!test(y)) throw new Error(`${label} 有不合法的值`); return y }))]
+  }
+  const ids = (x) => typeof x === 'string' && ID.test(x)
+  const links = (v.links ?? []).length > 2000 || !Array.isArray(v.links ?? []) ? null : (v.links ?? []).map((l) => {
+    if (!l || typeof l !== 'object' || !NODE.test(l.a ?? '') || !NODE.test(l.b ?? '')) throw new Error('links 有不合法的值')
+    return { a: l.a, b: l.b }
+  })
+  if (!links) throw new Error('links 格式錯誤')
+  return {
+    removedHives: list(v.removedHives, ids, 500, 'removedHives'),
+    projects: list(v.projects, ids, 500, 'projects'),
+    epics: list(v.epics, ids, 1000, 'epics'),
+    links: links.filter((l, i) => links.findIndex((m) => m.a === l.a && m.b === l.b) === i),
+  }
+}
+
+export function readCanvas(file) {
+  try {
+    const v = JSON.parse(readFileSync(file, 'utf8'))
+    return { canvas: cleanCanvas(v.canvas ?? {}), rev: Number.isInteger(v.rev) ? v.rev : 0, savedAt: v.savedAt ?? null }
+  } catch { return { canvas: cleanCanvas({}), rev: 0, savedAt: null } }
+}
 
 export const defaultDataDir = () => join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'synapse', 'data')
 
 const RULE_PREAMBLE = `你是 synapse 的策略 Copilot，用繁體中文回答，簡短、直接。
-synapse 是小鎮智能的策略神經系統圖。只根據下面的「規則」與「目前這張圖」回答；不知道就說不知道，不要編。
+策略中樞（synapse）是一張策略神經系統圖。只根據下面的「規則」與「目前這張圖」回答；不知道就說不知道，不要編。
 你不能修改任何東西（HackMD、swarm、GitHub、這張圖都不行），也不要使用工具；使用者要改，就告訴他在哪裡改、怎麼改。`
 
 export function send(res, status, type, body, extra = {}) {
@@ -133,6 +172,7 @@ export function apply(ctx, config = {}) {
   try { page = readFileSync(pagePath, 'utf8') } catch (e) { logger.warn?.('synapse: page not found at %s', pagePath) }
   const launcher = readFileSync(LAUNCHER, 'utf8')
   const gateway = ctx.typertGateway
+  const canvasFile = config.canvasFile || defaultCanvasFile()
   // 資料抓取在站台內：HackMD（站台的 HackMD token）、GitHub（站台的 gh）、hives（站台的 swarm）。
   // Under `node --test` nothing starts unless the test asks for it.
   if (config.fetch !== false && !process.env.NODE_TEST_CONTEXT) {
@@ -179,6 +219,23 @@ export function apply(ctx, config = {}) {
       if (!DATA_FILES.has(f)) return send(res, 404, 'text/plain; charset=utf-8', 'not found')
       try { return send(res, 200, 'application/json; charset=utf-8', head ? undefined : await readFile(join(dataDir, f), 'utf8')) }
       catch { return send(res, 404, 'text/plain; charset=utf-8', 'not found') }
+    }
+    if (req.method === 'GET' && p === PREFIX + '/api/canvas') return sendJson(res, 200, readCanvas(canvasFile))
+    if (req.method === 'PUT' && p === PREFIX + '/api/canvas') {
+      const bad = requestError(req)
+      if (bad) return sendJson(res, bad[0], { error: bad[1] })
+      let body, canvas
+      try { body = JSON.parse(await readBody(req, MAX_CANVAS)) } catch (e) { return sendJson(res, e?.status ?? 400, { error: e?.status === 413 ? '畫布太大。' : '內容不是 JSON。' }) }
+      try { canvas = cleanCanvas(body?.canvas) } catch (e) { return sendJson(res, 400, { error: e.message }) }
+      const cur = readCanvas(canvasFile)
+      // Another browser saved in between: refuse, so the page reloads instead of silently overwriting.
+      if (body?.rev !== cur.rev) return sendJson(res, 409, { error: '畫布在別的地方被改過了。', ...cur })
+      const next = { canvas, rev: cur.rev + 1, savedAt: new Date().toISOString() }
+      mkdirSync(dirname(canvasFile), { recursive: true })
+      const tmp = `${canvasFile}.tmp-${process.pid}`
+      writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 })
+      renameSync(tmp, canvasFile)
+      return sendJson(res, 200, { rev: next.rev, savedAt: next.savedAt })
     }
     if (req.method === 'GET' && p === PREFIX + '/api/models') {
       if (!gateway) return sendJson(res, 503, { error: '這個站台沒有接上 DSH。' })
