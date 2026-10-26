@@ -1,4 +1,4 @@
-// dsh-swarm-board launcher: a fixed "🌌 任務星系" button at the bottom right of the
+// dsh-swarm-board launcher: a fixed "🌌 協作星系" button at the bottom right of the
 // DSH Web client that opens /board/ in a new tab. Hand-written, no build step.
 // Loaded by DSH as this package's ./client bundle (dsh.client in package.json);
 // also served at /board/_/launcher.js, where it mounts directly when no DSH
@@ -17,8 +17,8 @@
 		a.href = BOARD_URL;
 		a.target = "_blank";
 		a.rel = "noopener";
-		a.title = "開啟任務星系（新分頁）";
-		a.textContent = "🌌 任務星系";
+		a.title = "開啟協作星系（新分頁）";
+		a.textContent = "🌌 協作星系";
 		var s = a.style;
 		s.position = "fixed";
 		s.right = "16px";

@@ -24,8 +24,8 @@ PAGE = '''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <div class="site-head"><div><h2>我的站台</h2><p id="site-job" class="site-state"></p><p id="site-link" class="site-link"></p></div>
 <div id="site-ready" class="site-actions" hidden><button id="site-enter" type="button" class="btn primary">進入我的站台 →</button>
 <p class="hint">不需要另外的帳號密碼。</p></div></div>
-<div id="site-tools" class="site-tools" hidden><a id="site-board" class="tool-btn" href="#" target="_blank" rel="noopener noreferrer" hidden><span class="tool-ic">🌌</span><span><b>任務星系</b><small>Project 與 EPIC 的工作進度</small></span></a>
-<a id="site-synapse" class="tool-btn" href="#" target="_blank" rel="noopener noreferrer" hidden><span class="tool-ic">🧠</span><span><b>神經系統</b><small>策略中樞、Function 與 hive</small></span></a></div>
+<div id="site-tools" class="site-tools" hidden><a id="site-board" class="tool-btn" href="#" target="_blank" rel="noopener noreferrer" hidden><span class="tool-ic">🌌</span><span><b>協作星系</b><small>Project 與 EPIC 的工作進度</small></span></a>
+<a id="site-synapse" class="tool-btn" href="#" target="_blank" rel="noopener noreferrer" hidden><span class="tool-ic">🧠</span><span><b>策略中樞</b><small>神經系統：Function、hive 與 EPIC</small></span></a></div>
 <p id="site-secret" class="hint"></p>
 <details id="site-password" class="sitepw" hidden><summary>設定站台密碼（選用）</summary>
 <p class="hint">想直接打開站台網址登入時才需要。登入帳號固定是 <code>admin</code>。平台不會保存這組密碼。
@@ -654,7 +654,7 @@ JS = r"""'use strict';
     byId('site-ready').hidden = !ready;
     byId('site-link').textContent = ready ? 'https://' + job.site_host + '/' : '';
     // 看板在站台的 /board/（站台登入後）；平台回報站台裝好看板才顯示。
-    // 任務星系在站台的 /board/、神經系統在 /synapse/（都在站台登入後）；平台回報站台裝好才顯示。
+    // 協作星系在站台的 /board/、策略中樞在 /synapse/（都在站台登入後）；平台回報站台裝好才顯示。
     // 一鍵進入：用一次性票登入站台，直接跳到該頁（不用先進一次站台）。
     const tools = byId('site-tools');
     if (tools) tools.hidden = !(ready && (boardOn === true || synapseOn === true));

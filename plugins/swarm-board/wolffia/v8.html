@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>任務星系</title>
+<title>協作星系</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:#05090c;color:#c9d4d8;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;font-size:13px}
@@ -93,7 +93,7 @@ h2{font-size:10px;letter-spacing:1.5px;color:#697c88;margin:0 0 10px;font-weight
 <div id="wrap">
  <div id="main">
   <div id="top">
-   <h1>🌌 任務星系</h1>
+   <h1>🌌 協作星系</h1>
    <select id="pSel" title="切換 project"></select>
    <button id="bReset" style="display:none" title="只影響這個瀏覽器">↺ 還原排列</button>
    <span id="tLbl"></span>
@@ -117,7 +117,7 @@ h2{font-size:10px;letter-spacing:1.5px;color:#697c88;margin:0 0 10px;font-weight
    <div id="selHint" class="dim"></div>
     <div id="engRow">引擎 <select id="eng"><option value="">（預設）</option></select><span id="engNow"></span><span id="engUse" style="margin-left:auto"></span></div>
    <form id="chatF"><textarea id="chatIn" rows="2" placeholder="問 copilot…（Enter 送出，Shift+Enter 換行）"></textarea><button type="submit">送出</button></form>
-   <div id="thinkRow"><button id="thinkB" type="button" title="用站台的 harness 分析現在這個任務星系（問題＋選取的卡＋任務星系資料）">📊 分析</button><select id="thinkScope" title="分析範圍"><option value="one">這個 project</option><option value="all">全部 project</option></select><span>分析現在的畫面</span></div>
+   <div id="thinkRow"><button id="thinkB" type="button" title="用站台的 harness 分析現在這個協作星系（問題＋選取的卡＋協作星系資料）">📊 分析</button><select id="thinkScope" title="分析範圍"><option value="one">這個 project</option><option value="all">全部 project</option></select><span>分析現在的畫面</span></div>
   </div>
   <div id="pInfo">
   <div class="sec"><h2>★ 現在該你處理</h2><div id="star"></div></div>
@@ -1053,7 +1053,7 @@ if(/^\/board\//.test(location.pathname||"")) document.getElementById("engRow").s
     return AV.filter(function(p){ return !q||String(p.title).toLowerCase().indexOf(q)>=0||String(p.owner).toLowerCase().indexOf(q)>=0||(p.owner+"/"+p.number).toLowerCase().indexOf(q)>=0; }); }
   function draw(){ var V=shown();
     L.innerHTML=V.map(function(p){ var i=AV.indexOf(p), on=!p.added&&PICK[idOf(p)];
-      return '<button type="button" class="apRow'+(on?' on':'')+'" data-i="'+i+'"'+(p.added?' disabled title="已在任務星系上"':'')+' aria-pressed="'+(on||p.added?'true':'false')+'"><span class="ck">'+(p.added||on?'✓':'')+'</span><span>'+esc(p.title)+' <span class="o">'+esc(p.owner)+' #'+p.number+(p.added?'　已在任務星系上':'')+'</span></span><span class="n">'+p.items+' 張</span></button>'; }).join("")||
+      return '<button type="button" class="apRow'+(on?' on':'')+'" data-i="'+i+'"'+(p.added?' disabled title="已在協作星系上"':'')+' aria-pressed="'+(on||p.added?'true':'false')+'"><span class="ck">'+(p.added||on?'✓':'')+'</span><span>'+esc(p.title)+' <span class="o">'+esc(p.owner)+' #'+p.number+(p.added?'　已在協作星系上':'')+'</span></span><span class="n">'+p.items+' 張</span></button>'; }).join("")||
       '<div class="apRow" style="cursor:default;color:#7d8d96">'+(AV.length?'沒有符合的 project':'沒有可加入的 project')+'</div>';
     foot(); }
   function close(){ if(busy) return; B.style.display="none"; }

@@ -132,7 +132,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  jobStatus='succeeded_provisioned'; siteHost='acme.example'; nodes.reload.click(); await tick();
  assert.equal(nodes['site-ready'].hidden,false);
  assert.match(nodes['site-link'].textContent,/https:\/\/acme\.example\//);
- // 任務星系／神經系統先隱藏，直到站台真的裝好（swarm#529）；都沒裝就整列不顯示。
+ // 協作星系／策略中樞先隱藏，直到站台真的裝好（swarm#529）；都沒裝就整列不顯示。
  assert.equal(nodes['site-board'].hidden, true);
  assert.equal(nodes['site-synapse'].hidden, true);
  assert.equal(nodes['site-tools'].hidden, true);

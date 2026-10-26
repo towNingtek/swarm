@@ -187,7 +187,7 @@ function fakeDom() {
   return document
 }
 
-test('launcher mounts a fixed 🌌 任務星系 button that opens /board/ in a new tab', () => {
+test('launcher mounts a fixed 🌌 協作星系 button that opens /board/ in a new tab', () => {
   const document = fakeDom()
   vm.runInNewContext(LAUNCHER, { window: {}, document, Symbol, Object })
   const [a] = document.body.children
@@ -195,7 +195,7 @@ test('launcher mounts a fixed 🌌 任務星系 button that opens /board/ in a n
   assert.equal(a.href, '/board/')
   assert.equal(a.target, '_blank')
   assert.match(a.rel, /noopener/)
-  assert.match(a.textContent, /🌌 任務星系/)
+  assert.match(a.textContent, /🌌 協作星系/)
   assert.equal(a.style.position, 'fixed')
   assert.ok(a.style.right && a.style.bottom)
 })

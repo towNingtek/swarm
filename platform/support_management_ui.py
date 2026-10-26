@@ -440,8 +440,8 @@ SHELL_JS = r"""'use strict';
       if (HOST_RE.test(host) && s.site_job === 'succeeded_provisioned') {
         // 卡片底部的動作按鈕：看板（主要）＋進入站台；都開新分頁。沒裝看板就只有進入站台。
         const links = el('div', null, 'site-card-actions');
-        if (s.board === true) links.append(actButton('https://' + host + '/board/', '🌌 任務星系', '開這個站台的任務星系（新分頁）', true));
-        if (s.synapse === true) links.append(actButton('https://' + host + '/synapse/', '🧠 神經系統', '開這個站台的神經系統（新分頁）', false));
+        if (s.board === true) links.append(actButton('https://' + host + '/board/', '🌌 協作星系', '開這個站台的協作星系（新分頁）', true));
+        if (s.synapse === true) links.append(actButton('https://' + host + '/synapse/', '🧠 策略中樞', '開這個站台的策略中樞（新分頁）', false));
         links.append(actButton('https://' + host + '/', '進入站台 ↗', '開這個站台的 AI 對話（新分頁）', s.board !== true));
         wrap.append(links);
       }
@@ -664,8 +664,8 @@ MANAGEMENT_JS = r"""'use strict';
     if (!host || !HOST_RE.test(host) || job !== 'succeeded_provisioned') return;
     box.append(siteLink('https://' + host + '/', '進入站台 ↗'));
     // The board plugin is optional: link it only where the site has it.
-    if (row.board === true) box.append(siteLink('https://' + host + '/board/', '任務星系 ↗'));
-    if (row.synapse === true) box.append(siteLink('https://' + host + '/synapse/', '神經系統 ↗'));
+    if (row.board === true) box.append(siteLink('https://' + host + '/board/', '協作星系 ↗'));
+    if (row.synapse === true) box.append(siteLink('https://' + host + '/synapse/', '策略中樞 ↗'));
   }
   function renderList() {
     byId('tenant-list').replaceChildren();
