@@ -30,6 +30,21 @@ Q = '''query($org:String!,$num:Int!,$after:String){organization(login:$org){proj
   fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name updatedAt}}
   target: fieldValueByName(name:"Target date"){... on ProjectV2ItemFieldDateValue{date}}}}}}}'''
 ORDER = ["待辦", "進行中 (7 天一輪)", "審核後請關閉", "完成"]
+
+
+def column_map(conf, key):
+    """projects.json "columns": {"<key>": {"<project's Status option>": "<board column>"}} -> {option: column}.
+    For a project whose Status options are not the board's own (e.g. GitHub's default Backlog / Ready /
+    In progress / In review / Done). Only board columns (ORDER) count; option names match exactly.
+    Board column names always map to themselves, so a partly renamed project still works."""
+    m = {c: c for c in ORDER}
+    for k, v in ((conf or {}).get("columns") or {}).items():
+        pk = parse_key(k)
+        if pk and pk[2] == key and isinstance(v, dict):
+            for opt, col in v.items():
+                if isinstance(opt, str) and col in ORDER:
+                    m[opt] = col
+    return m
 H = """query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){
  timelineItems(first:100,itemTypes:[PROJECT_V2_ITEM_STATUS_CHANGED_EVENT,CLOSED_EVENT,REOPENED_EVENT]){nodes{__typename
   ... on ProjectV2ItemStatusChangedEvent{createdAt status project{number url}}
@@ -176,7 +191,7 @@ def load_cache(path):
     return {u: e for u, e in d.items() if isinstance(e, dict) and isinstance(e.get("key"), str) and isinstance(e.get("hist"), list)}
 
 
-def fetch(num, cache_dir=None, owner=ORG, pkey=None):
+def fetch(num, cache_dir=None, owner=ORG, pkey=None, conf=None):
     """owner: the org owning project num; pkey: its projects.json key (default num).
     cache_dir: where .hist-cache lives; an issue whose updatedAt and Status updatedAt are unchanged
     reuses its cached history instead of a timeline query (one query per issue is most of the API cost)."""
@@ -186,7 +201,8 @@ def fetch(num, cache_dir=None, owner=ORG, pkey=None):
     fresh, queries = {}, 0
     opts = gql('query($org:String!,$num:Int!){organization(login:$org){projectV2(number:$num){field(name:"Status"){'
                '... on ProjectV2SingleSelectField{options{name}}}}}}', org=owner, num=num)
-    cols = {o["name"] for o in opts["organization"]["projectV2"]["field"]["options"]}
+    cmap = column_map(conf, pkey)
+    cols = {cmap[o["name"]] for o in opts["organization"]["projectV2"]["field"]["options"] if o["name"] in cmap}
     items, after, title, url = [], None, "", ""
     while True:
         v = {"org": owner, "num": num}
@@ -205,9 +221,10 @@ def fetch(num, cache_dir=None, owner=ORG, pkey=None):
             else:
                 h, queries = hist(c, num, owner), queries + 1
             fresh[c["url"]] = {"key": key, "hist": h}
+            h = [[t, cmap.get(st, st)] for t, st in h]  # the cache keeps the project's own names
             items.append({"n": c["number"], "t": c["title"], "u": c["url"], "repo": c["repository"]["name"], "owner": c["repository"]["owner"]["login"],
                           "state": c["state"], "created": c["createdAt"], "closed": c["closedAt"],
-                          "status": s.get("name"), "since": s.get("updatedAt"), "hist": h,
+                          "status": cmap.get(s.get("name"), s.get("name")), "since": s.get("updatedAt"), "hist": h,
                           "who": [a["login"] for a in c["assignees"]["nodes"]],
                           "labels": [l["name"] for l in c["labels"]["nodes"]],
                           # EPIC graph (contract: discussion.md「issue 契約」). Empty for issues that do not use it.
@@ -392,7 +409,7 @@ def safe_fetch(num, cache_dir=None, owner=ORG, key=None, conf=None):
     try:
         if is_gitlab(key):
             return fetch_gitlab(key, cache_dir, conf)
-        return fetch(num, cache_dir, owner, key)
+        return fetch(num, cache_dir, owner, key, conf)
     except FetchError:
         raise
     except (KeyError, TypeError, AttributeError, ValueError) as e:

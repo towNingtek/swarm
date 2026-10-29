@@ -1,5 +1,6 @@
 // 放行／重新放行／自動合併／改狀態 through the /board route, with a fake gh. No DSH, no network.
 import test from 'node:test'
+import * as actions from '../lib/actions.js'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
@@ -10,7 +11,7 @@ import * as plugin from '../lib/index.js'
 const EPIC = 'https://github.com/acme/swarm/issues/543'
 
 // Fake gh: records every call; `issue view` answers labels/state, graphql answers by query.
-function fakeGh({ labels = ['epic'], state = 'OPEN', issueState = 'OPEN', inProject = true } = {}) {
+function fakeGh({ labels = ['epic'], state = 'OPEN', issueState = 'OPEN', inProject = true, options = null } = {}) {
   const calls = []
   const gh = async (args) => {
     calls.push(args)
@@ -18,7 +19,7 @@ function fakeGh({ labels = ['epic'], state = 'OPEN', issueState = 'OPEN', inProj
     if (args[0] === 'issue') return ''
     const query = args.find((a) => a.startsWith('query=')).slice(6)
     if (query.includes('organization(login')) {
-      return JSON.stringify({ data: { organization: { projectV2: { id: 'P1', field: { id: 'F1', options: [
+      return JSON.stringify({ data: { organization: { projectV2: { id: 'P1', field: { id: 'F1', options: options ?? [
         { id: 'O1', name: '待辦' }, { id: 'O2', name: '進行中' }, { id: 'O3', name: '完成' }] } } } } })
     }
     if (query.includes('resource(url')) {
@@ -36,10 +37,11 @@ function fakeGh({ labels = ['epic'], state = 'OPEN', issueState = 'OPEN', inProj
 
 const settle = () => new Promise((r) => setImmediate(r))
 
-function setup({ gh = fakeGh(), github = true, projects = [3] } = {}) {
+function setup({ gh = fakeGh(), github = true, projects = [3], projectsJson = null } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'swarm-board-actions-'))
   const dataDir = join(root, 'data')
   mkdirSync(dataDir)
+  if (projectsJson) writeFileSync(join(root, 'projects.json'), JSON.stringify(projectsJson))
   writeFileSync(join(dataDir, 'p3.js'), 'window.PROJECTS=window.PROJECTS||{};window.PROJECTS[3]=' + JSON.stringify({
     title: 'T', url: 'https://github.com/orgs/acme/projects/3', items: [{ n: 543, t: 'EPIC', u: EPIC, status: '進行中' }],
   }) + ';')
@@ -237,4 +239,36 @@ test('gh failures are 502', async () => {
   const r = await post(route, '/board/api/epic/go', { url: EPIC })
   assert.equal(r.status, 502)
   assert.match(r.json.error, /GitHub 更新失敗：HTTP 401/)
+})
+
+// ── projects.json "columns": a project whose Status options are not the board's own ──
+
+const ENGLISH = [{ id: 'B', name: 'Backlog' }, { id: 'R', name: 'Ready' }, { id: 'P', name: 'In progress' },
+  { id: 'V', name: 'In review' }, { id: 'D', name: 'Done' }]
+const COLUMNS = { columns: { 3: { Backlog: '待辦', Ready: '待辦', 'In progress': '進行中 (7 天一輪)', 'In review': '審核後請關閉', Done: '完成' } } }
+const optionSet = (gh) => gh.calls.find((a) => a.some((x) => x.includes('updateProjectV2ItemFieldValue'))).find((x) => x.startsWith('o='))
+
+test('status with "columns": the board column is written as the project\'s own option', async () => {
+  for (const [col, opt] of [['進行中 (7 天一輪)', 'o=P'], ['審核後請關閉', 'o=V'], ['待辦', 'o=B']]) {
+    const { route, gh } = setup({ gh: fakeGh({ options: ENGLISH }), projectsJson: COLUMNS })
+    const r = await post(route, '/board/api/status', { project: 3, url: EPIC, status: col })
+    assert.equal(r.status, 200, col)
+    assert.equal(optionSet(gh), opt, col + ' -> the first option mapped to it')
+  }
+  const { route, gh } = setup({ gh: fakeGh({ options: ENGLISH }), projectsJson: COLUMNS })
+  const done = await post(route, '/board/api/status', { project: 3, url: EPIC, status: '完成' })
+  assert.equal(done.json.state, 'CLOSED')
+  assert.equal(optionSet(gh), 'o=D')
+})
+
+test('status without "columns" on an English project is 400 (no guessing)', async () => {
+  const { route } = setup({ gh: fakeGh({ options: ENGLISH }) })
+  assert.equal((await post(route, '/board/api/status', { project: 3, url: EPIC, status: '進行中 (7 天一輪)' })).status, 400)
+})
+
+test('columnMap: only that project, only board columns', () => {
+  const conf = { columns: { 3: { Backlog: '待辦', Junk: 'Nope' }, 'other/3': { Done: '完成' } } }
+  assert.deepEqual(actions.columnMap(conf, 3), { Backlog: '待辦' })
+  assert.deepEqual(actions.columnMap(conf, 'other/3'), { Done: '完成' })
+  assert.deepEqual(actions.columnMap(null, 3), {})
 })
