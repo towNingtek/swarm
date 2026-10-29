@@ -93,6 +93,23 @@ ok(/送不進站台 DSH/.test(last())&&!/已送進/.test(last()),"失敗 → 顯
 st["chatIn"].value="連線斷了"; st["thinkB"].onclick(); x=posts()[3]; x.onerror(); ok(/連不到伺服器/.test(last()),"連不上 → 提示");
 st["chatIn"].value="恢復了嗎"; st["thinkB"].onclick(); ok(posts().length===5,"失敗後可以再送");
 
+// ── 5b 其他組織的 project → 送它自己的 key（"組織/編號"），不和預設組織同編號的混在一起 ──
+{ const pending=posts().pop(); pending.status=502; pending.responseText="{}"; pending.onload(); }   // 上一步送出的還在等，先讓它結束
+const before=posts().length;
+R.PJ.key="bright-ideass/1"; st["chatIn"].value="這個 EPIC 還有在動嗎？"; st["thinkScope"].value="one"; st["thinkB"].onclick();
+ok(posts().length===before+1,"其他組織的 project 也會送出");
+x=posts().pop(); b=x?JSON.parse(x.body):{};
+ok(b.project==="bright-ideass/1","其他組織的 project → project 是 \"bright-ideass/1\"（"+b.project+"）");
+// 原本的分析對話被封存 → 伺服器開了新的，頁面說明
+x.status=200; x.responseText=JSON.stringify({sessionId:"s9",created:true,after:-1,replaced:true}); x.onload();
+const rep=MADE.filter(e=>/正在分析…/.test(e.innerHTML)).pop();
+ok(rep&&/已封存/.test(rep.innerHTML),"原本的分析對話已封存 → 提示開了新的對話");
+// DSH 沒有執行這個對話（blocked）→ 顯示原因，不再一直轉圈
+y=rq().pop(); y.status=200; y.responseText=JSON.stringify({done:true,error:"blocked",text:"",message:"DSH 沒有執行這個對話（它可能已被封存）。"}); y.onload();
+ok(/DSH 沒有執行這個對話/.test(rep.innerHTML)&&!/正在分析/.test(rep.innerHTML),"回覆 blocked → 顯示原因，不再顯示正在分析");
+const nAfter=rq().length; ok(nAfter>0&&rq().length===nAfter,"blocked 之後不再輪詢");
+R.PJ.key=undefined;
+
 // ── 6 示範資料不送 ──
 R.PJ.demo=true; const n0=posts().length; st["chatIn"].value="示範"; st["thinkB"].onclick();
 ok(posts().length===n0,"示範資料 → 不呼叫 api/think");

@@ -217,6 +217,8 @@ test('replyIn waits for the turn to end, then returns the model text after the q
   events.push({ seq: 10, type: 'turn/end', data: { reason: { kind: 'stop' } } })
   assert.equal(replyIn(events, QUESTION.split('\n')[0]), `想一下\n${reply()}`)
   assert.throws(() => replyIn([...events.slice(0, 4), { seq: 10, type: 'turn/end', data: { reason: { kind: 'error' } } }], QUESTION.split('\n')[0]), /error/)
+  // DSH refused the turn (an archived session): finished, nothing will answer — not "still working".
+  assert.throws(() => replyIn([...events.slice(0, 3), { seq: 10, type: 'turn/end', data: { reason: { kind: 'blocked' } } }], QUESTION.split('\n')[0]), { code: 'digest/turn-blocked' })
 })
 
 test('replyingThink sends, then polls session/projections + session/page until the turn ends', async () => {

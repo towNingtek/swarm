@@ -101,3 +101,26 @@ test('GET /board/api/think/reply: only board sessions; done:false while running;
   assert.deepEqual(r.json, { done: true, text: '建議兩組' })
   assert.deepEqual((await call('session=session-aaaaaaaa-1111&after=7&q=x')).json, { done: false }, 'nothing after `after` yet')
 })
+
+test('GET /board/api/think/reply: a turn DSH refused (archived session) is done with a reason, not "still working"', async () => {
+  const sessions = { 'bright-ideass/1': 'session-aaaaaaaa-1111' }
+  const store = { get: async (p) => sessions[p] ?? null, all: async () => sessions, set: async () => {} }
+  const events = [
+    { type: 'user/message', seq: 5, data: { source: { kind: 'user' }, content: [{ type: 'text', text: '這個 EPIC 還有在動嗎？\n---' }] } },
+    { type: 'turn/start', seq: 6, data: {} },
+    { type: 'turn/end', seq: 7, data: { reason: { kind: 'blocked' } } },
+  ]
+  const gateway = { invoke: async ({ method }) => {
+    if (method === 'projections') return { asOfSeq: events.at(-1).seq }
+    if (method === 'page') return { records: events.map((event) => ({ type: 'event', event })), hasMore: false }
+    throw new Error('unexpected ' + method)
+  } }
+  const handler = createHandler({ html: '', launcher: '', dataDir: '/nonexistent', gateway, store })
+  const res = fakeRes()
+  await handler({ method: 'GET', url: '/board/api/think/reply?session=session-aaaaaaaa-1111&after=4&q=' + encodeURIComponent('這個 EPIC 還有在動嗎？') }, res)
+  const json = JSON.parse(res.body)
+  assert.equal(res.status, 200)
+  assert.equal(json.done, true)
+  assert.equal(json.error, 'blocked')
+  assert.match(json.message, /封存/)
+})

@@ -220,7 +220,8 @@ export function replyIn(events, marker) {
   for (const e of events.slice(ask + 1)) {
     if (e.type === 'assistant/message' && e.data?.message?.role === 'assistant') parts.push(textOf(e.data.message.content))
     if (e.type === 'turn/end') {
-      if (e.data?.reason?.kind === 'error' || e.data?.reason?.kind === 'cancelled') {
+      // blocked: DSH refused the turn (e.g. the session is archived) and nothing will answer.
+      if (e.data?.reason?.kind === 'error' || e.data?.reason?.kind === 'cancelled' || e.data?.reason?.kind === 'blocked') {
         throw Object.assign(new Error(`turn ${e.data.reason.kind}`), { code: `digest/turn-${e.data.reason.kind}` })
       }
       return parts.filter(Boolean).join('\n')

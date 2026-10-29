@@ -111,14 +111,16 @@ async function thinkRoute(req, res, opts) {
   if (Array.isArray(body.selection)) context.selection = body.selection.filter((n) => Number.isInteger(n)).slice(0, 500)
   try {
     // Where the session was before this question, so the page can poll for just this reply.
-    const known = opts.store ? await opts.store.get(body.project) : null
+    let storeKey = null
+    try { storeKey = normalizeProject(body.project) } catch {}
+    const known = opts.store && storeKey !== null ? await opts.store.get(storeKey) : null
     let after = -1
     if (known) { try { after = await headSeq(opts.gateway, known, opts.signal) } catch { after = -1 } }
-    const { sessionId, created } = await think({
+    const { sessionId, created, replaced } = await think({
       gateway: opts.gateway, store: opts.store, project: body.project, question: body.question, context,
-      boards: () => readBoards(opts.dataDir), cwd: opts.cwd, workspace: opts.workspace, signal: opts.signal,
+      boards: () => readBoards(opts.dataDir), cwd: opts.cwd, workspace: opts.workspace, archived: opts.archived, signal: opts.signal,
     })
-    return sendJson(res, 200, { sessionId, created, after: sessionId === known ? after : -1 })
+    return sendJson(res, 200, { sessionId, created, after: sessionId === known ? after : -1, ...(replaced ? { replaced: true } : {}) })
   } catch (error) {
     if (error instanceof ThinkError) return sendJson(res, error.status, { error: error.code, message: error.message })
     opts.logger?.warn?.('swarm-board: think failed: %s', error?.code ?? error?.message ?? String(error))
@@ -221,7 +223,7 @@ export async function readKeyedBoard(dataDir, key) {
 }
 
 // keys: config.projects as keys (projectKey); only used for other orgs' data_at.
-export function createHandler({ html, launcher, dataDir, gateway, store, suggestions, cwd, workspace, signal, logger, github, running, act, refetch, keys, picker }) {
+export function createHandler({ html, launcher, dataDir, gateway, store, suggestions, cwd, workspace, archived, signal, logger, github, running, act, refetch, keys, picker }) {
   return async function boardRoute(req, res) {
     const method = req.method ?? 'GET'
     const head = method === 'HEAD'
@@ -252,14 +254,18 @@ export function createHandler({ html, launcher, dataDir, gateway, store, suggest
         const text = replyIn(await eventsSince(gateway, sessionId, Number.isInteger(after) ? after : -1, headAt, signal), marker)
         return sendJson(res, 200, text === null ? { done: false } : { done: true, text })
       } catch (error) {
-        if (String(error?.code ?? '').startsWith('digest/turn-')) return sendJson(res, 200, { done: true, error: 'turn', text: '' })
+        const code = String(error?.code ?? '')
+        if (code === 'digest/turn-blocked') {
+          return sendJson(res, 200, { done: true, error: 'blocked', text: '', message: 'DSH 沒有執行這個對話（它可能已被封存）。再按一次「📊 分析」會開一個新的分析對話。' })
+        }
+        if (code.startsWith('digest/turn-')) return sendJson(res, 200, { done: true, error: 'turn', text: '' })
         return sendJson(res, 502, { error: 'think/gateway', message: `讀不到站台 DSH 的回覆：${error?.code ?? error?.message ?? '未知錯誤'}` })
       }
     }
     if (pathname === `${PREFIX}/api/think`) {
       if (method !== 'POST') return send(res, 405, 'text/plain; charset=utf-8', 'method not allowed', head, { allow: 'POST' })
       if (!gateway || !store) return sendJson(res, 503, { error: 'think/unavailable', message: '這個站台沒有接上 DSH session。' })
-      return thinkRoute(req, res, { gateway, store, dataDir, cwd, workspace, signal, logger })
+      return thinkRoute(req, res, { gateway, store, dataDir, cwd, workspace, archived, signal, logger })
     }
     const action = pathname.startsWith(`${PREFIX}/api/`) ? ACTIONS[pathname.slice(PREFIX.length)] : undefined
     if (action) {
@@ -477,6 +483,13 @@ export function apply(ctx, config = {}, hooks = {}) {
     gh, by: config.siteName || (hooks.hostname ?? hostname)(), projects,
     ownerOf: ownerFor(dataDir, config.org),
   })
+  // Archived sessions: DSH runs none of their turns. Read live from the Host's workspace registry.
+  const archived = (sessionId) => {
+    try {
+      const registry = ctx.get?.('workspaceRegistry') ?? ctx.workspaceRegistry
+      return registry?.archivedSessionIds?.map(String).includes(sessionId) === true
+    } catch { return false }
+  }
   const handler = createHandler({
     html: readOnce(config.html || DEFAULT_HTML, logger),
     launcher: readOnce(LAUNCHER, logger),
@@ -486,6 +499,7 @@ export function apply(ctx, config = {}, hooks = {}) {
     suggestions,
     cwd,
     workspace,
+    archived,
     signal: lifetime.signal,
     logger,
     github,
@@ -534,7 +548,7 @@ export function apply(ctx, config = {}, hooks = {}) {
       const digest = startDigest({
         think: replyingThink({
           gateway: ctx.typertGateway, store, signal: lifetime.signal,
-          send: (q) => think({ ...q, gateway: ctx.typertGateway, store, cwd, workspace, signal: lifetime.signal }),
+          send: (q) => think({ ...q, gateway: ctx.typertGateway, store, cwd, workspace, archived, signal: lifetime.signal }),
         }),
         readBoards: () => readBoards(dataDir),
         github,
