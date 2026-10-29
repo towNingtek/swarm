@@ -147,12 +147,28 @@ h2{font-size:10px;letter-spacing:1.5px;color:#697c88;margin:0 0 10px;font-weight
 // 選哪個 project：網址 ?p=N（預設組織的 N）或 ?p=組織/N（別的組織的 project）；沒指定或不在清單裡就用預設。
 // 在解析階段同步載入，主程式就能直接用 window.PROJECT。window.PROJECT_NUM＝這個 project 的 key（index.js 的 key）：
 // 預設組織是編號（2），別的組織是 "組織/編號"（"acme/1"）；資料檔 p2.js／p-acme-1.js
+// GitLab 專案是 "gitlab:<path>"（小寫，和 fetch-project.py 的 parse_gitlab 同規則）；資料檔 g-<sha1(path) 前 12 碼>.js
 window.pKey=function(s){ try{ s=decodeURIComponent(String(s)).trim(); }catch(e){ return null; }
   if(/^\d{1,9}$/.test(s)&&+s>0) return +s;
+  if(s.slice(0,7).toLowerCase()==="gitlab:"){ var g=s.slice(7).trim().replace(/^\/+|\/+$/g,"").toLowerCase(), gp=g.split("/");
+    return gp.length>=2&&g.length<=255&&gp.every(function(x){ return /^[a-z0-9_][a-z0-9_.-]*$/.test(x); })?"gitlab:"+g:null; }
   var m=/^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/(\d{1,9})$/.exec(s); if(!m||!(+m[2]>0)) return null;
   var o=m[1].toLowerCase(); return o===String((window.PROJECT_INDEX||{}).org||"").toLowerCase()?+m[2]:o+"/"+(+m[2]); };
 window.rowKey=function(x){ return x.key!==undefined?x.key:x.num; };
-window.pFile=function(k){ return typeof k==="string"?"p-"+k.replace("/","-"):"p"+k; };
+window.isGl=function(k){ return typeof k==="string"&&k.slice(0,7)==="gitlab:"; };
+window.pFile=function(k){ return window.isGl(k)?"g-"+window.sha1(k.slice(7)).slice(0,12):typeof k==="string"?"p-"+k.replace("/","-"):"p"+k; };
+// SHA-1（UTF-8）：只用來算 GitLab 資料檔名，要在解析階段同步算出來，不能用非同步的 crypto.subtle
+window.sha1=function(str){ var b=unescape(encodeURIComponent(str)), n=b.length, w=[], i, j;
+  for(i=0;i<n;i++) w[i>>2]|=b.charCodeAt(i)<<(24-(i&3)*8);
+  w[n>>2]|=0x80<<(24-(n&3)*8); var L=((n+8>>6)+1)*16; for(i=(n>>2)+1;i<L;i++) w[i]=w[i]|0; w[L-1]=n*8;
+  var H=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0], W=[];
+  function rl(x,c){ return (x<<c)|(x>>>(32-c)); }
+  for(i=0;i<L;i+=16){ var a=H[0],bb=H[1],c=H[2],d=H[3],e=H[4];
+    for(j=0;j<80;j++){ W[j]=j<16?w[i+j]|0:rl(W[j-3]^W[j-8]^W[j-14]^W[j-16],1);
+      var f=j<20?(bb&c)|(~bb&d):j<40?bb^c^d:j<60?(bb&c)|(bb&d)|(c&d):bb^c^d, K=j<20?0x5A827999:j<40?0x6ED9EBA1:j<60?0x8F1BBCDC:0xCA62C1D6;
+      var t=(rl(a,5)+f+e+K+W[j])|0; e=d; d=c; c=rl(bb,30); bb=a; a=t; }
+    H[0]=(H[0]+a)|0; H[1]=(H[1]+bb)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0; H[4]=(H[4]+e)|0; }
+  return H.map(function(x){ return ("0000000"+(x>>>0).toString(16)).slice(-8); }).join(""); };
 (function(){
   var IX=window.PROJECT_INDEX||{projects:[]}, m=location.search.match(/[?&]p=([^&#]*)/), n=m?window.pKey(m[1]):null;
   if(/[?&]demo=1/.test(location.search)){ window.PROJECT_NUM="demo"; document.write('<script src="data/demo-epic.js"><\/script>'); return; }
@@ -166,16 +182,18 @@ window.pFile=function(k){ return typeof k==="string"?"p-"+k.replace("/","-"):"p"
 // 尚未連接 GitHub：只在站台 DSH 的 /board/ 底下。站台沒有登入 gh 時不會抓資料（data/status.json 回 {"github":false}），
 // 改成提示怎麼連接，不顯示錯誤。還沒有任何資料時先用空的看板，頁面不會壞掉。
 (function(){ if(!/^\/board\//.test(location.pathname||"")) return;
-  if(!window.PROJECT) window.PROJECT={num:typeof window.PROJECT_NUM==="string"?+window.PROJECT_NUM.split("/")[1]:window.PROJECT_NUM||0,key:window.PROJECT_NUM,empty:true,cols:["待辦","進行中 (7 天一輪)","審核後請關閉","完成"],title:"尚無資料",url:"",fetched:new Date().toISOString(),items:[]};
+  if(!window.PROJECT) window.PROJECT={num:window.isGl(window.PROJECT_NUM)?0:typeof window.PROJECT_NUM==="string"?+window.PROJECT_NUM.split("/")[1]:window.PROJECT_NUM||0,key:window.PROJECT_NUM,empty:true,cols:["待辦","進行中 (7 天一輪)","審核後請關閉","完成"],title:"尚無資料",url:"",fetched:new Date().toISOString(),items:[]};
   var x=new XMLHttpRequest(); x.open("GET","data/status.json");
   x.onload=function(){ var r=null; if(x.status===200){ try{ r=JSON.parse(x.responseText); }catch(e){} }
-    if(!r||r.github!==false) return;
+    if(!r||r.github!==false||window.isGl(window.PROJECT_NUM)) return;   // GitLab 專案不需要 gh
     var B=document.getElementById("noGh"); B.textContent="尚未連接 GitHub：請在站台的 AI 對話說「幫我連接 GitHub」"; B.style.display="block"; };
   x.send(); })();
 </script>
 <script>
 // ── 資料 ──
 var PJ=window.PROJECT, DAY=864e5, NOW=Date.parse(PJ.fetched);
+// GitLab 專案（key "gitlab:<path>"）：卡片連到 GitLab、改狀態寫回 GitLab；沒有放行／重新放行／自動合併（那是 GitHub EPIC 的流程）
+var GL=window.isGl(PJ.key!==undefined&&PJ.key!==null?PJ.key:window.PROJECT_NUM), HOST=GL?"GitLab":"GitHub";
 var COLS=PJ.cols.filter(function(c){return c!=="完成";});          // 未完成的欄，由外往內
 var RING={}; COLS.forEach(function(c,i){ RING[c]=300-i*(190/Math.max(1,COLS.length-1)); });
 // 停留上限：「進行中」取欄名的 7 天；其他兩欄是假設值，畫面會標明
@@ -498,7 +516,7 @@ function paintSel(){ var L=selList(), P=document.getElementById("pin");
   P.innerHTML='<b>已選 '+L.length+' 張</b> <span class="dim">'+COLS.filter(function(c){return cnt[c];}).map(function(c){return esc(c)+' '+cnt[c];}).join('、')+'</span>'+
     '<div class="sl">'+L.map(function(it){ return '<div>'+(it.sub?'<span class="dim">#'+it.par.n+' ↳ </span>':'')+'<a href="'+it.u+'" target="_blank" rel="noopener">#'+it.n+'</a> '+esc(short(it.t))+
       ' <span class="dim">'+esc(it.st.col)+' '+Math.floor(dwell(it.st,T))+' 天</span> <span class="rm" data-u="'+it.u+'">✕</span></div>'; }).join('')+'</div>'+
-    '<span class="dim">Shift／⌘＋點＝加減選 · 空白處拖曳＝圈選 · 雙擊＝開 GitHub · Esc＝取消</span><span class="x">✕</span>';
+    '<span class="dim">Shift／⌘＋點＝加減選 · 空白處拖曳＝圈選 · 雙擊＝開 '+HOST+' · Esc＝取消</span><span class="x">✕</span>';
   if(NEB) P.style.zIndex=7;
   P.querySelector(".x").onclick=function(){ setSel([],"set"); };
   Array.prototype.forEach.call(P.querySelectorAll(".rm"),function(b){ b.onclick=function(){ delete SEL[b.getAttribute("data-u")]; paintSel(); }; });
@@ -647,13 +665,13 @@ function caughtUp(p){ var m=lsGet(MOVES_KEY), f=Date.parse(p.fetched), t=Date.no
 function setStatus(it,col){
   // 直接把這張 issue 改成「重新抓資料後會看到的樣子」，畫面才會跟 reload 一致：
   // 拖回變更紀錄上的那一欄＝停留天數照舊（紅暈保留）；真的換到別欄＝從現在開始算
-  if(PJ.demo){ toast('#'+it.n+'：示範資料，不會寫入 GitHub。',"err"); layout(T); return; }
+  if(PJ.demo){ toast('#'+it.n+'：示範資料，不會寫入 '+HOST+'。',"err"); layout(T); return; }
   var from=it.st.col, prevS=it.status, prevU=it.sinceU, prevC=it.closed;
   it.status=col; it.sinceU=NOW; if(col===DONE) it.closed=NOW; layout(T); paintSide(); if(NEB) renderNeb(performance.now());
-  toast('#'+it.n+'：「'+esc(from)+'」→「'+esc(col)+'」<br><span class="dim">寫入 GitHub 中…</span>',"busy");
+  toast('#'+it.n+'：「'+esc(from)+'」→「'+esc(col)+'」<br><span class="dim">寫入 '+HOST+' 中…</span>',"busy");
   var x=new XMLHttpRequest(); x.open("POST","api/status"); x.setRequestHeader("Content-Type","application/json");
   x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(e){}
-    if(x.status===200&&r.ok){ saveMove(it.u,col); toast('#'+it.n+' 已移到「'+esc(col)+'」'+(col===DONE?'並關閉':'')+' ✓<br><span class="dim">已寫入 GitHub（'+esc(r.by)+'）。約 1 分鐘後資料會重新整理。</span>'); return; }
+    if(x.status===200&&r.ok){ saveMove(it.u,col); toast('#'+it.n+' 已移到「'+esc(col)+'」'+(col===DONE?'並關閉':'')+' ✓<br><span class="dim">已寫入 '+HOST+'（'+esc(r.by)+'）。約 1 分鐘後資料會重新整理。</span>'); return; }
     fail(r.error||("HTTP "+x.status)); };
   x.onerror=function(){ fail("連不到伺服器"); };
   function fail(msg){ it.status=prevS; it.sinceU=prevU; it.closed=prevC; layout(T); paintSide();
@@ -669,7 +687,7 @@ cv.addEventListener("mousemove",function(ev){ if(drag&&drag.moved) return; var i
   var st=it.st, r=blockRatio(st,T);
   var EK2=it.epic?kidsOf(it):null;
   H.innerHTML='<b>#'+it.n+'</b> '+esc(it.t)+(EK2?'<br><span style="color:#9fb8c0">EPIC · 子 issue '+EK2.filter(function(k){ return !isOpenAt(k,T); }).length+'/'+EK2.length+' 完成'+(it.target?' · 期限 '+esc(it.target):'')+'</span>':'')+'<br><span style="color:#7d8d96">'+esc(it.repo)+' · '+esc(st.col)+' '+Math.floor(dwell(st,T))+' 天'+(st.guess?'（推定）':'')+(r>=1?'（<span style="color:#ff9b8f">超過上限 '+limitOf(st.col)+' 天</span>）':'')+'</span>'+
-    '<br>負責：'+(it.who.length?esc(it.who.join("、")):'未指派')+'<br><span style="color:#56646c">'+(it.epic?'點＝展開 · Shift＋點／圈選＝選取':'點＝選取')+' · 雙擊＝開 GitHub · '+'拖曳＝移動 · '+ALTK+'＋拖曳＝翻轉'+'</span>';
+    '<br>負責：'+(it.who.length?esc(it.who.join("、")):'未指派')+'<br><span style="color:#56646c">'+(it.epic?'點＝展開 · Shift＋點／圈選＝選取':'點＝選取')+' · 雙擊＝開 '+HOST+' · '+'拖曳＝移動 · '+ALTK+'＋拖曳＝翻轉'+'</span>';
   var b=cv.getBoundingClientRect(); H.style.display="block"; H.style.left=Math.min(ev.clientX-b.left+14,b.width-310)+"px"; H.style.top=(ev.clientY-b.top+14)+"px"; });
 cv.addEventListener("mouseleave",function(){ hov=null; document.getElementById("hov").style.display="none"; });
 cv.addEventListener("click",function(ev){ if(NEB){ closeNeb(); return; } if(justDragged) return; var it=hit(toView(ev));
@@ -710,11 +728,11 @@ function closeNeb(){ NEB=null; NB.style.display="none"; paintSel(); }
 function paintNebH(){ if(!NEB) return; var e=NEB.e, K=kidsOf(e), dn=K.filter(function(k){ return !isOpenAt(k,T); }).length, ch=longestChain(e,T);
   var tg=e.target?(function(){ var d=Math.ceil((Date.parse(e.target)-NOW)/DAY); return ' · <span style="color:'+(d<0?'#ff9b8f':d<=14?'#ffd27a':'#c9d4d8')+'">期限 '+esc(e.target)+'（'+(d<0?'已過 '+(-d):'剩 '+d)+' 天）</span>'; })():' · <span class="dim">無硬期限</span>';
   document.getElementById("nebH").innerHTML='<span class="x">✕</span><b>#'+e.n+' '+esc(e.t.replace(/^\[EPIC\]\s*/i,""))+'</b>'+(hasL(e,"epic:review")?' <span style="color:#8fe3a8">● 待你驗收</span>':'')+
-    (hasL(e,AUTO)?' <span class="amk" style="color:#ffd27a" title="swarm:auto-merge：判準全過、只改範圍內檔案時自動合併總 PR">⚡</span>':'')+
-    (hasL(e,"swarm:go")?' <span style="color:#8fe3a8">🚦 已放行</span>'+(needRego(e)?' <button class="rego" title="放行後有新增或修改的 sub-issue" style="margin-left:8px;background:#3a331f;color:#ffd27a;border:1px solid #6b5d3d;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">↻ 重新放行</button>':'')+(e.closed?'':' <button class="am" title="swarm:auto-merge：判準全過、只改範圍內檔案時自動合併總 PR" style="margin-left:6px;background:#2a2410;color:#ffd27a;border:1px solid #6b5a2d;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">⚡ 自動合併：'+(hasL(e,AUTO)?'開':'關')+'</button>'):(e.closed?'':' <button class="go" style="margin-left:8px;background:#1f3a2a;color:#8fe3a8;border:1px solid #3d6b4f;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">🚦 放行</button>'))+
+    (hasL(e,AUTO)&&!GL?' <span class="amk" style="color:#ffd27a" title="swarm:auto-merge：判準全過、只改範圍內檔案時自動合併總 PR">⚡</span>':'')+
+    (GL?'':hasL(e,"swarm:go")?' <span style="color:#8fe3a8">🚦 已放行</span>'+(needRego(e)?' <button class="rego" title="放行後有新增或修改的 sub-issue" style="margin-left:8px;background:#3a331f;color:#ffd27a;border:1px solid #6b5d3d;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">↻ 重新放行</button>':'')+(e.closed?'':' <button class="am" title="swarm:auto-merge：判準全過、只改範圍內檔案時自動合併總 PR" style="margin-left:6px;background:#2a2410;color:#ffd27a;border:1px solid #6b5a2d;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">⚡ 自動合併：'+(hasL(e,AUTO)?'開':'關')+'</button>'):(e.closed?'':' <button class="go" style="margin-left:8px;background:#1f3a2a;color:#8fe3a8;border:1px solid #3d6b4f;border-radius:4px;padding:1px 8px;cursor:pointer;font:inherit">🚦 放行</button>'))+
     (runningN(e)?' <span class="bees" style="color:#ffd27a">🐝 '+runningN(e)+' 隻工作中</span>':'')+
     '<br>完成 '+dn+' / '+K.length+tg+' · 最長未完成鏈 '+ch.n+' 張'+(ch.n?'，其中 <span style="color:'+(ch.h?'#ffd27a':'#c9d4d8')+'">by:human '+ch.h+' 張</span>':'')+
-    '<br><span class="dim">● swarm　◆ 人　<span style="color:#ff8a7e">●</span> 閃＝swarm:stuck　→＝擋住　最內圈＝已完成 · 點＝選取 · 圈選＝多選（拿去問 Copilot）· 雙擊＝開 GitHub · Esc＝關閉</span>';
+    '<br><span class="dim">● swarm　◆ 人　<span style="color:#ff8a7e">●</span> 閃＝swarm:stuck　→＝擋住　最內圈＝已完成 · 點＝選取 · 圈選＝多選（拿去問 Copilot）· 雙擊＝開 '+HOST+' · Esc＝關閉</span>';
   document.querySelector("#nebH .x").onclick=closeNeb;
   var G=document.querySelector("#nebH .go"); if(G) G.onclick=function(){ goEpic(e); };
   var A=document.querySelector("#nebH .am"); if(A) A.onclick=function(){ autoMerge(e,!hasL(e,AUTO)); };
@@ -730,7 +748,7 @@ function goEpic(e){ var D=document.getElementById("goDlg");
   document.getElementById("goOk").onclick=function(){ var am=!!document.getElementById("goAM").checked; closeGoDlg(); sendGo(e,am); }; }
 function closeGoDlg(){ var D=document.getElementById("goDlg"); D.style.display="none"; D.innerHTML=""; }
 function goDlgOpen(){ return document.getElementById("goDlg").style.display==="flex"; }
-function sendGo(e,am){
+function sendGo(e,am){ if(GL) return;
   if(PJ.demo){ toast('#'+e.n+'：示範資料，不會寫入 GitHub。',"err"); return; }
   toast('#'+e.n+'：放行中…',"busy");
   var x=new XMLHttpRequest(); x.open("POST","api/epic/go"); x.setRequestHeader("Content-Type","application/json");
@@ -742,7 +760,7 @@ function sendGo(e,am){
   x.send(JSON.stringify(am?{url:e.u,auto_merge:true}:{url:e.u}));
 }
 // 已放行 EPIC 的自動合併開關：加／移除 swarm:auto-merge（/api/epic/automerge 同樣驗 Access＋允許名單、記 log）
-function autoMerge(e,on){
+function autoMerge(e,on){ if(GL) return;
   if(!confirm((on?"開啟":"關閉")+" EPIC #"+e.n+" 的自動合併？\n"+(on?"會加上 "+AUTO+"：判準全過、只改範圍內檔案時，自動合併總 PR。":"會移除 "+AUTO+"：總 PR 改回等人合併。")+"（記錄是你按的）")) return;
   if(PJ.demo){ toast('#'+e.n+'：示範資料，不會寫入 GitHub。',"err"); return; }
   toast('#'+e.n+'：'+(on?'開啟':'關閉')+'自動合併中…',"busy");
@@ -755,7 +773,7 @@ function autoMerge(e,on){
   x.send(JSON.stringify({url:e.u,on:on}));
 }
 // 重新放行：放行後 sub-issue 有新增／修改時，移除再加回 swarm:go（/api/epic/rego，同樣的檢查、記下是誰按的）
-function regoEpic(e){
+function regoEpic(e){ if(GL) return;
   if(!confirm("重新放行 EPIC #"+e.n+"？\n放行後有新增或修改的 sub-issue。會在 GitHub 移除再加回 swarm:go（新的放行時間），swarm 會重新看過一遍（記錄是你按的）。")) return;
   if(PJ.demo){ toast('#'+e.n+'：示範資料，不會寫入 GitHub。',"err"); return; }
   toast('#'+e.n+'：重新放行中…',"busy");
@@ -843,7 +861,7 @@ window.addEventListener("mouseup",function(){ if(!NEB||!NEB.lasso) return; var L
   if(Lz.moved&&Lz.pts.length>2){ nJust=true; setSel(kidsOf(NEB.e).filter(function(k){ return k.nst&&k.nst.col!=="closed"&&inPoly(k.nx,k.ny,Lz.pts); }),Lz.add?"add":"set"); } });
 NC.addEventListener("click",function(ev){ if(!NEB||nJust){ nJust=false; return; } var k=nhit(npos(ev)), mod=ev.shiftKey||ev.metaKey||ev.ctrlKey;
   if(!k){ if(!mod) setSel([],"set"); return; }
-  if(!(k.nst&&k.nst.col!=="closed")){ toast('#'+k.n+' 已完成（雙擊可開 GitHub）'); return; }
+  if(!(k.nst&&k.nst.col!=="closed")){ toast('#'+k.n+' 已完成（雙擊可開 '+HOST+'）'); return; }
   setSel([k],mod?"toggle":"set"); });
 NC.addEventListener("dblclick",function(ev){ if(!NEB) return; var p=npos(ev), k=nhit(p);
   if(!k&&Math.hypot(p.x-NG.cx,p.y-NG.cy)<20) k=NEB.e; if(!k) return;
@@ -1039,7 +1057,7 @@ if(/^\/board\//.test(location.pathname||"")) document.getElementById("engRow").s
 // 全部完成後用回來的 index 重畫選單並切到第一個。
 (function(){ var S=document.getElementById("pSel"), sel=window.PROJECT_NUM;
   function opts(){ var IX=window.PROJECT_INDEX||{projects:[]};
-    S.innerHTML=IX.projects.map(function(x){ var k=window.rowKey(x); return '<option value="'+esc(String(k))+'"'+(k===sel&&!PJ.demo?' selected':'')+'>'+esc(x.title)+(typeof k==="string"?'（'+esc(k.split("/")[0])+'）':'')+'（未完成 '+x.open+'）</option>'; }).join("")+
+    S.innerHTML=IX.projects.map(function(x){ var k=window.rowKey(x); return '<option value="'+esc(String(k))+'"'+(k===sel&&!PJ.demo?' selected':'')+'>'+esc(x.title)+(window.isGl(k)?'（GitLab）':typeof k==="string"?'（'+esc(k.split("/")[0])+'）':'')+'（未完成 '+x.open+'）</option>'; }).join("")+
       '<option value="demo"'+(PJ.demo?' selected':'')+'>◆ 示範：EPIC 星雲（假資料）</option>'+
       '<option value="+">＋ 加入 project…</option>'; }
   opts();
