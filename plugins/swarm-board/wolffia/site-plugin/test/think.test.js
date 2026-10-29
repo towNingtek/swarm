@@ -200,10 +200,11 @@ function setup(config = {}) {
     connection: {},
     typertGateway: gateway,
     webServer: { register: (r) => { registered.push(r); return () => {} } },
+    workspaceRegistry: { archivedSessionIds: [] },
   }
   const sessionsFile = join(root, 'sessions.json')
   plugin.apply(ctx, { dataDir, sessionsFile, ...config })
-  return { route: registered[0], gateway, sessionsFile, root }
+  return { route: registered[0], gateway, sessionsFile, root, archive: (id) => ctx.workspaceRegistry.archivedSessionIds.push(id) }
 }
 
 async function post(route, body, headers = {}) {
@@ -367,4 +368,57 @@ test('a session already in sessions.json keeps being used (no new create)', asyn
   assert.equal(r.json.sessionId, 'session-old')
   assert.equal(r.json.created, false)
   assert.equal(sessionCreates(gateway).length, 0)
+})
+
+// ── Projects of another org, and archived 分析 sessions ──
+
+test('a project of another org has its own session, separate from the default org\'s same number', async () => {
+  const gateway = fakeGateway()
+  const store = fakeStore()
+  const a = await think({ gateway, store, project: 'bright-ideass/1', question: 'q' })
+  const b = await think({ gateway, store, project: '1', question: 'q' })
+  assert.notEqual(a.sessionId, b.sessionId)
+  assert.deepEqual(store.writes, [['bright-ideass/1', a.sessionId], ['1', b.sessionId]])
+  const again = await think({ gateway, store, project: 'Bright-Ideass/1', question: 'q2' })
+  assert.equal(again.sessionId, a.sessionId, 'org is case-insensitive, like the board keys')
+})
+
+test('org keys are validated like the board\'s own keys', async () => {
+  const gateway = fakeGateway()
+  for (const bad of ['bright-ideass/', '/1', 'a/b/1', '-x/1', 'bright-ideass/0', '../1']) {
+    await assert.rejects(think({ gateway, store: fakeStore(), project: bad, question: 'q' }), { code: 'think/invalid-project' }, bad)
+  }
+  assert.equal(gateway.calls.length, 0)
+})
+
+test('an archived 分析 session is replaced by a new one; the archived one is left alone', async () => {
+  const gateway = fakeGateway()
+  const store = fakeStore({ 'bright-ideass/1': 'old-archived' })
+  const r = await think({ gateway, store, project: 'bright-ideass/1', question: 'q', archived: async (id) => id === 'old-archived' })
+  assert.deepEqual(r, { sessionId: 's1', created: true, replaced: 'old-archived' })
+  assert.deepEqual(store.writes, [['bright-ideass/1', 's1']])
+  assert.ok(!gateway.calls.some((c) => c.request?.sessionId === 'old-archived'), 'nothing is sent into the archived session')
+})
+
+test('a live session is kept; a failing archive check keeps it too', async () => {
+  const gateway = fakeGateway()
+  const store = fakeStore({ 2: 'live' })
+  assert.equal((await think({ gateway, store, project: '2', question: 'q', archived: async () => false })).sessionId, 'live')
+  assert.equal((await think({ gateway, store, project: '2', question: 'q', archived: async () => { throw new Error('x') } })).sessionId, 'live')
+  assert.equal(store.writes.length, 0)
+})
+
+test('POST /board/api/think: org key works end to end, and an archived session is replaced (Host registry)', async () => {
+  const { route, gateway, sessionsFile, archive } = setup()
+  const a = await post(route, { project: 'bright-ideass/1', question: '這個 EPIC 還有在動嗎？' })
+  assert.equal(a.status, 200)
+  assert.equal(JSON.parse(readFileSync(sessionsFile, 'utf8')).sessions['bright-ideass/1'], a.json.sessionId)
+  archive(a.json.sessionId)
+  const b = await post(route, { project: 'bright-ideass/1', question: '再問一次' })
+  assert.equal(b.status, 200)
+  assert.notEqual(b.json.sessionId, a.json.sessionId)
+  assert.equal(b.json.created, true)
+  assert.equal(b.json.replaced, true)
+  assert.equal(JSON.parse(readFileSync(sessionsFile, 'utf8')).sessions['bright-ideass/1'], b.json.sessionId)
+  assert.equal(gateway.prompts().at(-1).request.sessionId, b.json.sessionId)
 })

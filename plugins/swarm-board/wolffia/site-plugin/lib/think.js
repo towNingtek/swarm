@@ -12,6 +12,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { projectKey } from './actions.js'
 
 export const GLOBAL = '*'
 // The site-level skill lib/skill.js installs into $DSH_HOME/skills/epic.
@@ -59,10 +60,15 @@ export function createStore(file = defaultStoreFile()) {
   }
 }
 
+// The store key: "*", a bare number for the default org ("2"), or "org/N" for any other org
+// ("bright-ideass/1"). Same rule as the board's own keys (projectKey), so a project of another
+// org never shares a session with the default org's project of the same number.
 export function normalizeProject(project) {
   const p = typeof project === 'number' ? String(project) : typeof project === 'string' ? project.trim() : ''
-  if (p === GLOBAL || PROJECT.test(p)) return p
-  throw new ThinkError('think/invalid-project', 'project 要是 project 編號或 "*"（全部 project）。')
+  if (p === GLOBAL) return p
+  const key = PROJECT.test(p) || p.includes('/') ? projectKey(p) : null
+  if (key !== null) return String(key)
+  throw new ThinkError('think/invalid-project', 'project 要是 project 編號、「組織/編號」或 "*"（全部 project）。')
 }
 
 // Board data files are `window.PROJECTS=window.PROJECTS||{};window.PROJECTS[N]=<json>;` (fetch-project.py).
@@ -168,7 +174,7 @@ function exclusive(store, key, fn) {
  * Neither means DSH's default. Sessions already in the store keep going where they are.
  * The store is written only after the session was created and the prompt accepted.
  */
-export async function think({ gateway, store, project, question, context, boards, cwd, workspace, signal }) {
+export async function think({ gateway, store, project, question, context, boards, cwd, workspace, archived, signal }) {
   const key = normalizeProject(project)
   const q = typeof question === 'string' ? question.trim() : ''
   if (!q) throw new ThinkError('think/empty-question', '請先寫下要分析的問題。')
@@ -179,6 +185,14 @@ export async function think({ gateway, store, project, question, context, boards
     const ctx = key === GLOBAL && boards ? { ...base, projects: await boards() } : base
     let sessionId = await store.get(key)
     let created = false
+    let replaced = null
+    // DSH refuses every turn of an archived session (the turn ends "blocked" with no reply), so a
+    // remembered session the owner archived is replaced by a new one; the archived one is kept as is.
+    if (sessionId && typeof archived === 'function') {
+      let isArchived = false
+      try { isArchived = (await archived(sessionId)) === true } catch {}
+      if (isArchived) { replaced = sessionId; sessionId = null }
+    }
     if (!sessionId) {
       // Where: a DSH Workspace (only with an explicit thinkWorkspace), else cwd, else DSH's default.
       const where = typeof workspace === 'function' ? await workspace() : null
@@ -198,7 +212,7 @@ export async function think({ gateway, store, project, question, context, boards
       const title = key === GLOBAL ? '🌌 協作星系分析：全部 project' : `🌌 協作星系分析：${cut(base.project?.title || `project ${key}`, 80)}`
       try { await invoke(gateway, 'rename', { sessionId, title }, signal) } catch {}
     }
-    return { sessionId, created }
+    return replaced ? { sessionId, created, replaced } : { sessionId, created }
   })
 }
 

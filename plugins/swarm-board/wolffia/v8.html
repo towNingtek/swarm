@@ -943,7 +943,7 @@ var CHAT=[];
   var TR=document.getElementById("thinkRow"), TS=document.getElementById("thinkScope"), thinking=false;
   if(/^\/board\//.test(location.pathname||"")) TR.style.display="flex";
   function bytes(s){ return unescape(encodeURIComponent(s)).length; }
-  function thinkBody(q,all){ var c=context(), b={project:all?"*":String(PJ.num),question:q,selection:c.selection,context:c}, s=JSON.stringify(b);
+  function thinkBody(q,all){ var c=context(), b={project:all?"*":String(PJ.key!==undefined&&PJ.key!==null?PJ.key:PJ.num),question:q,selection:c.selection,context:c}, s=JSON.stringify(b);
     if(bytes(s)>60000){ c.recently_closed=undefined; s=JSON.stringify(b); }   // 伺服器上限 64KB：太大就先丟最近關閉的、再砍 issue 清單
     while(bytes(s)>60000&&c.issues.length){ c.issues=c.issues.slice(0,Math.floor(c.issues.length/2)); c.issues_cut=true; s=JSON.stringify(b); }
     return s; }
@@ -956,7 +956,7 @@ var CHAT=[];
     var x=new XMLHttpRequest(); x.open("POST","api/think"); x.setRequestHeader("Content-Type","application/json");
     x.onload=function(){ thinking=false; var r={}; try{ r=JSON.parse(x.responseText); }catch(e){}
       if(x.status!==200||!r.sessionId){ wait.innerHTML='<span style="color:#ff9b8f">'+esc(r.message||r.error||("HTTP "+x.status))+'</span>'; return; }
-      wait.innerHTML='<span class="dim">正在分析…（'+(all?'全部 project':esc(PJ.title))+'的'+(r.created?'新':'')+'對話）</span>';
+      wait.innerHTML='<span class="dim">正在分析…（'+(all?'全部 project':esc(PJ.title))+'的'+(r.created?'新':'')+'對話）'+(r.replaced?'<br>原本的分析對話已封存，這次開了新的對話。':'')+'</span>';
       M.scrollTop=M.scrollHeight; awaitReply(wait,r.sessionId,typeof r.after==="number"?r.after:-1,q,all,0); };
     x.onerror=function(){ thinking=false; wait.innerHTML='<span style="color:#ff9b8f">連不到伺服器</span>'; };
     x.send(thinkBody(q,all)); }
@@ -966,6 +966,7 @@ var CHAT=[];
     var x=new XMLHttpRequest();
     x.open("GET","api/think/reply?session="+encodeURIComponent(sid)+"&after="+after+"&q="+encodeURIComponent(q.split("\n")[0]));
     x.onload=function(){ var r={}; try{ r=JSON.parse(x.responseText); }catch(e){}
+      if(x.status===200&&r.done&&r.error==="blocked"){ el.innerHTML='<span style="color:#ff9b8f">'+esc(r.message||"DSH 沒有執行這個對話。")+'</span>'; return; }
       if(x.status===200&&r.done){ showAnswer(el,q,isnLink(r.text?mdRender(r.text):'<span class="dim">（沒有文字回覆）</span>')+
         '<br><a class="dim" href="/?swarm-session='+encodeURIComponent(sid)+'" target="_blank" rel="noopener">↗ 在站台對話接著聊（'+(all?'全部 project':esc(PJ.title))+'）</a>'); M.scrollTop=M.scrollHeight; return; }
       if(x.status!==200){ el.innerHTML='<span style="color:#ff9b8f">'+esc(r.message||r.error||("HTTP "+x.status))+'</span>'; return; }
