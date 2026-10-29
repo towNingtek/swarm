@@ -281,3 +281,17 @@ test('token only in GitLab request headers and the fetch env: never in responses
   assert.ok(s2.logs.length + s3.logs.length > 0)
   for (const text of [...bodies, ...logs, ...s2.logs, ...s3.logs]) assert.ok(!String(text).includes(TOKEN), text)
 })
+
+test('改狀態: a /-/work_items/<iid> URL (what gitlab.com now returns as web_url) is the same issue', async () => {
+  // Found on a real project: every issue's web_url was …/-/work_items/<iid>, and 改狀態 refused all of them.
+  const gl = fakeGitlab({ 'acme/general#7': { iid: 7, state: 'opened', labels: [] } })
+  const { route } = setup({ hooks: { fetch: gl.fetch } })
+  const r = await postStatus(route, { project: KEY, url: 'https://gitlab.com/acme/general/-/work_items/7', status: '進行中' })
+  assert.equal(r.status, 200, r.body)
+  assert.equal(gl.calls.find((c) => c.method === 'PUT').url, 'https://gitlab.com/api/v4/projects/acme%2Fgeneral/issues/7')
+  // Still only this project's issues, and still not merge requests.
+  for (const url of ['https://gitlab.com/acme/other/-/work_items/7', 'https://gitlab.com/acme/general/-/work_items/0',
+    'https://gitlab.com/acme/general/-/work_items/7/x']) {
+    assert.equal((await postStatus(route, { project: KEY, url, status: '完成' })).status, 400, url)
+  }
+})
