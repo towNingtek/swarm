@@ -12,6 +12,9 @@
 另外（多組織用）：
   FAKE_ORGLOG 每次 organization 查詢附加一行「org num」
   FAKE_MULTI  設了就把 project 標題改成「Fake <org>/<num>」，分得出是哪一個 project 的資料
+另外（欄位對應用）：
+  FAKE_ENGLISH 設了就用 GitHub 預設的 Status 選項（Backlog/Ready/In progress/In review/Done），
+               那張 issue 在 In review，歷史有一筆 In progress
 
   cd wolffia && python3 -m unittest tests.test_fetch
 """
@@ -38,14 +41,20 @@ arg = lambda k: next((a[len(k) + 1:] for a in sys.argv if a.startswith(k + "="))
 if os.environ.get("FAKE_ORGLOG") and "organization(login" in q:
     with open(os.environ["FAKE_ORGLOG"], "a") as f:
         f.write("%%s %%s\n" %% (arg("org"), arg("num")))
+EN = os.environ.get("FAKE_ENGLISH")
 if "options{name}" in q:
-    d = {"organization": {"projectV2": {"field": {"options": [{"name": "待辦"}, {"name": "完成"}]}}}}
+    names = ["Backlog", "Ready", "In progress", "In review", "Done"] if EN else ["待辦", "完成"]
+    d = {"organization": {"projectV2": {"field": {"options": [{"name": n} for n in names]}}}}
 elif "timelineItems" in q:
     if os.environ.get("FAKE_LOG"):
         with open(os.environ["FAKE_LOG"], "a") as f:
             f.write(next(a[2:] for a in sys.argv if a.startswith("n=")) + "\n")
     d = {"repository": {"issue": {"timelineItems": {"nodes": [
         {"__typename": "ClosedEvent", "createdAt": "2026-01-02T00:00:00Z"}]}}}}
+    if EN:
+        d["repository"]["issue"]["timelineItems"]["nodes"] = [
+            {"__typename": "ProjectV2ItemStatusChangedEvent", "createdAt": "2026-01-02T00:00:00Z", "status": "In progress",
+             "project": {"number": int(arg("num") or 0) or 1, "url": ""}}]
 else:
     d = {"organization": {"projectV2": {"title": "Fake", "url": "https://example.invalid/p", "items": {
         "pageInfo": {"hasNextPage": False, "endCursor": None},
@@ -64,6 +73,8 @@ else:
             x["content"].update(number=n, url="https://example.invalid/i/%%d" %% n, updatedAt=iu)
             x["fieldValueByName"]["updatedAt"] = su
             nodes.append(x)
+    if EN:
+        d["organization"]["projectV2"]["items"]["nodes"][0]["fieldValueByName"]["name"] = "In review"
     if os.environ.get("FAKE_MULTI"):
         d["organization"]["projectV2"]["title"] = "Fake %%s/%%s" %% (arg("org"), arg("num"))
 print(json.dumps({"data": d}))
@@ -398,3 +409,31 @@ class MultiOrgTests(GhCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ColumnMapTest(GhCase):
+    """projects.json "columns": a project with GitHub's default Status options lands in the board's rings."""
+
+    def fetch_en(self, conf):
+        pj = os.path.join(self.tmp.name, "projects.json")
+        with open(pj, "w", encoding="utf-8") as f:
+            json.dump(conf, f, ensure_ascii=False)
+        out = os.path.join(self.tmp.name, "data")
+        env = dict(os.environ, FAKE_GH="ok", FAKE_ENGLISH="1", WOLFFIA_ORG="acme", WOLFFIA_PROJECTS=pj,
+                   PATH=self.bin + os.pathsep + os.environ.get("PATH", ""))
+        r = subprocess.run([sys.executable, "-B", SCRIPT, "--one", "1", out], env=env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        t = open(os.path.join(out, "p1.js"), encoding="utf-8").read()
+        return json.loads(t.split("]=", 1)[1].rstrip(";\n"))
+
+    def test_mapped_columns_statuses_and_history(self):
+        d = self.fetch_en({"projects": [1], "columns": {"1": {"Backlog": "待辦", "Ready": "待辦", "In progress": "進行中 (7 天一輪)",
+                                                            "In review": "審核後請關閉", "Done": "完成"}}})
+        self.assertEqual(d["cols"], ["待辦", "進行中 (7 天一輪)", "審核後請關閉", "完成"])
+        self.assertEqual(d["items"][0]["status"], "審核後請關閉")
+        self.assertEqual(d["items"][0]["hist"], [["2026-01-02T00:00:00Z", "進行中 (7 天一輪)"]])
+
+    def test_without_columns_nothing_is_mapped(self):
+        d = self.fetch_en({"projects": [1]})
+        self.assertEqual(d["cols"], [])          # the board cannot draw it: the old behaviour, unchanged
+        self.assertEqual(d["items"][0]["status"], "In review")

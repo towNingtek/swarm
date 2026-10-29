@@ -37,7 +37,7 @@ import { homedir, hostname } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSuggestionStore, DAY, eventsSince, headSeq, replyIn, replyingThink, startDigest } from './digest.js'
-import { ActionError, createActions, dataFile, projectKey, runGh, setDefaultOrg, splitKey, TOWN } from './actions.js'
+import { ActionError, createActions, dataFile, projectKey, runGh, setDefaultOrg, splitKey, TOWN, columnMap } from './actions.js'
 import { createGitlabMover, defaultTokenFile, gitlabBase, isGitlabKey, labelsFor, readToken } from './gitlab.js'
 import { startFetcher as realStartFetcher } from './fetcher.js'
 import { boardWorkspace, createStore, readBoards, think, ThinkError } from './think.js'
@@ -507,6 +507,7 @@ export function apply(ctx, config = {}, hooks = {}) {
   const act = createActions({
     gh, by: config.siteName || (hooks.hostname ?? hostname)(), projects,
     ownerOf: ownerFor(dataDir, config.org),
+    columns: (key) => columnMap(readProjectsJson(projectsFile), key),
     gitlab: createGitlabMover({
       fetch: hooks.fetch ?? globalThis.fetch,
       base: () => gitlabUrl,
