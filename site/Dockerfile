@@ -1,19 +1,37 @@
 # Swarm 站台 image。在 repo 根目錄 build：
 #   docker build -f site/Dockerfile -t swarm-site:latest .
-# 由 npm 乾淨建構：DSH 本體版本由 DSH_VERSION 控制，外掛版本由 site/dsh-profile/package.json 控制。
+# 由 npm 乾淨建構：DSH 本體版本由 DSH_MAJOR／DSH_VERSION 控制，外掛版本由 site/dsh-profile/package.json（0.2 建法用 package.dsh02.json）控制。
 # repo 內的外掛（plugins/、site/dsh-profile/vendor/）直接複製進去。
 # 尚無鎖定依賴的 lockfile，不保證重建可重現；manifest 識別實際建出的內容。
 #
 # 重要：dsh web 為了防 RCE 暴露，刻意拒絕 --host 0.0.0.0（只能綁 127.0.0.1）。
 # 所以容器內用 node 做一層本地 relay：聆聽 RELAY_PORT(預設 3080) 並轉發到
 # 127.0.0.1:3081(dsh)。對外仍只暴露容器內 relay 埠，host 再 -p 127.0.0.1:{port} 接回。
-FROM node:22-bookworm-slim
+# DSH 系列由建構參數 DSH_MAJOR 決定（預設 0.1，正式站台用的就是這個）：
+#   DSH_MAJOR=0.1 → Node 22、DSH 0.1.7-rc.2、外掛版本照 site/dsh-profile/package.json
+#   DSH_MAJOR=0.2 → Node 24、DSH 0.2.1 系列、外掛版本照 site/dsh-profile/package.dsh02.json
+#                   （dsh-plugin-subscriptions 0.9.12 起需要 DSH 0.2）
+#   docker build -f site/Dockerfile --build-arg DSH_MAJOR=0.2 -t swarm-site:dsh02 .
+# 各系列也可再用 --build-arg DSH_VERSION=… 指定確切版本（要和 DSH_MAJOR 同系列）。
+# 以 stage 選建法：BuildKit 只建被選到的那個 stage。
+ARG DSH_MAJOR=0.1
 
+FROM node:22-bookworm-slim AS dsh-0.1
 # 0.1.5-rc.1 是壞的：它的 dsh-base 依賴 @deepseek-ai/dsh-sandbox-local@^0.1.5-rc.3，
 # 但 npm 未把該套件裝進 dsh 的 node_modules，啟動時 Cordis 解析不到而整棵 plugin tree
 # 失敗（實測 exit 1）。0.1.7-rc.2 自帶 dsh-sandbox-local，且與 profile 解析到的
 # dsh-plugin-subscriptions / cordis 4.0.4 一致。仍無 lockfile，重建不保證可重現。
 ARG DSH_VERSION=0.1.7-rc.2
+# dsh 本體（全域安裝，--profile web 找不到 bundles 時從這解析）
+RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION}
+COPY site/dsh-profile/package.json /opt/dsh-web-profile/package.json
+
+FROM node:24-bookworm-slim AS dsh-0.2
+ARG DSH_VERSION=0.2.1-rc.5
+RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION}
+COPY site/dsh-profile/package.dsh02.json /opt/dsh-web-profile/package.json
+
+FROM dsh-${DSH_MAJOR}
 
 # 標準套件（每個站台都有，不靠站台自訂 packages）：
 #   git — dsh 的 worktree/版本控制功能需要。
@@ -28,11 +46,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1001 dsh
 
-# dsh 本體（全域安裝，--profile web 找不到 bundles 時從這解析）
-RUN npm install -g @deepseek-ai/dsh@${DSH_VERSION}
-
-# 乾淨 web profile 骨架 + 安裝其依賴（subscriptions / web-auth 插件）
-COPY site/dsh-profile/package.json site/dsh-profile/cordis.yml site/dsh-profile/cordis.patch.yml /opt/dsh-web-profile/
+# 乾淨 web profile 骨架 + 安裝其依賴（subscriptions / web-auth 插件）；
+# package.json 已由上面選到的 dsh-* stage 放好。
+COPY site/dsh-profile/cordis.yml site/dsh-profile/cordis.patch.yml /opt/dsh-web-profile/
 WORKDIR /opt/dsh-web-profile
 # npm 會把 web-auth/subscriptions 的 peer（cordis、dsh-scope、dsh-system-prompt…）
 # 另裝一份到 profile。DSH 本體也有一份，兩份同時載入時 dsh-scope 的 Symbol 不同，
@@ -83,7 +99,9 @@ RUN git config --system user.name "${GIT_NAME}" \
 
 USER dsh
 # Seal last, after all dependency/vendor overlays and profile permission changes.
-RUN node --input-type=module -e 'import { writeProfileManifest } from "/usr/local/bin/profile-init.mjs"; writeProfileManifest("/opt/dsh-web-profile", process.argv[1])' "${DSH_VERSION}"
+# runtime 取實際裝進來的 DSH 版本（DSH_VERSION 只在選到的 dsh-* stage 內有效）。
+RUN node --input-type=module -e 'import { writeProfileManifest } from "/usr/local/bin/profile-init.mjs"; writeProfileManifest("/opt/dsh-web-profile", process.argv[1])' \
+    "$(node -p 'require(process.argv[1]).version' "$(npm root -g)/@deepseek-ai/dsh/package.json")"
 WORKDIR /home/dsh
 
 ENV RELAY_PORT=3080 \
