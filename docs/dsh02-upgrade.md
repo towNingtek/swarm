@@ -77,9 +77,16 @@ All commands run on the platform host. `SITE` is the site's name.
    - `docker logs --since 5m oc-$SITE 2>&1 | grep -c 'skipping profile bundle'` prints `0`
    - the login page answers 200
    - `shares.json` keeps format 1 and the same shares
-   - in a browser: the 「預覽版說明」 dialog closes; 「設定 → 訂閱」 is there with the same accounts; the board
-     and the strategy hub open; a share can be created, a guest in another browser joins, and (full-access
-     share) answers an AI question that the AI then uses
+   - in a browser: 「設定 → 訂閱」 is there with the same accounts; the board and the strategy hub open
+   - the share acceptance passes (needs a working model on the site; the platform host's Playwright):
+
+     ```bash
+     python3 site/tests/e2e/share_acceptance.py "$SITE.<domain>"   # RESULT 16/16, exit 0
+     ```
+
+     It goes through the real entry with the owner and a guest in two browser contexts, and checks the
+     preview dialog, read-only and full-access AI questions, who answered, and that an ended share refuses
+     the guest on the server. It leaves the site's full-access switch as it was.
 
 ## 退回 0.1.7（Go back）
 
@@ -99,4 +106,4 @@ image instead.
 
 | 站台 | 日期 | 結果 |
 |---|---|---|
-| 測試站台 | 2026-10-30 | DSH 0.2.1-rc.5；分享驗收 16/16（入口、兩個瀏覽器身分、唯讀與完全權限的提問卡片、結束分享）；`dsh-hub:latest` 未變 |
+| 測試站台 | 2026-10-30 | DSH 0.2.1-rc.5，從 `epic/50`（`4ec920a`，分享房 0.3.3 取自 npm）建置；`share_acceptance.py` 16/16；`dsh-hub:latest` 未變 |
