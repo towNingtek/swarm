@@ -87,13 +87,21 @@ class Dsh02ImageTests(unittest.TestCase):
         pinned = json.loads(PACKAGE_DSH02.read_text())["dependencies"][SUBSCRIPTIONS]
         self.assertGreaterEqual(version_tuple(pinned), (0, 9, 12))
 
+    # Plugins whose 0.2 build may be newer than the 0.1 one: the subscriptions plugin (0.9.12 needs
+    # DSH 0.2) and share-room (#47: 0.3.2 adds DSH 0.2 support; the 0.1 sites stay on 0.3.1 until they switch).
+    MAY_DIFFER = {SUBSCRIPTIONS: (0, 9, 12), "dsh-share-room": (0, 3, 2)}
+
     def test_package_files_differ_only_in_subscriptions(self):
         a = json.loads(PACKAGE.read_text())
         b = json.loads(PACKAGE_DSH02.read_text())
         self.assertEqual(a["dsh"], b["dsh"])
-        a_deps = {k: v for k, v in a["dependencies"].items() if k != SUBSCRIPTIONS}
-        b_deps = {k: v for k, v in b["dependencies"].items() if k != SUBSCRIPTIONS}
+        a_deps = {k: v for k, v in a["dependencies"].items() if k not in self.MAY_DIFFER}
+        b_deps = {k: v for k, v in b["dependencies"].items() if k not in self.MAY_DIFFER}
         self.assertEqual(a_deps, b_deps)
+        for name, least in self.MAY_DIFFER.items():
+            # The 0.2 build never goes backwards from the 0.1 build, and has at least the 0.2-ready version.
+            self.assertGreaterEqual(version_tuple(b["dependencies"][name]), version_tuple(a["dependencies"][name]), name)
+            self.assertGreaterEqual(version_tuple(b["dependencies"][name]), least, name)
         self.assertEqual(set(a["dependencies"]), set(b["dependencies"]))
         self.assertEqual({k: v for k, v in a.items() if k != "dependencies"},
                          {k: v for k, v in b.items() if k != "dependencies"})
