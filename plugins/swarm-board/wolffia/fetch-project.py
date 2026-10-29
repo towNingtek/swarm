@@ -19,7 +19,7 @@ plus data/index.js with the list (each row: num, owner, key = the projects.json 
 Before fetching, scheduler/gh_budget.py checks the GitHub API budget (#485): below 20% left the whole
 run is skipped (old data files stay, exit 0). If the budget cannot be read, fetch as usual.
 """
-import fcntl, hashlib, json, os, subprocess, sys, urllib.error, urllib.parse, urllib.request, datetime as D
+import fcntl, hashlib, json, os, subprocess, sys, time, urllib.error, urllib.parse, urllib.request, datetime as D
 ORG = (os.environ.get("WOLFFIA_ORG") or "").lower()  # owner of integer entries in projects.json
 HERE = os.path.dirname(os.path.abspath(__file__))
 Q = '''query($org:String!,$num:Int!,$after:String){organization(login:$org){projectV2(number:$num){title url
@@ -229,6 +229,24 @@ def fetch(num, cache_dir=None, owner=ORG, pkey=None):
 # --- GitLab (REST API v4) ---------------------------------------------------------------------------------------
 GL_PROGRESS, GL_REVIEW = "進行中", "審核後請關閉"  # default status label names
 GL_CLOSED_DAYS = 90  # closed issues updated within this many days stay on the board
+# GitLab.com Free allows 100 requests a minute per user (burst_traffic_per_user_free_plan); a cold cache needs
+# two event requests per issue. On 429 wait as told (Retry-After, else RateLimit-Reset, at most a minute) and retry.
+GL_RETRIES = 4
+GL_MAX_WAIT = 65
+_sleep = time.sleep  # tests replace it
+
+
+def gl_wait(headers, now=None):
+    """Seconds to wait after a 429, from Retry-After or RateLimit-Reset (epoch); capped, at least 1."""
+    now = time.time() if now is None else now
+    try:
+        w = float(headers.get("Retry-After") or "")
+    except ValueError:
+        try:
+            w = float(headers.get("RateLimit-Reset") or "") - now
+        except ValueError:
+            w = GL_MAX_WAIT
+    return max(1.0, min(float(GL_MAX_WAIT), w))
 
 
 def gitlab_labels(conf, key):
@@ -269,13 +287,20 @@ def gl_get(path, params=None):
         params["page"] = page
         url = "%s/api/v4%s?%s" % (base, path, urllib.parse.urlencode(params))
         req = urllib.request.Request(url, headers={"PRIVATE-TOKEN": token, "Accept": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=60) as r:
-                body, page = r.read(), (r.headers.get("X-Next-Page") or "").strip()
-        except urllib.error.HTTPError as e:
-            raise FetchError("GitLab %s answered HTTP %d" % (path, e.code))
-        except (urllib.error.URLError, OSError, ValueError) as e:
-            raise FetchError("cannot reach GitLab at %s: %s" % (base, getattr(e, "reason", e)))
+        for attempt in range(GL_RETRIES + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    body, page = r.read(), (r.headers.get("X-Next-Page") or "").strip()
+                break
+            except urllib.error.HTTPError as e:
+                if e.code == 429 and attempt < GL_RETRIES:
+                    w = gl_wait(e.headers or {})
+                    print("GitLab rate limit; waiting %ds" % w, file=sys.stderr)
+                    _sleep(w)
+                    continue
+                raise FetchError("GitLab %s answered HTTP %d" % (path, e.code))
+            except (urllib.error.URLError, OSError, ValueError) as e:
+                raise FetchError("cannot reach GitLab at %s: %s" % (base, getattr(e, "reason", e)))
         try:
             d = json.loads(body)
         except ValueError as e:

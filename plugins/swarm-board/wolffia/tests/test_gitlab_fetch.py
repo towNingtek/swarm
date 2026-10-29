@@ -28,6 +28,15 @@ def fixture(name):
 
 class FakeGitLab(http.server.BaseHTTPRequestHandler):
     log = []
+    throttle = 0  # answer this many event requests with 429 (GitLab.com Free: 100 requests a minute) before serving
+
+    def too_many(self):
+        data = b'{"message":"Retry later"}'
+        self.send_response(429)
+        self.send_header("Retry-After", "1")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def log_message(self, *a):
         pass
@@ -59,6 +68,9 @@ class FakeGitLab(http.server.BaseHTTPRequestHandler):
         parts = u.path.split("/")
         if len(parts) == 8 and parts[:6] == ["", "api", "v4", "projects", "42", "issues"]:
             kind = {"resource_label_events": "label-events.json", "resource_state_events": "state-events.json"}.get(parts[7])
+            if kind and FakeGitLab.throttle > 0:
+                FakeGitLab.throttle -= 1
+                return self.too_many()
             if kind:
                 return self.send(200, fixture(kind).get(parts[6], []) if page == "1" else [])
         self.send(404, {"message": "404 Not Found"})
@@ -81,6 +93,7 @@ class GitLabCase(unittest.TestCase):
         self.out = os.path.join(self.tmp.name, "out")
         os.makedirs(self.out)
         FakeGitLab.log = []
+        FakeGitLab.throttle = 0
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -227,3 +240,27 @@ class GitLabFetchTest(GitLabCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GitLabRateLimitTest(GitLabCase):
+    """GitLab.com Free allows 100 requests a minute; a first fetch of a real project needs two per issue (found on
+    a real project: HTTP 429 part way through, the whole fetch failed)."""
+
+    def test_429_is_waited_out_and_retried(self):
+        FakeGitLab.throttle = 2
+        self.assertEqual(self.run_fetch().returncode, 0, self.r.stderr)
+        self.assertIn("rate limit", self.r.stderr)
+        self.assertEqual(FakeGitLab.throttle, 0)
+        self.assertTrue(self.board()["items"])
+
+    def test_429_that_never_ends_fails_and_keeps_old_file(self):
+        self.assertEqual(self.run_fetch().returncode, 0, self.r.stderr)
+        path = os.path.join(self.out, BASE + ".js")
+        before = open(path, encoding="utf-8").read()
+        import shutil
+        shutil.rmtree(os.path.join(self.out, ".hist-cache"))  # a cold cache: event requests again
+        FakeGitLab.throttle = 1000
+        r = self.run_fetch()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("429", r.stderr)
+        self.assertEqual(open(path, encoding="utf-8").read(), before)
