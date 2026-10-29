@@ -89,7 +89,7 @@ class Dsh02ImageTests(unittest.TestCase):
 
     # Plugins whose 0.2 build may be newer than the 0.1 one: the subscriptions plugin (0.9.12 needs
     # DSH 0.2) and share-room (#47: 0.3.2 adds DSH 0.2 support; the 0.1 sites stay on 0.3.1 until they switch).
-    MAY_DIFFER = {SUBSCRIPTIONS: (0, 9, 12), "dsh-share-room": (0, 3, 2)}
+    MAY_DIFFER = {SUBSCRIPTIONS: (0, 9, 12), "dsh-share-room": (0, 3, 3)}
 
     def test_package_files_differ_only_in_subscriptions(self):
         a = json.loads(PACKAGE.read_text())
