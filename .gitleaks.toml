@@ -14,4 +14,6 @@ description = "Obvious test placeholders"
 regexes = [
   '''sk-(test|fake|example|abcd)[A-Za-z0-9_-]*''',
   '''github_pat_(test|fake|example)[A-Za-z0-9_]*''',
+  # GitLab test tokens in the board's tests (#42): only ones that say they are fake.
+  '''glpat-(E2E-)?SECRET-[A-Za-z0-9_-]*''',
 ]
