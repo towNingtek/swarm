@@ -105,12 +105,13 @@ export function createGitlabMover({ fetch = globalThis.fetch, base = () => DEFAU
     try { return JSON.parse(text) } catch { throw new Error('GitLab 的回應不是 JSON') }
   }
 
-  // Only an issue of this very project: <base>/<path>/-/issues/<iid>.
+  // Only an issue of this very project: <base>/<path>/-/issues/<iid>, or /-/work_items/<iid> (newer GitLab
+  // gives issues that web_url; found on gitlab.com: every issue of a real project came back as work_items).
   function iidOf(key, url) {
     const u = typeof url === 'string' ? url.trim() : ''
     const prefix = `${base()}/`.toLowerCase()
     if (!u.toLowerCase().startsWith(prefix)) throw new ActionError('不是這個 GitLab 專案的 issue 網址')
-    const m = /^(.+)\/-\/issues\/(\d{1,9})$/.exec(u.slice(prefix.length))
+    const m = /^(.+)\/-\/(?:issues|work_items)\/(\d{1,9})$/.exec(u.slice(prefix.length))
     if (!m || m[1].toLowerCase() !== gitlabPath(key) || !(Number(m[2]) > 0)) throw new ActionError('不是這個 GitLab 專案的 issue 網址')
     return Number(m[2])
   }
