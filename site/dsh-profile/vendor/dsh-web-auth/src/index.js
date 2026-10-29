@@ -385,6 +385,21 @@ export default class AuthenticatedWebServer extends Service {
     return this.boundPort
   }
 
+  // DSH 0.2 added these to the stock web server (dsh-host-webserver), and dsh-web-app reads them on
+  // every turn (getOrigin when no publicUrl is set). This server is plain HTTP behind the platform's
+  // proxy, so the protocol is always http:. Same contract as stock: the bound listener's own origin.
+  get protocol() {
+    return 'http:'
+  }
+
+  getOrigin() {
+    if (this.boundPort === undefined) throw new Error('webserver: origin read before the listener bound a port')
+    const host = this.config.host
+    if (host.includes('%')) throw new Error(`webserver: bind address ${JSON.stringify(host)} carries an interface zone id, which no URL can express`)
+    const bare = host === '0.0.0.0' || host === '' ? '127.0.0.1' : host === '::' ? '::1' : host
+    return `http://${bare.includes(':') ? `[${bare}]` : bare}:${this.boundPort}`
+  }
+
   register(route) {
     this.validateRoute(route)
     const key = `${route.kind}:${route.path}`

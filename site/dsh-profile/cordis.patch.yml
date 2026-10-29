@@ -63,5 +63,5 @@
   name: 'dsh-swarm-board'
   config:
     org: !!js process.env.SWARM_BOARD_ORG || undefined
-    projects: !!js (process.env.SWARM_BOARD_PROJECTS || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => (/^\d+$/.test(s) ? Number(s) : s)).filter((x) => x !== 0)
+    projects: !!js "(process.env.SWARM_BOARD_PROJECTS || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => (/^\\d+$/.test(s) ? Number(s) : s)).filter((x) => x !== 0)"
     thinkCwd: !!js process.env.SWARM_BOARD_THINK_CWD || undefined
