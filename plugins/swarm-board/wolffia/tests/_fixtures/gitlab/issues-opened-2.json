@@ -1,0 +1,50 @@
+[
+ {
+  "id": 1004,
+  "iid": 4,
+  "project_id": 42,
+  "title": "issue 4",
+  "state": "opened",
+  "created_at": "2026-10-04T00:00:00Z",
+  "updated_at": "2026-10-20T00:00:00Z",
+  "closed_at": null,
+  "labels": [
+   "bug"
+  ],
+  "assignees": [],
+  "due_date": null,
+  "web_url": "https://gitlab.example.invalid/acme/general/-/issues/4"
+ },
+ {
+  "id": 1006,
+  "iid": 6,
+  "project_id": 42,
+  "title": "issue 6",
+  "state": "opened",
+  "created_at": "2026-10-06T00:00:00Z",
+  "updated_at": "2026-10-20T00:00:00Z",
+  "closed_at": null,
+  "labels": [
+   "進行中"
+  ],
+  "assignees": [],
+  "due_date": null,
+  "web_url": "https://gitlab.example.invalid/acme/general/-/issues/6"
+ },
+ {
+  "id": 1007,
+  "iid": 7,
+  "project_id": 42,
+  "title": "issue 7",
+  "state": "opened",
+  "created_at": "2026-10-07T00:00:00Z",
+  "updated_at": "2026-10-20T00:00:00Z",
+  "closed_at": null,
+  "labels": [
+   "審核後請關閉"
+  ],
+  "assignees": [],
+  "due_date": null,
+  "web_url": "https://gitlab.example.invalid/acme/general/-/issues/7"
+ }
+]

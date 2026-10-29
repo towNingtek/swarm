@@ -2,8 +2,9 @@
 //
 //   /board/                   the board page (wolffia/v8.html, read once at start)
 //   /board/data/<file>.js     board data, read from dataDir on every request;
-//                             only index.js, p<number>.js (default org) and
-//                             p-<org>-<number>.js (another org's project), anything else 404
+//                             only index.js, p<number>.js (default org),
+//                             p-<org>-<number>.js (another org's project) and
+//                             g-<12 hex>.js (a GitLab project, lib/gitlab.js), anything else 404
 //   /board/_/launcher.js      the "🌌 協作星系" button script (also the ./client bundle)
 //   POST /board/api/think     「想」: question + board context into the site's DSH
 //                             session (lib/think.js); JSON body up to 64KB.
@@ -18,6 +19,8 @@
 //   POST /board/api/epic/go | api/epic/rego | api/epic/automerge | api/status
 //                             放行／重新放行／自動合併開關／拖曳改狀態 with the site's gh
 //                             (lib/actions.js); JSON body up to 4KB; 409 without a logged-in gh.
+//                             api/status for a "gitlab:<path>" project goes to GitLab instead (no gh
+//                             needed; 409 without a GitLab token).
 //   GET /board/api/projects/available | POST /board/api/projects/add {owner, number}
 //                             「＋ 加入 project」(lib/projects.js): the gh login's and its orgs' open
 //                             projects (cached 10 minutes; {"github":false} without gh), and adding one
@@ -35,6 +38,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSuggestionStore, DAY, eventsSince, headSeq, replyIn, replyingThink, startDigest } from './digest.js'
 import { ActionError, createActions, dataFile, projectKey, runGh, setDefaultOrg, splitKey, TOWN } from './actions.js'
+import { createGitlabMover, defaultTokenFile, gitlabBase, isGitlabKey, labelsFor, readToken } from './gitlab.js'
 import { startFetcher as realStartFetcher } from './fetcher.js'
 import { boardWorkspace, createStore, readBoards, think, ThinkError } from './think.js'
 import { createRunning, ghGraphql, ownersFromBoards } from './running.js'
@@ -46,7 +50,7 @@ export const name = 'dsh-swarm-board'
 export const inject = ['connection', 'webServer', 'typertGateway']
 
 const PREFIX = '/board'
-const DATA_FILE = /^(index|p\d{1,9}|p-[a-z0-9][a-z0-9-]{0,38}-\d{1,9})\.js$/
+const DATA_FILE = /^(index|p\d{1,9}|p-[a-z0-9][a-z0-9-]{0,38}-\d{1,9}|g-[0-9a-f]{12})\.js$/
 export const MAX_THINK_BODY = 64 * 1024
 export const MAX_ACTION_BODY = 4 * 1024
 const NO_GITHUB = '尚未連接 GitHub：請在站台的 AI 對話說「幫我連接 GitHub」'
@@ -128,25 +132,33 @@ async function thinkRoute(req, res, opts) {
   }
 }
 
-// 放行／重新放行／自動合併／改狀態: same request checks as 「想」, then the site's gh.
+// 放行／重新放行／自動合併／改狀態: same request checks as 「想」, then the site's gh
+// (改狀態 of a GitLab project: GitLab, with or without gh).
+const forGitlab = (kind, body) => kind === 'status' && body && typeof body === 'object' && isGitlabKey(projectKey(body.project))
+
 async function actionRoute(req, res, kind, opts) {
   const bad = thinkRequestError(req)
   if (bad) return sendJson(res, bad[0], { error: bad[2] })
-  if (!opts.act || !(await githubNow(opts.github))) return sendJson(res, 409, { error: NO_GITHUB })
+  if (!opts.act) return sendJson(res, 409, { error: NO_GITHUB })
+  const hasGitHub = await githubNow(opts.github)
+  if (!hasGitHub && kind !== 'status') return sendJson(res, 409, { error: NO_GITHUB })
   let body
   try {
     body = JSON.parse(await readBody(req, MAX_ACTION_BODY))
   } catch (error) {
+    if (!hasGitHub) return sendJson(res, 409, { error: NO_GITHUB })
     if (error instanceof ThinkError) return sendJson(res, error.status, { error: error.message })
     return sendJson(res, 400, { error: '內容不是 JSON。' })
   }
+  const gitlab = forGitlab(kind, body)
+  if (!hasGitHub && !gitlab) return sendJson(res, 409, { error: NO_GITHUB })
   let out
   try {
     out = await opts.act(kind, body)
   } catch (error) {
     if (error instanceof ActionError) return sendJson(res, error.status, { error: error.message })
     opts.logger?.warn?.('swarm-board: %s failed: %s', kind, error?.message ?? String(error))
-    return sendJson(res, 502, { error: `GitHub 更新失敗：${String(error?.message ?? error).slice(0, 200)}` })
+    return sendJson(res, 502, { error: `${gitlab ? 'GitLab' : 'GitHub'} 更新失敗：${String(error?.message ?? error).slice(0, 200)}` })
   }
   try { await opts.refetch?.(kind, body) } catch {}
   return sendJson(res, 200, out)
@@ -345,7 +357,7 @@ export function createHandler({ html, launcher, dataDir, gateway, store, suggest
 // so a site only ever asks about its own projects.
 function runningFor(github, dataDir, projects = [], query = undefined) {
   let current = null, key = ''
-  const orgs = projects.filter((k) => typeof k === 'string').map((k) => splitKey(k).owner)
+  const orgs = projects.filter((k) => typeof k === 'string' && !isGitlabKey(k)).map((k) => splitKey(k).owner)
   return async () => {
     if (!(await githubNow(github))) return { at: new Date().toISOString(), items: [] }
     const owners = [...new Set([...ownersFromBoards(await readBoards(dataDir)).map((o) => o.toLowerCase()), ...orgs])].sort()
@@ -402,7 +414,8 @@ function fetchOnceWith({ python, script, dataDir, env }) {
 export function apply(ctx, config = {}, hooks = {}) {
   const logger = ctx.logger?.('swarm-board') ?? console
   const dataDir = config.dataDir || defaultDataDir()
-  // config.projects: integers (default org) and "org/number" strings (another org); as keys, without duplicates.
+  // config.projects: integers (default org), "org/number" strings (another org) and "gitlab:<path>"
+  // (a GitLab project); as keys, without duplicates.
   // config.org: the default org (bare numbers in config.projects); fetch-project.py gets it as WOLFFIA_ORG.
   if (config.org) setDefaultOrg(config.org)
   const projects = [...new Set((Array.isArray(config.projects) ? config.projects : []).map(projectKey).filter((k) => k !== null))]
@@ -458,8 +471,20 @@ export function apply(ctx, config = {}, hooks = {}) {
   let fetcher = null, fetcherStarted = false
   const python = config.python || 'python3'
   const fetchScript = config.fetchScript || DEFAULT_FETCH_SCRIPT
+  // GitLab: config.gitlabUrl (default https://gitlab.com) and the token file, read on every use
+  // (config.gitlabTokenFile, default <workspace>/.swarm/keys/shared/gitlab.token). The token only goes
+  // into GitLab request headers (gitlab.js) and the fetch child's GITLAB_TOKEN; never into a response or log.
+  const gitlabUrl = gitlabBase(config.gitlabUrl)
+  const gitlabTokenFile = config.gitlabTokenFile || defaultTokenFile(config.workspace || process.env.HOME)
+  const gitlabToken = () => readToken(gitlabTokenFile)
+  const hasGitlab = () => projects.some(isGitlabKey)
+  const gitlabEnv = () => {
+    if (!hasGitlab()) return {}
+    const token = gitlabToken()
+    return { GITLAB_URL: gitlabUrl, ...(token ? { GITLAB_TOKEN: token } : {}) }
+  }
   // fetch-project.py looks for projects.json beside itself unless told; ours sits above dataDir.
-  const fetchEnv = async () => ({ WOLFFIA_PROJECTS: projectsFile, WOLFFIA_ORG: TOWN, ...(await envOrEmpty()) })
+  const fetchEnv = async () => ({ WOLFFIA_PROJECTS: projectsFile, WOLFFIA_ORG: TOWN, ...gitlabEnv(), ...(await envOrEmpty()) })
   function startFetching() {
     if (fetcher || !fetcherStarted || !projects.length || !(fetchEveryMs > 0)) return
     try { mkdirSync(dataDir, { recursive: true }) } catch {}
@@ -482,6 +507,12 @@ export function apply(ctx, config = {}, hooks = {}) {
   const act = createActions({
     gh, by: config.siteName || (hooks.hostname ?? hostname)(), projects,
     ownerOf: ownerFor(dataDir, config.org),
+    gitlab: createGitlabMover({
+      fetch: hooks.fetch ?? globalThis.fetch,
+      base: () => gitlabUrl,
+      token: gitlabToken,
+      labels: (key) => labelsFor(readProjectsJson(projectsFile), key),
+    }),
   })
   // Archived sessions: DSH runs none of their turns. Read live from the Host's workspace registry.
   const archived = (sessionId) => {
@@ -511,9 +542,10 @@ export function apply(ctx, config = {}, hooks = {}) {
   })
 
   // 抓看板資料: every fetchEveryMs (default 10 minutes; 0 = off) run fetch-project.py --one
-  // for each of config.projects into dataDir. Needs a logged-in gh; without it nothing runs
-  // and /board/data/status.json says {"github": false}. When gh is logged in later, the next
-  // check (a page load asks status.json; also every githubRecheckMs) starts the fetcher.
+  // for each of config.projects into dataDir. Needs a logged-in gh (or, with a GitLab project
+  // on the board, a GitLab token); without it nothing runs and /board/data/status.json says
+  // {"github": false}. When gh is logged in later, the next check (a page load asks
+  // status.json; also every githubRecheckMs) starts the fetcher.
   ensureProjectsJson(dataDir, projects, logger)
   ctx.effect(() => {
     let stopped = false, warned = false
@@ -528,10 +560,18 @@ export function apply(ctx, config = {}, hooks = {}) {
       fetcherStarted = true
       startFetching()
     }
+    // A GitLab token is enough for a board with GitLab projects (a file put there later counts too).
+    const gitlabNow = () => {
+      if (stopped || fetcherStarted || !hasGitlab() || !gitlabToken()) return
+      logger.info?.('swarm-board: GitLab token found; board fetcher started')
+      fetcherStarted = true
+      startFetching()
+    }
     github()
+    gitlabNow()
     // While gh is not logged in, look again now and then so the fetcher starts without a page visit.
     const recheckMs = config.githubRecheckMs ?? GITHUB_RECHECK_MS
-    const timer = recheckMs > 0 ? (hooks.setInterval ?? setInterval)(() => { if (!fetcherStarted) github() }, recheckMs) : null
+    const timer = recheckMs > 0 ? (hooks.setInterval ?? setInterval)(() => { if (!fetcherStarted) { github(); gitlabNow() } }, recheckMs) : null
     timer?.unref?.()
     return () => {
       stopped = true; fetcherStarted = false; fetcher?.stop(); fetcher = null
