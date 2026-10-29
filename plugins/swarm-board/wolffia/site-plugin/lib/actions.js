@@ -4,10 +4,12 @@
 //   POST /board/api/epic/automerge  {url, on}           加／移除 swarm:auto-merge
 //   POST /board/api/status          {project, url, status}  改 project 的 Status 欄；移到「完成」時一併關閉 issue
 //                                   project: 2 / "2"（default org 2）or "org/number"（e.g. "acme/1"）
+//                                   or "gitlab:<path>"：換 GitLab issue 的狀態 label，「完成」關閉、移回重新開啟（lib/gitlab.js）
 // Only open issues with the `epic` label for the epic actions; only config.projects for status.
 // Success: {ok:true, by, already?, auto_merge?, on?, state?} with by = the site's host name.
 // Errors: ActionError (400 etc.) or anything else (the caller answers 502).
 import { execFile } from 'node:child_process'
+import { gitlabDataFile, gitlabKey, isGitlabKey } from './gitlab.js'
 
 export const GO = 'swarm:go'
 export const AUTO = 'swarm:auto-merge'
@@ -19,11 +21,13 @@ export function setDefaultOrg(org) { if (typeof org === 'string' && /^[A-Za-z0-9
 const KEY = /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/(\d{1,9})$/
 
 // A config.projects entry (or api/status `project`) -> its key: the number for the default org
-// (2, "2", "<default org>/2"), "org/number" with the org lowercased for any other org; null otherwise.
+// (2, "2", "<default org>/2"), "org/number" with the org lowercased for any other org,
+// "gitlab:<path>" (lowercased) for a GitLab project; null otherwise.
 export function projectKey(x) {
   if (Number.isInteger(x)) return x > 0 && x < 1e9 ? x : null
   if (typeof x !== 'string') return null
   const s = x.trim()
+  if (/^gitlab:/i.test(s)) return gitlabKey(s)
   if (/^\d{1,9}$/.test(s)) return projectKey(Number(s))
   const m = KEY.exec(s)
   if (!m || !(Number(m[2]) > 0)) return null
@@ -32,13 +36,15 @@ export function projectKey(x) {
 }
 
 // key -> { owner, num }; owner is null for a bare number (the caller decides: board data, else the default org).
+// Not for "gitlab:<path>" keys (isGitlabKey): they have no GitHub owner.
 export function splitKey(key) {
   if (typeof key === 'string') { const [owner, num] = key.split('/'); return { owner, num: Number(num) } }
   return { owner: null, num: key }
 }
 
-// key -> data file name: p2.js, p-acme-1.js (same as fetch-project.py).
-export const dataFile = (key) => typeof key === 'string' ? `p-${key.replace('/', '-')}.js` : `p${key}.js`
+// key -> data file name: p2.js, p-acme-1.js, g-<sha1(path) 12 hex>.js (same as fetch-project.py).
+export const dataFile = (key) => isGitlabKey(key) ? gitlabDataFile(key)
+  : typeof key === 'string' ? `p-${key.replace('/', '-')}.js` : `p${key}.js`
 
 export class ActionError extends Error {
   constructor(message, status = 400) {
@@ -61,7 +67,8 @@ export function runGh(args, timeoutMs = 60_000, env = undefined) {
 // gh: async (args: string[]) => stdout. by: the site's host name (who did it, in comments and responses).
 // projects: allowed project keys (projectKey). ownerOf: async (num) => GitHub login owning default-org-style
 // project num (a bare number), or null. "org/number" keys always use their own org.
-export function createActions({ gh = runGh, by, projects = [], ownerOf = async () => null }) {
+// gitlab: async (key, url, status) => 'OPEN' | 'CLOSED' for "gitlab:<path>" keys (gitlab.js createGitlabMover).
+export function createActions({ gh = runGh, by, projects = [], ownerOf = async () => null, gitlab = null }) {
   async function gql(query, vars = {}) {
     const args = ['api', 'graphql', '-f', `query=${query}`]
     for (const [k, v] of Object.entries(vars)) args.push(Number.isInteger(v) ? '-F' : '-f', `${k}=${v}`)
@@ -153,6 +160,11 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     if (kind === 'status') {
       const key = projectKey(body.project)
       if (key === null || !projects.includes(key)) throw new ActionError('不允許的 project')
+      if (isGitlabKey(key)) {
+        if (!gitlab) throw new ActionError('這個站台沒有設定 GitLab', 409)
+        if (typeof body.status !== 'string' || !body.status) throw new ActionError('缺少 status')
+        return { ok: true, by, state: await gitlab(key, body.url, body.status) }
+      }
       const url = issueUrl(body)
       if (typeof body.status !== 'string' || !body.status) throw new ActionError('缺少 status')
       return { ok: true, by, state: await move(key, url, body.status) }

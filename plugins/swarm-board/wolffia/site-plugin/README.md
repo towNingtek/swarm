@@ -3,8 +3,8 @@
 The swarm board as a page of a DSH site. A plugin for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).
 
 - **`/board/`**: the board page (`wolffia/v8.html`, read once when DSH starts).
-- **`/board/data/<file>.js`**: board data, read from the data directory on every request. Only `index.js`, `p<number>.js` (a acme project) and `p-<org>-<number>.js` (another org's project) are served. Any other name, including `..`, gets 404.
-- **`POST /board/api/epic/go`** `{url, auto_merge?}`, **`api/epic/rego`** `{url}`, **`api/epic/automerge`** `{url, on}`, **`api/status`** `{project, url, status}`: release, re-release, auto-merge on/off, and move a card (lib/actions.js). These follow the same rules as Wolffia's host API, but use the site's `gh`. Comments say 「由 站台看板（<host name>）…」. Success returns `200 {ok:true, by, already?, auto_merge?, on?, state?}`, where `by` is the site's host name. Errors return `400/502 {error}`. Each route takes `application/json` only, rejects other sites' `Origin`, and caps the body at 4KB. `api/status` only takes projects listed in `projects`; `project` is the number (`2`, acme) or `"org/number"` (`"acme/1"`), and the Status field is changed in that project's own org. Without a logged-in `gh`, every route answers `409`. After a success, the plugin re-fetches that project's board data.
+- **`/board/data/<file>.js`**: board data, read from the data directory on every request. Only `index.js`, `p<number>.js` (a acme project), `p-<org>-<number>.js` (another org's project) and `g-<12 hex>.js` (a GitLab project) are served. Any other name, including `..`, gets 404.
+- **`POST /board/api/epic/go`** `{url, auto_merge?}`, **`api/epic/rego`** `{url}`, **`api/epic/automerge`** `{url, on}`, **`api/status`** `{project, url, status}`: release, re-release, auto-merge on/off, and move a card (lib/actions.js). These follow the same rules as Wolffia's host API, but use the site's `gh`. Comments say 「由 站台看板（<host name>）…」. Success returns `200 {ok:true, by, already?, auto_merge?, on?, state?}`, where `by` is the site's host name. Errors return `400/502 {error}`. Each route takes `application/json` only, rejects other sites' `Origin`, and caps the body at 4KB. `api/status` only takes projects listed in `projects`; `project` is the number (`2`, acme) or `"org/number"` (`"acme/1"`), and the Status field is changed in that project's own org. For a GitLab project (`"gitlab:<path>"`) see [GitLab projects](#gitlab-projects). Without a logged-in `gh`, every route answers `409` (except `api/status` for a GitLab project). After a success, the plugin re-fetches that project's board data.
 - **`GET /board/api/projects/available`**: the projects the board can add (「＋ 加入 project…」). The site's `gh` lists, by GraphQL (it has no `gh project` command), the projects of the logged-in user and of every org they belong to. Only open projects are listed, most cards first: `{github:true, projects:[{owner, number, title, items, added}]}`, where `items` is the card count and `added` means the project is already on the board. The list is cached for 10 minutes; `added` is always current. Without a logged-in `gh` the answer is `{github:false}`.
 - **`POST /board/api/projects/add`** `{owner, number}`: adds one of those projects. The plugin asks GitHub again and refuses (`400`) anything that is not an open project of the user or their orgs, whatever the page sent. It appends the project to `projects.json` (all other entries stay), fetches it once right away, and returns `200 {ok:true, key, already, fetched, title, index}`, where `index` is the new `data/index.js` (`window.PROJECT_INDEX`). Adding a project that is already there is not an error (`already:true`). The project then joins every later fetch round and `api/status`. Same request rules as the other `POST` routes (JSON only, same origin, 4KB, `409` without `gh`).
 - **📋 看板** button: fixed at the bottom right of the DSH Web client. It opens `/board/` in a new tab.
@@ -62,7 +62,30 @@ Projects added from the board (「＋ 加入 project…」) are written to `proj
 - an integer `N` is the default org's project N (as before): data file `p<N>.js`, board URL `/board/?p=N`;
 - a string `"org/N"` is project N of that org, e.g. `"acme/1"`: data file `p-acme-1.js`, board URL `/board/?p=acme/1`. `"acme/N"` is the same as `N`. Org names are compared case-insensitively.
 
+- a string `"gitlab:<path>"` is a GitLab project, e.g. `"gitlab:acme/general"` or `"gitlab:acme/sub/app"`: see below.
+
 Fetching, `api/status` and 運行中 (`/board/api/running`) each use the project's own org. `data/index.js` lists every project with `num`, `owner` and `key` (the entry above); `?p=` selects by `key`.
+
+### GitLab projects
+
+A `projects` entry (in the config or `projects.json`) of the form `"gitlab:<full path>"` puts a GitLab project's issues on the board (lib/gitlab.js).
+
+- **Key**: the path is case-insensitive and kept lowercase (`"gitlab:Acme/Sub/App"` → `"gitlab:acme/sub/app"`). It needs at least `namespace/project`; empty, `.` or `..` segments are refused.
+- **Data file**: `g-<first 12 hex of sha1(path)>.js` with `window.PROJECTS["gitlab:<path>"]`, written by `fetch-project.py`. The fetch child gets `GITLAB_URL` and `GITLAB_TOKEN`. With a GitLab project and a token the fetcher runs even without a logged-in `gh`.
+- **Columns**: closed → 完成; the progress label → 進行中; the review label → 審核後請關閉; any other open issue → 待辦. The label names default to `進行中` and `審核後請關閉`; set them per project in `projects.json` (compared case-insensitively):
+
+  ```json
+  { "projects": ["gitlab:acme/general"],
+    "gitlabLabels": { "gitlab:acme/general": { "progress": "In Progress", "review": "Review" } } }
+  ```
+
+- **`api/status`** `{project: "gitlab:<path>", url, status}`: `url` must be an issue of that very project (`<gitlabUrl>/<path>/-/issues/<iid>`). The plugin swaps the status labels; moving to 完成 closes the issue, moving out of 完成 reopens it. Answers `{ok, by, state: "OPEN"|"CLOSED"}`; `409` without a GitLab token (or when GitLab refuses it). No `gh` is needed.
+- **Token**: read from a file on every use, so a token put there after DSH started counts. It only goes into the `PRIVATE-TOKEN` header of requests to GitLab and the fetch child's environment; never into a response, a data file or the log.
+
+```yaml
+    gitlabUrl: https://gitlab.example.com   # default: https://gitlab.com
+    gitlabTokenFile: /srv/keys/gitlab.token # default: <workspace or $HOME>/.swarm/keys/shared/gitlab.token
+```
 
 ## Development
 
