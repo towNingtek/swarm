@@ -4,7 +4,7 @@
   "dependencies": {
     "@summersec/dsh-web-auth": "^0.2.0",
     "dsh-plugin-subscriptions": "0.9.12",
-    "dsh-share-room": "0.3.1"
+    "dsh-share-room": "0.3.2"
   },
   "dsh": {
     "profile": {
