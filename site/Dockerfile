@@ -90,6 +90,11 @@ ENV RELAY_PORT=3080 \
     DSH_TARGET_PORT=3081 \
     DSH_WEB_PROFILE_DIR=/opt/dsh-web-profile
 
+# Tools a site installs for itself live in the persistent workspace (HOME=/home/dsh/workspace), so they
+# survive image updates. Put that bin on PATH, after the image's own: the platform's classic scheduler runs
+# `opencode` from there (a site that has none is unaffected). Appended, so it never shadows image tools.
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/dsh/workspace/.local/bin
+
 EXPOSE 3080
 
 CMD node /usr/local/bin/dsh-relay.mjs
