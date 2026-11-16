@@ -114,6 +114,21 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     return { ok: true, by, already: false, on }
   }
 
+  // The project item for issue `issueId`, looked up from the project (100 items a page, up to 2000 items).
+  async function itemFromProject(projectId, issueId) {
+    let after = null
+    for (let page = 0; page < 20; page++) {
+      const d = await gql('query($id:ID!,$a:String){node(id:$id){... on ProjectV2{items(first:100,after:$a){' +
+        'pageInfo{hasNextPage endCursor} nodes{id content{... on Issue{id}}}}}}}', after ? { id: projectId, a: after } : { id: projectId })
+      const items = d?.node?.items
+      const hit = (items?.nodes ?? []).find((n) => n?.content?.id === issueId)
+      if (hit) return hit
+      if (!items?.pageInfo?.hasNextPage) return null
+      after = items.pageInfo.endCursor
+    }
+    return null
+  }
+
   async function move(key, url, status) {
     const { owner: own, num } = splitKey(key)
     const owner = own || (await ownerOf(num)) || url.split('/')[3]
@@ -134,7 +149,9 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     // Find the project item for this issue (an issue can be in several projects).
     const it = (await gql('query($u:URI!){resource(url:$u){... on Issue{id state projectItems(first:20){nodes{id project{id}}}}}}', { u: url }))?.resource
     if (!it?.id) throw new ActionError('找不到 issue')
-    const item = (it.projectItems?.nodes ?? []).find((n) => n?.project?.id === p.id)
+    // An issue in another owner's repo (e.g. org B's repo on org A's project) is usually missing from
+    // Issue.projectItems even though it is on the project. Fall back to the project side.
+    const item = (it.projectItems?.nodes ?? []).find((n) => n?.project?.id === p.id) ?? (await itemFromProject(p.id, it.id))
     if (!item) throw new ActionError('這張 issue 不在這個 project')
     await gql('mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,' +
       'value:{singleSelectOptionId:$o}}){projectV2Item{id}}}', { p: p.id, i: item.id, f: p.field.id, o: opt.id })

@@ -199,6 +199,64 @@ test('status errors: unknown column, issue not in project, project not configure
   assert.deepEqual(gh.calls, [])
 })
 
+// An issue in another owner's repo (org B) on this owner's project (org A): GitHub does not list the project
+// item under Issue.projectItems, but ProjectV2.items does. Fake that: the issue side is empty, the project side
+// has the item (on the second page, to cover paging).
+function crossOwnerGh() {
+  const calls = []
+  const gh = async (args) => {
+    calls.push(args)
+    const query = args.find((a) => a.startsWith('query=')).slice(6)
+    const arg = (k) => (args.find((a) => a.startsWith(k + '=')) ?? '').slice(k.length + 1)
+    if (query.includes('organization(login')) {
+      return JSON.stringify({ data: { organization: { projectV2: { id: 'P1', field: { id: 'F1', options: [
+        { id: 'O1', name: '待辦' }, { id: 'O2', name: '進行中' }, { id: 'O3', name: '完成' }] } } } } })
+    }
+    if (query.includes('resource(url')) {
+      return JSON.stringify({ data: { resource: { id: 'I1', state: 'OPEN', projectItems: { nodes: [] } } } })
+    }
+    if (query.includes('items(first')) {
+      const second = arg('a') === 'C1'
+      return JSON.stringify({ data: { node: { items: {
+        pageInfo: { hasNextPage: !second, endCursor: second ? null : 'C1' },
+        nodes: second ? [{ id: 'X1', content: { id: 'I1' } }] : [{ id: 'X0', content: { id: 'I9' } }] } } } })
+    }
+    return JSON.stringify({ data: {} })
+  }
+  gh.calls = calls
+  gh.queries = () => calls.filter((a) => a[0] === 'api').map((a) => a.find((x) => x.startsWith('query=')))
+  return gh
+}
+
+test('status works for an issue whose repo belongs to another owner (found from the project side)', async () => {
+  const gh = crossOwnerGh()
+  const { route } = setup({ gh })
+  const r = await post(route, '/board/api/status', { project: 3, url: EPIC, status: '進行中' })
+  assert.equal(r.status, 200, JSON.stringify(r.json))
+  const update = gh.calls.find((a) => a[0] === 'api' && a.some((x) => x.includes('updateProjectV2ItemFieldValue')))
+  assert.ok(update, 'the Status field was written')
+  assert.ok(update.includes('p=P1') && update.includes('i=X1') && update.includes('o=O2'), 'with the item found on page 2')
+})
+
+test('status still says 不在這個 project when neither side has the issue', async () => {
+  const gh = crossOwnerGh()
+  const inner = gh
+  const empty = async (args) => {
+    const q = args.find((a) => a.startsWith('query='))
+    if (q && q.includes('items(first')) {
+      inner.calls.push(args)
+      return JSON.stringify({ data: { node: { items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } } })
+    }
+    return inner(args)
+  }
+  empty.calls = inner.calls
+  const { route } = setup({ gh: empty })
+  const r = await post(route, '/board/api/status', { project: 3, url: EPIC, status: '進行中' })
+  assert.equal(r.status, 400)
+  assert.match(r.json.error, /不在這個 project/)
+  assert.ok(!inner.calls.some((a) => a.some((x) => x.includes('updateProjectV2ItemFieldValue'))), 'nothing was written')
+})
+
 test('without a logged-in gh every action is 409', async () => {
   const { route, gh } = setup({ github: false })
   for (const path of ['/board/api/epic/go', '/board/api/epic/rego', '/board/api/epic/automerge', '/board/api/status']) {
