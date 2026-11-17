@@ -73,7 +73,7 @@ All commands run on the platform host. `SITE` is the site's name.
    M=/srv/sites/.swarm-platform/migrate-site-profile.sh
    $M "$SITE" "swarm-site:dsh02-$SHA" --rehearse [KEY=VALUE…]   # must print REHEARSAL OK
    $M "$SITE" "swarm-site:dsh02-$SHA" [KEY=VALUE…]              # MIGRATION OK
-   sudo chown yillkid:yillkid /srv/sites/$SITE/site.yaml           # until #58 is fixed
+   sudo chown <owner>:<owner> /srv/sites/$SITE/site.yaml           # until #58 is fixed
    ```
 
    Pass the same `KEY=VALUE` site settings the site already has (for example `SWARM_BOARD_ORG=…`).
@@ -114,8 +114,8 @@ image instead.
 | 站台 | 日期 | 結果 |
 |---|---|---|
 | 測試站台 | 2026-10-30 | DSH 0.2.1-rc.5，從 `epic/50`（`4ec920a`，分享房 0.3.3 取自 npm）建置；`share_acceptance.py` 16/16；`dsh-hub:latest` 未變 |
-| liyu | 2026-11-17 12:25 | DSH 0.2.1-rc.5（`swarm-site:dsh02-82c1a85`，分享房 0.4.0、訂閱 0.9.12）；演練 OK、切換 OK；跳過外掛 0；分享資料不變（0 個）；登入頁回應正常 |
-| townway | 2026-11-17 12:27 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 10 個不變；訂閱帳號檔不變；看板設定 `SWARM_BOARD_ORG=town-intelligent`、`PROJECTS=3` 帶過去 |
-| chika | 2026-11-17 12:29 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 6 個不變；訂閱帳號檔不變 |
+| 站台 A | 2026-11-17 12:25 | DSH 0.2.1-rc.5（`swarm-site:dsh02-82c1a85`，分享房 0.4.0、訂閱 0.9.12）；演練 OK、切換 OK；跳過外掛 0；分享資料不變（0 個）；登入頁回應正常 |
+| 站台 B | 2026-11-17 12:27 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 10 個不變；訂閱帳號檔不變；看板設定 `SWARM_BOARD_ORG`、`SWARM_BOARD_PROJECTS` 帶過去 |
+| 站台 C | 2026-11-17 12:29 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 6 個不變；訂閱帳號檔不變 |
 | sandbox（重切） | 2026-11-17 12:01 | 換成和正式站台相同的 `dsh02-82c1a85`；`share_acceptance.py` 16/16 |
-| yillkid | 2026-11-17 12:31 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 15 個不變；訂閱帳號檔不變；看板設定（ORG、PROJECTS=2、THINK_CWD）帶過去 |
+| 站台 D | 2026-11-17 12:31 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 15 個不變；訂閱帳號檔不變；看板設定（ORG、PROJECTS=2、THINK_CWD）帶過去 |
