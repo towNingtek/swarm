@@ -11,6 +11,8 @@ PYTHON="$PYTHON" bash "$ROOT/site/run_tests.sh"
 DSH02="$(mktemp -d)"
 npm install --prefix "$DSH02" --no-save --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.5 >/dev/null
 DSH_PREFIX="$DSH02" node --test "$ROOT/site/tests/webauth_surface.test.mjs"
+# The plugins call DSH 0.2's gateway as the owner Peer (a call without one fails; the board Copilot got 502).
+DSH02_PREFIX="$DSH02" node --test "$ROOT/plugins/dsh02-load.test.mjs" "$ROOT/plugins/dsh02-peer.test.mjs"
 rm -rf "$DSH02"
 PYTHON="$PYTHON" bash "$ROOT/platform/run_tests.sh"
 bash "$ROOT/deploy/tests/test_swarm_run.sh"

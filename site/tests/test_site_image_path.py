@@ -2,7 +2,7 @@
 
 Tools a site installs for itself (opencode for the platform's classic scheduler, uv, cloudflared, ...) live
 in /home/dsh/workspace/.local/bin, the persistent workspace, so they survive image updates. Without it on
-PATH, `docker exec <site> opencode` answered "opencode: not found" and every classic run of the yillkid site
+PATH, `docker exec <site> opencode` answered "opencode: not found" and every classic run of a site
 failed from 2026-10-26 (56 runs in a row) although the binary was there.
 
   cd site && PYTHONPATH=.:tests python3 -B -m unittest test_site_image_path

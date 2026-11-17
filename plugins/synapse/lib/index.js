@@ -14,6 +14,7 @@
 // Everything sits behind the site login (dsh-web-auth); /synapse must not be a public prefix.
 // Public Host API only: webServer.register, typertGateway.invoke (same as dsh-swarm-board).
 // The Copilot only answers; it never writes HackMD, swarm or GitHub.
+import { withOwnerPeer } from './peer.js'
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -23,7 +24,8 @@ import { fileURLToPath } from 'node:url'
 import { startFetcher } from './fetcher.js'
 
 export const name = 'dsh-synapse'
-export const inject = ['webServer', 'typertGateway']
+// connection: DSH 0.2 exposes the owner Peer there (connection.browserPeer); same list as dsh-swarm-board.
+export const inject = ['connection', 'webServer', 'typertGateway']
 
 const PREFIX = '/synapse'
 const DATA_FILES = new Set(['hub.json', 'projects.json', 'hives.json'])
@@ -177,7 +179,8 @@ export function apply(ctx, config = {}) {
   let page = null
   try { page = readFileSync(pagePath, 'utf8') } catch (e) { logger.warn?.('synapse: page not found at %s', pagePath) }
   const launcher = readFileSync(LAUNCHER, 'utf8')
-  const gateway = ctx.typertGateway
+  // Every gateway call goes through the owner Peer on DSH 0.2 (see ./peer.js).
+  const gateway = withOwnerPeer(ctx.typertGateway, () => ctx.connection?.browserPeer)
   const canvasFile = config.canvasFile || defaultCanvasFile()
   // 資料抓取在站台內：HackMD（站台的 HackMD token）、GitHub（站台的 gh）、hives（站台的 swarm）。
   // Under `node --test` nothing starts unless the test asks for it.
