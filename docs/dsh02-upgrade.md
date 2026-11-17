@@ -11,9 +11,9 @@ first run on a test site (EPIC #50, sub-issues #45–#49). Follow it for each pr
 | Node, DSH | 22, `0.1.7-rc.2` | 24, `0.2.1-rc.5` |
 | Plugin versions | `site/dsh-profile/package.json` | `site/dsh-profile/package.dsh02.json` |
 | `dsh-plugin-subscriptions` | `0.9.11` | `0.9.12` |
-| `dsh-share-room` | `0.3.1` | `0.3.3` |
+| `dsh-share-room` | `0.4.0` | `0.4.0` |
 
-`site/tests/test_dsh02_image.py` keeps the two package files identical except for those two plugins, and
+`site/tests/test_dsh02_image.py` keeps the two package files identical except for those two plugins (the 0.2 build needs share-room 0.3.3 or later), and
 only forward.
 
 ### Incompatibilities found on the test site
