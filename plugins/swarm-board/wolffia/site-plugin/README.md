@@ -87,6 +87,18 @@ A `projects` entry (in the config or `projects.json`) of the form `"gitlab:<full
     gitlabTokenFile: /srv/keys/gitlab.token # default: <workspace or $HOME>/.swarm/keys/shared/gitlab.token
 ```
 
+### Projects with their own Status options
+
+The board has four columns: `待辦`, `進行中 (7 天一輪)`, `審核後請關閉`, `完成`. A GitHub project whose Status field uses other option names (GitHub's default `Backlog` / `Ready` / `In progress` / `In review` / `Done`, say) shows nothing until its options are mapped in `projects.json`:
+
+```json
+{ "projects": [2],
+  "columns": { "2": { "Backlog": "待辦", "Ready": "待辦", "In progress": "進行中 (7 天一輪)",
+                      "In review": "審核後請關閉", "Done": "完成" } } }
+```
+
+`fetch-project.py` shows each card, and its history, in the mapped column. `api/status` writes a board column back as the project's own option: the option with the board's name if there is one, else the first option mapped to it (so moving to 待辦 above sets `Backlog`). Option names match exactly; options that map to no board column are left off the board, as before.
+
 ## Development
 
 ```bash

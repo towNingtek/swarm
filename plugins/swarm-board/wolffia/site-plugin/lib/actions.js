@@ -14,6 +14,7 @@ import { gitlabDataFile, gitlabKey, isGitlabKey } from './gitlab.js'
 export const GO = 'swarm:go'
 export const AUTO = 'swarm:auto-merge'
 export const DONE = '完成'
+export const BOARD_COLUMNS = Object.freeze(['待辦', '進行中 (7 天一輪)', '審核後請關閉', DONE])
 export const ISSUE_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+$/
 // The default org: bare numbers in config.projects belong to it (env SWARM_BOARD_ORG; historical default kept).
 export let TOWN = (process.env.SWARM_BOARD_ORG || '').toLowerCase()
@@ -68,7 +69,8 @@ export function runGh(args, timeoutMs = 60_000, env = undefined) {
 // projects: allowed project keys (projectKey). ownerOf: async (num) => GitHub login owning default-org-style
 // project num (a bare number), or null. "org/number" keys always use their own org.
 // gitlab: async (key, url, status) => 'OPEN' | 'CLOSED' for "gitlab:<path>" keys (gitlab.js createGitlabMover).
-export function createActions({ gh = runGh, by, projects = [], ownerOf = async () => null, gitlab = null }) {
+// columns: (key) => {option: board column} from projects.json "columns" (columnMap); {} means the options are the board's own.
+export function createActions({ gh = runGh, by, projects = [], ownerOf = async () => null, gitlab = null, columns = () => ({}) }) {
   async function gql(query, vars = {}) {
     const args = ['api', 'graphql', '-f', `query=${query}`]
     for (const [k, v] of Object.entries(vars)) args.push(Number.isInteger(v) ? '-F' : '-f', `${k}=${v}`)
@@ -112,6 +114,21 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     return { ok: true, by, already: false, on }
   }
 
+  // The project item for issue `issueId`, looked up from the project (100 items a page, up to 2000 items).
+  async function itemFromProject(projectId, issueId) {
+    let after = null
+    for (let page = 0; page < 20; page++) {
+      const d = await gql('query($id:ID!,$a:String){node(id:$id){... on ProjectV2{items(first:100,after:$a){' +
+        'pageInfo{hasNextPage endCursor} nodes{id content{... on Issue{id}}}}}}}', after ? { id: projectId, a: after } : { id: projectId })
+      const items = d?.node?.items
+      const hit = (items?.nodes ?? []).find((n) => n?.content?.id === issueId)
+      if (hit) return hit
+      if (!items?.pageInfo?.hasNextPage) return null
+      after = items.pageInfo.endCursor
+    }
+    return null
+  }
+
   async function move(key, url, status) {
     const { owner: own, num } = splitKey(key)
     const owner = own || (await ownerOf(num)) || url.split('/')[3]
@@ -123,12 +140,18 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     } catch {}
     if (!p) p = (await gql(`query($o:String!,$n:Int!){user(login:$o){${field}}}`, { o: owner, n: num }))?.user?.projectV2
     if (!p) throw new ActionError(`找不到 project ${key}`)
-    const opt = (p.field?.options ?? []).find((o) => o.name === status)
+    // The board column -> this project's own option: the option itself, else the one mapped to it in
+    // projects.json "columns" (the first such option, in the project's own order).
+    const map = columns(key) ?? {}
+    const options = p.field?.options ?? []
+    const opt = options.find((o) => o.name === status) ?? options.find((o) => map[o.name] === status)
     if (!opt) throw new ActionError(`這個 project 沒有「${status}」欄`)
     // Find the project item for this issue (an issue can be in several projects).
     const it = (await gql('query($u:URI!){resource(url:$u){... on Issue{id state projectItems(first:20){nodes{id project{id}}}}}}', { u: url }))?.resource
     if (!it?.id) throw new ActionError('找不到 issue')
-    const item = (it.projectItems?.nodes ?? []).find((n) => n?.project?.id === p.id)
+    // An issue in another owner's repo (e.g. org B's repo on org A's project) is usually missing from
+    // Issue.projectItems even though it is on the project. Fall back to the project side.
+    const item = (it.projectItems?.nodes ?? []).find((n) => n?.project?.id === p.id) ?? (await itemFromProject(p.id, it.id))
     if (!item) throw new ActionError('這張 issue 不在這個 project')
     await gql('mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,' +
       'value:{singleSelectOptionId:$o}}){projectV2Item{id}}}', { p: p.id, i: item.id, f: p.field.id, o: opt.id })
@@ -171,4 +194,16 @@ export function createActions({ gh = runGh, by, projects = [], ownerOf = async (
     }
     throw new ActionError('不認得的動作', 404)
   }
+}
+
+// projects.json (already parsed, or null) -> {option: board column} for key ("columns", see fetch-project.py column_map).
+export function columnMap(conf, key) {
+  const all = conf?.columns
+  const out = {}
+  if (!all || typeof all !== 'object' || Array.isArray(all)) return out
+  for (const [k, v] of Object.entries(all)) {
+    if (projectKey(k) !== key || !v || typeof v !== 'object' || Array.isArray(v)) continue
+    for (const [opt, col] of Object.entries(v)) if (typeof col === 'string' && BOARD_COLUMNS.includes(col)) out[opt] = col
+  }
+  return out
 }
