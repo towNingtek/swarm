@@ -30,6 +30,7 @@
 // On start, the bundled `epic` skill (skills/epic) is installed into $DSH_HOME/skills/epic (lib/skill.js).
 //
 // Public Host API only: webServer.register, typertGateway.invoke. No DSH core patch.
+import { withOwnerPeer } from './peer.js'
 import { execFile } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -413,6 +414,8 @@ function fetchOnceWith({ python, script, dataDir, env }) {
 // hooks (tests only): { startFetcher, fetchOne, hasGitHub, ghLogin, relay, running, runningQuery, gh, hostname, installSkill, skillsDir }.
 export function apply(ctx, config = {}, hooks = {}) {
   const logger = ctx.logger?.('swarm-board') ?? console
+  // Every gateway call below goes through the owner Peer on DSH 0.2 (see ./peer.js).
+  const gateway = withOwnerPeer(ctx.typertGateway, () => ctx.connection?.browserPeer)
   const dataDir = config.dataDir || defaultDataDir()
   // config.projects: integers (default org), "org/number" strings (another org) and "gitlab:<path>"
   // (a GitLab project); as keys, without duplicates.
@@ -453,8 +456,8 @@ export function apply(ctx, config = {}, hooks = {}) {
   // 新的「分析」對話開在工作區：thinkCwd，否則 $HOME，否則 DSH 預設。
   const cwd = config.thinkCwd || defaultThinkCwd()
   // DSH Workspace（側欄分組）只在 thinkWorkspace 明確給目錄時才建。
-  const workspace = typeof config.thinkWorkspace !== 'string' || !config.thinkWorkspace || !ctx.typertGateway ? undefined
-    : boardWorkspace({ gateway: ctx.typertGateway, dir: config.thinkWorkspace,
+  const workspace = typeof config.thinkWorkspace !== 'string' || !config.thinkWorkspace || !gateway ? undefined
+    : boardWorkspace({ gateway: gateway, dir: config.thinkWorkspace,
                        title: config.thinkWorkspaceTitle || '🌌 協作星系分析', signal: lifetime.signal, logger })
 
   // 站台層級的 epic skill → $DSH_HOME/skills/epic（不存在或和外掛版本不同時才寫）。
@@ -526,7 +529,7 @@ export function apply(ctx, config = {}, hooks = {}) {
     html: readOnce(config.html || DEFAULT_HTML, logger),
     launcher: readOnce(LAUNCHER, logger),
     dataDir,
-    gateway: ctx.typertGateway,
+    gateway: gateway,
     store,
     suggestions,
     cwd,
@@ -584,12 +587,12 @@ export function apply(ctx, config = {}, hooks = {}) {
   // digestDelayMs (default a minute) so DSH finishes starting first. Each round first
   // asks gh (`gh auth status`); without a logged-in gh that round is skipped.
   const everyMs = config.digestEveryMs ?? DAY
-  if (ctx.typertGateway && everyMs > 0) {
+  if (gateway && everyMs > 0) {
     ctx.effect(() => {
       const digest = startDigest({
         think: replyingThink({
-          gateway: ctx.typertGateway, store, signal: lifetime.signal,
-          send: (q) => think({ ...q, gateway: ctx.typertGateway, store, cwd, workspace, archived, signal: lifetime.signal }),
+          gateway: gateway, store, signal: lifetime.signal,
+          send: (q) => think({ ...q, gateway: gateway, store, cwd, workspace, archived, signal: lifetime.signal }),
         }),
         readBoards: () => readBoards(dataDir),
         github,
