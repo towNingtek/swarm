@@ -130,9 +130,15 @@ const textOf = (content) => (Array.isArray(content)
   ? content.filter((p) => p && p.type === 'text' && typeof p.text === 'string').map((p) => p.text).join('\n') : '')
 const eventOf = (r) => (r?.type === 'event' && r.event ? r.event : r && typeof r.type === 'string' && Number.isInteger(r.seq) ? r : undefined)
 
-export async function headSeq(gateway, sessionId, signal) {
-  const v = await call(gateway, 'projections', { sessionId }, signal)
+// DSH 0.1.7: { asOfSeq }; 0.2: { kind: 'sequenced', asOfSeq } | { kind: 'migration-required' } | null.
+// Only an exact cut is a head; anything else is -1 (nothing to read yet).
+export function headOf(v) {
+  if (v?.kind !== undefined && v.kind !== 'sequenced') return -1
   return Number.isInteger(v?.asOfSeq) ? v.asOfSeq : -1
+}
+
+export async function headSeq(gateway, sessionId, signal) {
+  return headOf(await call(gateway, 'projections', { sessionId }, signal))
 }
 
 export async function eventsSince(gateway, sessionId, after, head, signal, maxPages = 10) {
@@ -275,7 +281,11 @@ export function apply(ctx, config = {}) {
       const marker = url.searchParams.get('marker') ?? ''
       if (!mine.has(sid) || !/^synapse-[0-9a-f-]{36}$/.test(marker)) return sendJson(res, 404, { error: '不是 synapse 開的對話。' })
       try {
-        const text = replyIn(await eventsSince(gateway, sid, Number.isInteger(after) ? after : -1, await headSeq(gateway, sid)), marker)
+        const from = Number.isInteger(after) ? after : -1
+        const head = await headSeq(gateway, sid)
+        // No exact head yet (or nothing new): still running; session/page needs a real throughSeq.
+        if (head < 0 || head <= from) return sendJson(res, 200, { done: false })
+        const text = replyIn(await eventsSince(gateway, sid, from, head), marker)
         return sendJson(res, 200, text === null ? { done: false } : { done: true, text })
       } catch (e) {
         return sendJson(res, 200, { done: true, error: '模型沒有完成：' + (e?.code ?? e?.message ?? e) })

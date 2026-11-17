@@ -192,9 +192,16 @@ const textOf = (content) => (Array.isArray(content)
   ? content.filter((p) => p && p.type === 'text' && typeof p.text === 'string').map((p) => p.text).join('\n')
   : '')
 
-export async function headSeq(gateway, sessionId, signal) {
-  const value = await sessionCall(gateway, 'projections', { sessionId }, signal)
+// DSH 0.1.7 answers { asOfSeq, ... }; 0.2 answers { kind: 'sequenced', asOfSeq, values },
+// { kind: 'migration-required', values } (a cold session: no event cut yet) or null (absent).
+// Only an exact cut is a head; anything else is -1 (nothing to read yet).
+export function headOf(value) {
+  if (value?.kind !== undefined && value.kind !== 'sequenced') return -1
   return Number.isInteger(value?.asOfSeq) ? value.asOfSeq : -1
+}
+
+export async function headSeq(gateway, sessionId, signal) {
+  return headOf(await sessionCall(gateway, 'projections', { sessionId }, signal))
 }
 
 // Events with seq > after, oldest first; at most `maxPages` pages back from `head`.

@@ -121,6 +121,24 @@ test('ask → reply round trip through one DSH session with the chosen model', a
   assert.equal(gw.calls.filter((c) => c.method === 'create').length, 1)
 })
 
+test('DSH 0.2 projections: sequenced head is read; no cut yet means still running', async () => {
+  const { h, gw } = setup()
+  const inner = gw.invoke.bind(gw)
+  let cold = false
+  gw.invoke = async (r) => {
+    if (r.method !== 'projections') return inner(r)
+    if (cold) { gw.calls.push({ method: 'projections' }); return { kind: 'migration-required', values: {} } }
+    return { kind: 'sequenced', values: {}, asOfSeq: (await inner(r)).asOfSeq }
+  }
+  const a = JSON.parse((await request(h, { method: 'POST', url: '/synapse/api/ask', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: '新版？' }) })).body)
+  const url = `/synapse/api/reply?session=${a.sessionId}&after=${a.after}&marker=${a.marker}`
+  assert.deepEqual(JSON.parse((await request(h, { url })).body), { done: true, text: 'EPIC 只能接到 Project。' })
+  cold = true
+  const pages = gw.calls.filter((c) => c.method === 'page').length
+  assert.deepEqual(JSON.parse((await request(h, { url })).body), { done: false })
+  assert.equal(gw.calls.filter((c) => c.method === 'page').length, pages) // no session/page without a real throughSeq
+})
+
 test('rejects a model the site does not have, and non-routable providers', async () => {
   const { h } = setup()
   for (const model of [{ provider: 'openai', model: 'nope' }, { provider: 'offline', model: 'x' }]) {

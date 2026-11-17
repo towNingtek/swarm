@@ -8,6 +8,7 @@ We plan to send these changes upstream. Once they are merged, Swarm will install
 
 | Change | Why |
 |---|---|
+| `protocol` and `getOrigin()` on the auth web server | DSH 0.2's `dsh-web-app` reads them on every turn; without them every turn ends in error ("getOrigin is not a function"). Same contract as stock `dsh-host-webserver` 0.2; this server is plain HTTP behind the platform proxy. Pinned by `site/tests/webauth_surface.test.mjs` |
 | `renderIndex()` on the auth web server | DSH `dsh-host-frontend-static` calls the stock web server's `renderIndex`; without it the GUI returns `bad_request` after login |
 | Tokenless native handoff (`/auth/handoff`, `/auth/native-session`) | After the password login, the browser gets DSH's own session cookie through a same-origin exchange; the DSH launch token never appears in a URL |
 | Single-use entry tickets (`entrySecret`, `/auth/enter`) | The platform lets a customer into their site without the customer knowing the site password. Tickets are HMAC-signed, expire in seconds and are burned on first use |

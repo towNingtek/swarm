@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as plugin from '../lib/index.js'
-import { createSuggestionStore, DAY, defaultSuggestionsFile, parseSuggestions, QUESTION, replyIn, replyingThink, startDigest } from '../lib/digest.js'
+import { createSuggestionStore, DAY, defaultSuggestionsFile, headOf, parseSuggestions, QUESTION, replyIn, replyingThink, startDigest } from '../lib/digest.js'
 
 const HOUR = 60 * 60 * 1000
 const T0 = Date.parse('2026-10-19T00:00:00Z')
@@ -248,6 +248,33 @@ test('replyingThink sends, then polls session/projections + session/page until t
   const pages = gateway.calls.filter(([, m]) => m === 'page')
   assert.deepEqual(pages[0][2].address, { kind: 'session', sessionId: 'g1' })
   assert.equal(typeof pages[0][2].throughSeq, 'number')
+})
+
+test('headOf: session/projections of DSH 0.1.7 and 0.2', () => {
+  assert.equal(headOf({ asOfSeq: 12, projections: {} }), 12) // 0.1.7
+  assert.equal(headOf({ kind: 'sequenced', asOfSeq: 12, values: {} }), 12) // 0.2
+  assert.equal(headOf({ kind: 'migration-required', values: {} }), -1) // 0.2, cold session: no cut yet
+  assert.equal(headOf(null), -1)
+  assert.equal(headOf(undefined), -1)
+})
+
+test('replyingThink works with DSH 0.2 sequenced projections (and a cold first read)', async () => {
+  const records = []
+  let reads = 0
+  const gateway = {
+    async invoke({ method, args }) {
+      if (method === 'projections') {
+        if (++reads === 1) return { kind: 'migration-required', values: {} }
+        return { kind: 'sequenced', asOfSeq: records.at(-1)?.event.seq ?? 0, values: {} }
+      }
+      if (method === 'page') return { records: records.filter((r) => r.event.seq <= args.request.throughSeq), hasMore: false }
+      throw new Error(method)
+    },
+  }
+  const store = { async get() { return null } }
+  const send = async (q) => { records.push(userMsg(1, `${q.question}\n---`), modelMsg(2, reply()), ev(3, 'turn/end', { reason: { kind: 'stop' } })); return { sessionId: 'g2', created: true } }
+  const r = await replyingThink({ gateway, store, send, pollMs: 1 })({ project: '*', question: QUESTION, context: {} })
+  assert.equal(r.text, reply())
 })
 
 // --- GET /board/api/suggestions ---
