@@ -118,3 +118,4 @@ image instead.
 | townway | 2026-11-17 12:27 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 10 個不變；訂閱帳號檔不變；看板設定 `SWARM_BOARD_ORG=town-intelligent`、`PROJECTS=3` 帶過去 |
 | chika | 2026-11-17 12:29 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 6 個不變；訂閱帳號檔不變 |
 | sandbox（重切） | 2026-11-17 12:01 | 換成和正式站台相同的 `dsh02-82c1a85`；`share_acceptance.py` 16/16 |
+| yillkid | 2026-11-17 12:31 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 15 個不變；訂閱帳號檔不變；看板設定（ORG、PROJECTS=2、THINK_CWD）帶過去 |
