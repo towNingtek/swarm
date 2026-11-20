@@ -449,6 +449,65 @@ setTimeout(() => {
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
         self.assertIn('ok', r.stdout)
 
+    def test_pause_button_and_paused_card(self):
+        """有暫停功能時：運作中的站台多一顆「暫停」（放最後）；暫停中的站台只剩「恢復站台」。"""
+        import shutil
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('node not available')
+        harness = r"""
+const assert = require('node:assert/strict');
+const nodes = {};
+function element(tag) { return {tag, value:'', textContent:'', children:[], hidden:false, dataset:{}, style:{},
+  className:'', classList:{add(){},remove(){},toggle(){}}, setAttribute(){}, focus(){},
+  addEventListener(k, fn) { this[k] = fn; }, replaceChildren() { this.children = []; },
+  append(...c) { this.children.push(...c); }}; }
+const ids = new Proxy({}, {get(_, id) { return nodes[id] || (nodes[id] = element('div')); }});
+global.document = {getElementById: (id) => ids[id], createElement: element, querySelectorAll: () => [],
+  documentElement: {dataset:{}}, body: {dataset:{}}, addEventListener(){}};
+global.localStorage = {getItem(){ return null; }, setItem(){}};
+global.matchMedia = () => ({matches:false, addEventListener(){}});
+global.addEventListener = () => {}; global.location = {hash:''};
+global.MutationObserver = class { observe(){} disconnect(){} };
+global.setInterval = () => 0;
+global.confirm = () => true;
+nodes['view-overview'] = element('div');
+const site = (id, host, extra) => Object.assign({id, host, site_job:'succeeded_provisioned', board:false,
+  usage_month:{tokens:0}, usage_history:[], policy:{mode:'unlimited'}, accounts:1}, extra);
+const data = {can_pause:true, month:'2026-11', totals:{sites:2,online:1,paused:1,attention:0,tokens_month:0},
+  attention:[], daily:[], recent_runs:[], generated_at: 0,
+  sites:[site('a','run.example.com',{online:true, paused:false}),
+         site('p','class.example.com',{online:null, paused:true})]};
+const posts = [];
+global.fetch = async (url, opts) => {
+  if (opts && opts.method === 'POST') { posts.push([url, JSON.parse(opts.body)]); return {ok:true, json: async () => ({})}; }
+  return {ok:true, json: async () => structuredClone(data)};
+};
+eval(SHELL_JS);
+setTimeout(async () => {
+  const cards = nodes['site-cards'].children;
+  const actions = (wrap) => wrap.children.find((c) => c.className === 'site-card-actions').children;
+  const running = actions(cards[0]);
+  const last = running[running.length - 1];
+  assert.equal(last.tag, 'button'); assert.ok(last.textContent.includes('暫停'));
+  assert.ok(running.some((a) => a.href === 'https://run.example.com/'), 'running site keeps its entry link');
+  const paused = actions(cards[1]);
+  assert.equal(paused.length, 1, 'a paused site only offers resume');
+  assert.ok(paused[0].textContent.includes('恢復'));
+  assert.equal(cards[1].children[0].children[1].textContent, '已暫停');
+  assert.ok(nodes['stat-online'].textContent.includes('1 個暫停'));
+  await paused[0].click();
+  assert.deepEqual(posts, [['/admin/tenants/p/resume', {expected_host:'class.example.com'}]]);
+  console.log('ok');
+}, 50);
+"""
+        import support_management_ui as m
+        import subprocess
+        r = subprocess.run([node, '-e', 'const SHELL_JS = ' + __import__('json').dumps(m.SHELL_JS) + ';\n' + harness],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertIn('ok', r.stdout)
+
 
 class ChatPanelScriptTests(unittest.TestCase):
     """Drive CHAT_JS against a fake DOM: overview, thread, reply, mode switch."""

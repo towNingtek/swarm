@@ -83,6 +83,8 @@ def overview(core, actor, *, now=None, probe=_probe, board_installed=_board_inst
                     {'month': r['month'], 'tokens': int(r['tokens'] or 0), 'calls': r['calls']})
                 if r['month'] == month:
                     usage[r['tenant_id']] = {'tokens': int(r['tokens'] or 0), 'calls': r['calls']}
+        from support_site_pause import paused_tenants
+        paused = paused_tenants(conn)
         policies = {r['tenant_id']: r for r in conn.execute(
             'SELECT tenant_id, mode, monthly_limit FROM support_quota_policies')}
         runs = ({r['tenant_id']: r for r in conn.execute(
@@ -126,7 +128,9 @@ def overview(core, actor, *, now=None, probe=_probe, board_installed=_board_inst
             if r['last'] == 'customer':
                 waiting[r['tenant_id']] = waiting.get(r['tenant_id'], 0) + 1
 
-    ports = {t['id']: (jobs[t['id']]['site_port'] if t['id'] in jobs else None) for t in tenants}
+    # A paused site is down on purpose: do not probe it or report it offline.
+    ports = {t['id']: (jobs[t['id']]['site_port'] if t['id'] in jobs and t['id'] not in paused else None)
+             for t in tenants}
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         alive = dict(zip(ports, pool.map(lambda p: probe(p) if p else None, ports.values())))
 
@@ -140,6 +144,8 @@ def overview(core, actor, *, now=None, probe=_probe, board_installed=_board_inst
             'id': tid, 'host': host, 'enabled': bool(t['enabled']),
             'site_job': job['status'] if job else None,
             'online': alive.get(tid),
+            'paused': tid in paused,
+            'paused_at': paused.get(tid),
             'board': bool(job and job['status'] == 'succeeded_provisioned' and board_installed(job['site_name'])),
             'synapse': bool(job and job['status'] == 'succeeded_provisioned' and board_installed(job['site_name'], SYNAPSE_PLUGIN)),
             'accounts': accounts.get(tid, 0),
@@ -183,6 +189,7 @@ def overview(core, actor, *, now=None, probe=_probe, board_installed=_board_inst
             'daily': daily, 'recent_runs': recent_runs,
             'totals': {'sites': len(sites),
                        'online': sum(1 for s in sites if s['online']),
+                       'paused': sum(1 for s in sites if s['paused']),
                        'tokens_month': sum(s['usage_month']['tokens'] for s in sites),
                        'attention': len(attention)}}
 

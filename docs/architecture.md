@@ -144,6 +144,8 @@ queued -> running -> succeeded_provisioned
 4. **Finish.** Best-effort extras: the starter model key, the office template in the workspace (`office-template/swarm` via `site/site_templates.py`), and default tasks. A failure here is logged; the site still works.
 5. **Record.** The job becomes `succeeded_provisioned` with site name, port and DNS record ID. Any failure moves it to `reconciliation_required`. Nothing is retried automatically, because external resources may be half-created.
 
+Pausing a site (`POST /admin/tenants/{id}/pause` / `resume` with `expected_host`, only when `ADMIN_SITE_PAUSE=1`; `platform/support_site_pause.py`) is for temporary sites such as classes: it stops or starts the container recorded in the site's job and nothing else. The container's `unless-stopped` policy keeps a paused site down across host reboots. The pause is recorded in `support_site_pause` before the stop (so a half-stopped site never raises a false offline alert) and cleared only after a successful start; the overview reports it as 已暫停 and the site scheduler skips paused sites.
+
 Deleting a tenant (`POST /admin/tenants/{id}/delete` with `expected_host`, only when `ADMIN_ALLOW_DELETE=1`; `platform/support_site_teardown.py`) disables the tenant first, removes the site only under the name recorded in its job, and deletes database rows only after the container, proxy and DNS record are gone.
 
 ## How models reach sites

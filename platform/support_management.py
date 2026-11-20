@@ -51,7 +51,7 @@ MAX_INVITE_TTL = 86400
 
 def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                        platform_host=None, teardown=None, templates=None, task_library=None,
-                       site_packages=None):
+                       site_packages=None, site_pause=None):
     """Extend an existing admin app; never manufacture administrator authority."""
     if rooms.core is not core or quota.core is not core:
         raise ValueError('management dependencies must share core')
@@ -140,6 +140,8 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
             elif operation == 'overview':
                 from support_admin_overview import overview
                 value = await run_in_threadpool(overview, core, actor)
+                # Lets the page offer pause/resume only when the route exists.
+                value['can_pause'] = site_pause is not None
             elif operation == 'templates':
                 from support_site_template import available
                 value = {'default': templates.default, 'templates': await run_in_threadpool(available)}
@@ -179,6 +181,13 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
                 body = await strict_body(request, {'packages': list})
                 value = await run_in_threadpool(site_packages.set, actor, tenant_id,
                                                 body['packages'])
+            elif operation in ('pause', 'resume'):
+                # Name the site being changed, so a stale page cannot pause
+                # a tenant it never displayed.
+                body = await strict_body(request, {'expected_host': str})
+                await run_in_threadpool(site_pause.check_host, actor, tenant_id,
+                                        body['expected_host'])
+                value = await run_in_threadpool(getattr(site_pause, operation), actor, tenant_id)
             elif operation == 'queue_site':
                 body = await strict_body(request, {'client_request_id': str})
                 result = await run_in_threadpool(site_jobs.queue, actor, tenant_id,
@@ -247,13 +256,18 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
             return _error(400)
         except Conflict as exc:
             from support_site_packages import SitePackagesBusy
-            return _error(429 if isinstance(exc, SitePackagesBusy) else 409)
+            from support_site_pause import SitePauseBusy
+            return _error(429 if isinstance(exc, (SitePackagesBusy, SitePauseBusy)) else 409)
         except Unauthorized:
             return _error(401)
         except SupportError:
             return _error(403)
         except Exception as exc:
             from support_site_teardown import TeardownError
+            if operation in ('pause', 'resume'):
+                # docker failed; never surface its message (container names).
+                return JSONResponse({'error': 'site_' + operation + '_failed'}, status_code=502,
+                                    headers=SENSITIVE_RESPONSE_HEADERS)
             if operation == 'packages_set':
                 # Build or self-test failed; the controller restored the old
                 # container. Never surface its message (paths, image ids).
@@ -338,6 +352,15 @@ def install_management(app, core, rooms, quota, *, enable_site_job_queue=False,
         @app.post('/admin/tenants/{tenant_id}/packages')
         async def set_packages(tenant_id: str, request: Request):
             return await dispatch(request, 'packages_set', tenant_id)
+
+    if site_pause is not None:
+        @app.post('/admin/tenants/{tenant_id}/pause')
+        async def pause_site(tenant_id: str, request: Request):
+            return await dispatch(request, 'pause', tenant_id)
+
+        @app.post('/admin/tenants/{tenant_id}/resume')
+        async def resume_site(tenant_id: str, request: Request):
+            return await dispatch(request, 'resume', tenant_id)
 
     if teardown is not None:
         @app.post('/admin/tenants/{tenant_id}/delete')

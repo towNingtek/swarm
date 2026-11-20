@@ -137,6 +137,9 @@ fieldset { border: 1px solid var(--line); border-radius: .5rem; }
 .act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .act.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
 .act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.act { cursor: pointer; font: inherit; font-weight: 600; font-size: .92rem; }
+button.act:disabled { opacity: .55; cursor: progress; }
+.pill.paused { background: var(--panel-2); color: var(--muted); }
 #tenant-list { display: none; }
 #bootstrap-host-row { display: inline-flex; align-items: baseline; gap: .25rem; }
 #bootstrap-domain, #bootstrap-preview { color: var(--muted); }
@@ -353,6 +356,30 @@ SHELL_JS = r"""'use strict';
     a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = text;
     return a;
   }
+  // 暫停／恢復：停掉或啟動站台容器，資料都保留。暫停中的站台只顯示這顆按鈕。
+  function pauseButton(site) {
+    const paused = site.paused === true;
+    const b = el('button', paused ? '▶ 恢復站台' : '⏸ 暫停', paused ? 'act primary' : 'act');
+    b.type = 'button';
+    b.title = paused ? '啟動這個站台（資料都還在）' : '停止這個站台，不再佔用資源；資料保留，可隨時恢復';
+    b.addEventListener('click', () => togglePause(site, b));
+    return b;
+  }
+  async function togglePause(site, button) {
+    const paused = site.paused === true;
+    if (!paused && !confirm('暫停 ' + site.host + '？\n\n站台會停止，使用者暫時無法進入，排程也不會執行。\n資料都會保留，之後可以隨時恢復。')) return;
+    button.disabled = true;
+    button.textContent = paused ? '啟動中…' : '暫停中…';
+    try {
+      const r = await fetch('/admin/tenants/' + encodeURIComponent(site.id) + (paused ? '/resume' : '/pause'), {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+        headers: {'Content-Type': 'application/json'}, body: JSON.stringify({expected_host: site.host})});
+      if (!r.ok) throw new Error(String(r.status));
+    } catch (_) {
+      alert((paused ? '恢復' : '暫停') + ' ' + site.host + ' 沒有完成，請重新整理確認狀態。');
+    }
+    await load();
+  }
   function actButton(href, text, title, primary) {
     const a = siteLink(href, text);
     a.className = primary ? 'act primary' : 'act'; a.title = title;
@@ -390,6 +417,7 @@ SHELL_JS = r"""'use strict';
     if (wanted) showTab(wanted);
   }
   function pill(site) {
+    if (site.paused === true) return el('span', '已暫停', 'pill paused');
     if (site.online === true) return el('span', '在線', 'pill ok');
     if (site.online === false) return el('span', '沒有回應', 'pill bad');
     return el('span', JOB[site.site_job] || '尚未建站', 'pill warn');
@@ -398,7 +426,7 @@ SHELL_JS = r"""'use strict';
     if (!data) return;
     const t = data.totals;
     byId('stat-sites').textContent = fmt(t.sites);
-    byId('stat-online').textContent = t.online + ' 個在線';
+    byId('stat-online').textContent = t.online + ' 個在線' + (t.paused ? '・' + t.paused + ' 個暫停' : '');
     byId('stat-tokens').textContent = fmt(t.tokens_month);
     byId('stat-attention').textContent = fmt(t.attention);
     byId('overview-sub').textContent = '各站台目前狀況與需要你處理的事（' + data.month + '）';
@@ -440,10 +468,14 @@ SHELL_JS = r"""'use strict';
       if (HOST_RE.test(host) && s.site_job === 'succeeded_provisioned') {
         // 卡片底部的動作按鈕：看板（主要）＋進入站台；都開新分頁。沒裝看板就只有進入站台。
         const links = el('div', null, 'site-card-actions');
-        if (s.board === true) links.append(actButton('https://' + host + '/board/', '🌌 協作星系', '開這個站台的協作星系（新分頁）', true));
-        if (s.synapse === true) links.append(actButton('https://' + host + '/synapse/', '🧠 策略中樞', '開這個站台的策略中樞（新分頁）', false));
-        links.append(actButton('https://' + host + '/', '進入站台 ↗', '開這個站台的 AI 對話（新分頁）', s.board !== true));
-        wrap.append(links);
+        // 暫停中的站台進不去，只留「恢復站台」。
+        if (s.paused !== true) {
+          if (s.board === true) links.append(actButton('https://' + host + '/board/', '🌌 協作星系', '開這個站台的協作星系（新分頁）', true));
+          if (s.synapse === true) links.append(actButton('https://' + host + '/synapse/', '🧠 策略中樞', '開這個站台的策略中樞（新分頁）', false));
+          links.append(actButton('https://' + host + '/', '進入站台 ↗', '開這個站台的 AI 對話（新分頁）', s.board !== true));
+        }
+        if (data.can_pause === true) links.append(pauseButton(s));
+        if (links.children.length) wrap.append(links);
       }
       cards.append(wrap);
     }

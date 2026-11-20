@@ -121,6 +121,8 @@ Session: the `platform_admin_session` cookie (`Path=/admin`). Without it, every 
 | POST | `/admin/tenants/{id}/site-jobs` | `client_request_id` | Queue the site build. Records intent; the platform service builds it |
 | GET | `/admin/tenants/{id}/packages` | | Extra Debian packages of a provisioned site. Only when `ADMIN_SITE_PACKAGES=1` |
 | POST | `/admin/tenants/{id}/packages` | `packages` (list of Debian package names, at most 40) | Build a derived image with these packages and recreate the container (old one kept until the new one passes the self-test). An empty list returns to the shared image. 429 while another change runs, 502 `package_change_failed` if the build or self-test failed (the old container is back). Only when `ADMIN_SITE_PACKAGES=1` |
+| POST | `/admin/tenants/{id}/pause` | `expected_host` | Stop a provisioned site's container; data, settings and accounts are kept. The overview then shows `paused: true` (no offline alert, no probe) and the site scheduler skips it. 429 while another pause/resume runs, 502 `site_pause_failed` if docker failed. Only when `ADMIN_SITE_PAUSE=1` |
+| POST | `/admin/tenants/{id}/resume` | `expected_host` | Start a paused site's container again; the pause is cleared only after the start succeeded (502 `site_resume_failed` otherwise). Only when `ADMIN_SITE_PAUSE=1` |
 | POST | `/admin/tenants/{id}/delete` | `expected_host` | Delete the tenant and its site. Only when `ADMIN_ALLOW_DELETE=1`. 409 `teardown_incomplete` if external resources remain |
 
 ### Task library
