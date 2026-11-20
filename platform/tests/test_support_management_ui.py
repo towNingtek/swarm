@@ -450,7 +450,7 @@ setTimeout(() => {
         self.assertIn('ok', r.stdout)
 
     def test_pause_button_and_paused_card(self):
-        """有暫停功能時：運作中的站台多一顆「暫停」（放最後）；暫停中的站台只剩「恢復站台」。"""
+        """有暫停功能時：運作中的站台在動作列下方多一行「暫停站台」；暫停中的站台只剩「恢復站台」。"""
         import shutil
         node = shutil.which('node')
         if not node:
@@ -488,9 +488,12 @@ setTimeout(async () => {
   const cards = nodes['site-cards'].children;
   const actions = (wrap) => wrap.children.find((c) => c.className === 'site-card-actions').children;
   const running = actions(cards[0]);
-  const last = running[running.length - 1];
-  assert.equal(last.tag, 'button'); assert.ok(last.textContent.includes('暫停'));
+  assert.ok(running.every((a) => a.tag !== 'button'), 'pause stays out of the link row');
   assert.ok(running.some((a) => a.href === 'https://run.example.com/'), 'running site keeps its entry link');
+  const extra = cards[0].children.find((c) => c.className === 'site-card-extra');
+  assert.ok(extra, 'running site has a pause row under the links');
+  assert.equal(extra.children[0].className, 'pause-link'); assert.ok(extra.children[0].textContent.includes('暫停'));
+  assert.ok(!cards[1].children.some((c) => c.className === 'site-card-extra'), 'paused site has no pause row');
   const paused = actions(cards[1]);
   assert.equal(paused.length, 1, 'a paused site only offers resume');
   assert.ok(paused[0].textContent.includes('恢復'));

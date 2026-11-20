@@ -138,6 +138,11 @@ fieldset { border: 1px solid var(--line); border-radius: .5rem; }
 .act.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
 .act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button.act { cursor: pointer; font: inherit; font-weight: 600; font-size: .92rem; }
+.site-card-extra { display: flex; justify-content: flex-end; padding: .1rem 1.1rem .7rem; background: var(--panel-2); }
+.pause-link { border: 0; background: none; padding: .2rem .3rem; font: inherit; font-size: .85rem; color: var(--muted); cursor: pointer; }
+.pause-link:hover { color: var(--accent); }
+.pause-link:disabled { opacity: .55; cursor: progress; }
+.pause-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button.act:disabled { opacity: .55; cursor: progress; }
 .pill.paused { background: var(--panel-2); color: var(--muted); }
 #tenant-list { display: none; }
@@ -359,7 +364,8 @@ SHELL_JS = r"""'use strict';
   // 暫停／恢復：停掉或啟動站台容器，資料都保留。暫停中的站台只顯示這顆按鈕。
   function pauseButton(site) {
     const paused = site.paused === true;
-    const b = el('button', paused ? '▶ 恢復站台' : '⏸ 暫停', paused ? 'act primary' : 'act');
+    // 恢復是暫停中站台唯一的主要動作；暫停是次要動作，用小字放在動作列下方，不擠到原本的按鈕。
+    const b = el('button', paused ? '▶ 恢復站台' : '⏸ 暫停站台', paused ? 'act primary' : 'pause-link');
     b.type = 'button';
     b.title = paused ? '啟動這個站台（資料都還在）' : '停止這個站台，不再佔用資源；資料保留，可隨時恢復';
     b.addEventListener('click', () => togglePause(site, b));
@@ -474,8 +480,11 @@ SHELL_JS = r"""'use strict';
           if (s.synapse === true) links.append(actButton('https://' + host + '/synapse/', '🧠 策略中樞', '開這個站台的策略中樞（新分頁）', false));
           links.append(actButton('https://' + host + '/', '進入站台 ↗', '開這個站台的 AI 對話（新分頁）', s.board !== true));
         }
-        if (data.can_pause === true) links.append(pauseButton(s));
+        if (s.paused === true && data.can_pause === true) links.append(pauseButton(s));
         if (links.children.length) wrap.append(links);
+        if (s.paused !== true && data.can_pause === true) {
+          const extra = el('div', null, 'site-card-extra'); extra.append(pauseButton(s)); wrap.append(extra);
+        }
       }
       cards.append(wrap);
     }
