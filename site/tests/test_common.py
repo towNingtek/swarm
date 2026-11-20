@@ -63,6 +63,20 @@ class StateTests(unittest.TestCase):
         self.assertIn("proxy_pass http://127.0.0.1:18001;", conf)
         self.assertNotIn("$webhook_location", conf)
 
+    def test_site_conf_shows_paused_page_when_site_is_down(self):
+        with patch.object(common, "DOMAIN", "example.com"):
+            conf = common.render_site_conf("ab", 18001)
+        # Only nginx's own errors: the site's real 502s must reach API callers.
+        self.assertNotIn("proxy_intercept_errors on", conf)
+        self.assertIn("error_page 502 503 504 = @site_paused;", conf)
+        self.assertIn("location @site_paused {", conf)
+        self.assertIn("return 503 '", conf)
+        self.assertIn("站台暫停中", conf)
+        # The page is one single-quoted nginx string: no stray quote may end it early.
+        page = conf.split("return 503 '", 1)[1].split("';", 1)[0]
+        self.assertNotIn("'", page)
+        self.assertNotIn("$", page)  # nginx would expand it as a variable
+
 
 if __name__ == "__main__":
     unittest.main()
