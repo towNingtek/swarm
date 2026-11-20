@@ -182,10 +182,12 @@ class SiteScheduler:
             if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
                                 "AND name='support_site_jobs'").fetchone():
                 return {}
+            from support_site_pause import paused_tenants
+            paused = paused_tenants(conn)  # a paused site's container is stopped
             return {r['tenant_id']: r['site_host'] for r in conn.execute(
                 "SELECT j.tenant_id, j.site_host FROM support_site_jobs j JOIN tenants t "
                 "ON t.id=j.tenant_id WHERE j.status='succeeded_provisioned' AND t.enabled=1 "
-                "AND t.site_host=j.site_host")}
+                "AND t.site_host=j.site_host") if r['tenant_id'] not in paused}
 
     def _site_name(self, host):
         suffix = '.' + self.office.domain

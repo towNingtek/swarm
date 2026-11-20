@@ -235,6 +235,12 @@ def build():
 
     site_packages = SitePackages(core) if os.environ.get('ADMIN_SITE_PACKAGES') == '1' else None
 
+    # Pause/resume stops or starts a site's container (data is kept); off unless
+    # ADMIN_SITE_PAUSE=1.
+    from support_site_pause import SitePause
+
+    site_pause = SitePause(core) if os.environ.get('ADMIN_SITE_PAUSE') == '1' else None
+
     # Optional assistant for 「指示 AI」 in the operator's chat popup. Same
     # explicit gateway values as the platform service; missing ones stop start-up.
     model = None
@@ -251,7 +257,7 @@ def build():
                                 enable_site_job_queue=True, live=True,
                                 platform_host=urlsplit(platform_origin).hostname,
                                 site_domain=site_domain, teardown=teardown, model=model,
-                                site_packages=site_packages)
+                                site_packages=site_packages, site_pause=site_pause)
     # Optional plugins (PLATFORM_PLUGINS). ``admin_app`` is the console app that
     # serves /admin/tenants/... (routes added there sit behind the operator
     # login); ``app`` is the outer service. A failing plugin is logged and skipped.
