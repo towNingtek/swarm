@@ -7,14 +7,14 @@
 # 重要：dsh web 為了防 RCE 暴露，刻意拒絕 --host 0.0.0.0（只能綁 127.0.0.1）。
 # 所以容器內用 node 做一層本地 relay：聆聽 RELAY_PORT(預設 3080) 並轉發到
 # 127.0.0.1:3081(dsh)。對外仍只暴露容器內 relay 埠，host 再 -p 127.0.0.1:{port} 接回。
-# DSH 系列由建構參數 DSH_MAJOR 決定（預設 0.1，正式站台用的就是這個）：
-#   DSH_MAJOR=0.1 → Node 22、DSH 0.1.7-rc.2、外掛版本照 site/dsh-profile/package.json
+# DSH 系列由建構參數 DSH_MAJOR 決定（預設 0.2：2026-11-17 起所有站台都是 0.2，#63）：
 #   DSH_MAJOR=0.2 → Node 24、DSH 0.2.1 系列、外掛版本照 site/dsh-profile/package.dsh02.json
 #                   （dsh-plugin-subscriptions 0.9.12 起需要 DSH 0.2）
-#   docker build -f site/Dockerfile --build-arg DSH_MAJOR=0.2 -t swarm-site:dsh02 .
+#   DSH_MAJOR=0.1 → Node 22、DSH 0.1.7-rc.2、外掛版本照 site/dsh-profile/package.json（只為退回保留）
+#   docker build -f site/Dockerfile --build-arg DSH_MAJOR=0.1 -t swarm-site:dsh01 .
 # 各系列也可再用 --build-arg DSH_VERSION=… 指定確切版本（要和 DSH_MAJOR 同系列）。
 # 以 stage 選建法：BuildKit 只建被選到的那個 stage。
-ARG DSH_MAJOR=0.1
+ARG DSH_MAJOR=0.2
 
 FROM node:22-bookworm-slim AS dsh-0.1
 # 0.1.5-rc.1 是壞的：它的 dsh-base 依賴 @deepseek-ai/dsh-sandbox-local@^0.1.5-rc.3，
