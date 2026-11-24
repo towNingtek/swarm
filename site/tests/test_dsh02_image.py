@@ -1,9 +1,9 @@
 """The site image has two builds, chosen by the DSH_MAJOR build arg.
 
-The default (DSH_MAJOR=0.1) is what production sites run and must not move:
-Node 22, DSH 0.1.7-rc.2, plugin versions from dsh-profile/package.json.
-DSH_MAJOR=0.2 is the test-site build: Node 24, DSH 0.2.1, plugin versions from
+The default (DSH_MAJOR=0.2, since every site moved to it, #63) is what new sites get:
+Node 24, DSH 0.2.1, plugin versions from
 dsh-profile/package.dsh02.json (dsh-plugin-subscriptions 0.9.12+ needs DSH 0.2).
+DSH_MAJOR=0.1 is kept only to go back: Node 22, DSH 0.1.7-rc.2, dsh-profile/package.json.
 The two package files differ only in the subscriptions plugin.
 """
 import json
@@ -68,16 +68,18 @@ def build(dsh_major: str) -> dict:
 
 
 class Dsh02ImageTests(unittest.TestCase):
-    def test_default_build_is_unchanged(self):
+    def test_default_build_is_dsh02(self):
         default = build(parse_dockerfile(DOCKERFILE.read_text())[0]["DSH_MAJOR"])
-        self.assertEqual(default["node"], "22")
-        self.assertEqual(default["dsh"], "0.1.7-rc.2")
-        self.assertEqual(default["package"], PACKAGE)
-        self.assertEqual(json.loads(PACKAGE.read_text())["dependencies"][SUBSCRIPTIONS], "0.9.11")
+        self.assertEqual(default, build("0.2"))
+        self.assertEqual(default["node"], "24")
+        self.assertEqual(default["package"], PACKAGE_DSH02)
 
-    def test_default_dsh_major_is_0_1(self):
-        self.assertEqual(parse_dockerfile(DOCKERFILE.read_text())[0].get("DSH_MAJOR"), "0.1")
-        self.assertEqual(build("0.1")["dsh"], "0.1.7-rc.2")
+    def test_dsh01_build_kept_for_rollback(self):
+        old = build("0.1")
+        self.assertEqual(old["node"], "22")
+        self.assertEqual(old["dsh"], "0.1.7-rc.2")
+        self.assertEqual(old["package"], PACKAGE)
+        self.assertEqual(json.loads(PACKAGE.read_text())["dependencies"][SUBSCRIPTIONS], "0.9.11")
 
     def test_dsh02_build(self):
         dsh02 = build("0.2")

@@ -5,9 +5,9 @@ first run on a test site (EPIC #50, sub-issues #45–#49). Follow it for each pr
 
 ## What is different on 0.2
 
-| | 0.1.7 build (default) | 0.2 build |
+| | 0.1.7 build (rollback only) | 0.2 build (default) |
 |---|---|---|
-| Build argument | `DSH_MAJOR=0.1` (or none) | `DSH_MAJOR=0.2` |
+| Build argument | `DSH_MAJOR=0.1` | `DSH_MAJOR=0.2` (default since #63) |
 | Node, DSH | 22, `0.1.7-rc.2` | 24, `0.2.1-rc.5` |
 | Plugin versions | `site/dsh-profile/package.json` | `site/dsh-profile/package.dsh02.json` |
 | `dsh-plugin-subscriptions` | `0.9.11` | `0.9.12` |
@@ -120,3 +120,14 @@ image instead.
 | sandbox（重切） | 2026-11-17 12:01 | 換成和正式站台相同的 `dsh02-82c1a85`；`share_acceptance.py` 16/16 |
 | 站台 D | 2026-11-17 12:31 | 同上映像；演練 OK、切換 OK；跳過外掛 0；分享 15 個不變；訂閱帳號檔不變；看板設定（ORG、PROJECTS=2、THINK_CWD）帶過去 |
 | 站台 A～D（重切） | 2026-11-17 12:48–13:59 | 換成 `swarm-site:dsh02-c4ab081`（含 #60：看板、策略中樞呼叫 DSH 0.2 gateway 時帶站主 Peer，修好 Copilot 502）；四站演練 OK、切換 OK；跳過外掛 0；分享與訂閱帳號檔不變；看板設定帶過去。人工驗收（看板改狀態、Copilot、策略中樞、「設定 → 訂閱」）通過，#49 關閉 |
+
+## `dsh-hub:latest` → 0.2（#63）
+
+After a week with every site on 0.2 (2026-11-17 → 11-24), the Dockerfile default became `DSH_MAJOR=0.2`, so the
+platform's `build-site-image.sh` builds 0.2 and retags `dsh-hub:latest`; new sites start on 0.2.
+
+To go back for new sites: `docker tag <previous id> dsh-hub:latest` (the id is in the build log, and below), or
+build with `--build-arg DSH_MAJOR=0.1`.
+
+| 日期 | `dsh-hub:latest` 之前 | 之後 |
+|---|---|---|
